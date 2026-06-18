@@ -1,0 +1,35 @@
+# syntax=docker/dockerfile:1
+#
+# Amazon Bedrock AgentCore Runtime 用コンテナ（Bun ランタイム）。
+#
+# - AgentCore Runtime は ARM64 を要求するため既定 platform は linux/arm64 に固定する。
+# - Bun のバージョンは mise.toml の [tools].bun と一致させる。Dockerfile は mise.toml を読めないため
+#   同じ値を pin し、バージョン変更時は mise.toml と本ファイルを同時に更新する。
+# - builder stage で packages/agentcore/index.ts を bundle し、runtime stage には build 済み artifact だけを入れる。
+ARG AGENTCORE_PLATFORM=linux/arm64
+FROM --platform=${AGENTCORE_PLATFORM} oven/bun:1.3.14 AS builder
+
+WORKDIR /app
+
+COPY package.json bun.lock tsconfig.json ./
+COPY packages ./packages
+
+RUN bun install --frozen-lockfile \
+  && bun run build:agentcore
+
+FROM --platform=${AGENTCORE_PLATFORM} oven/bun:1.3.14 AS runtime
+
+RUN apt-get update \
+  && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends --only-upgrade \
+    libssl3t64 \
+    openssl-provider-legacy \
+  && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+COPY --from=builder /app/dist/agentcore/agentcore.mjs ./agentcore.mjs
+
+ENV PORT=8080
+EXPOSE 8080
+
+CMD ["bun", "agentcore.mjs"]

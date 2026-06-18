@@ -1,0 +1,12 @@
+name_prefix = "wel-agents-chat-ui"
+
+# BFF origin for /api/*.
+# Set these from `terraform -chdir=terraform/aws/bff output chat_ui_origin`.
+api_origin_domain_name = "abc123.execute-api.ap-northeast-1.amazonaws.com"
+api_origin_path        = ""
+
+tags = {
+  Project   = "wel-agents-poc"
+  Purpose   = "chat-ui"
+  ManagedBy = "terraform"
+}

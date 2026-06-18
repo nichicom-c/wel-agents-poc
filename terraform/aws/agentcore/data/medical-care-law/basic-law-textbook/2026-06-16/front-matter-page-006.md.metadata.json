@@ -1,0 +1,16 @@
+{
+  "metadataAttributes": {
+    "corpus_id": "medical-care-law-basic-law-textbook",
+    "source_title": "保険診療 基本法令テキストブック",
+    "section": "front_matter",
+    "chapter": "",
+    "chapter_title": "表紙・はじめに・目次",
+    "source_file": "00_front_matter.pdf",
+    "source_page": "6",
+    "output_page": "6",
+    "ocr_engine": "tesseract",
+    "ocr_lang": "jpn+eng",
+    "generated_at": "2026-06-16T21:12:10.837Z",
+    "content_type": "toc"
+  }
+}

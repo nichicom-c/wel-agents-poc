@@ -1,0 +1,16 @@
+{
+  "metadataAttributes": {
+    "corpus_id": "medical-care-law-basic-law-textbook",
+    "source_title": "保険診療 基本法令テキストブック",
+    "section": "chapter",
+    "chapter": "6",
+    "chapter_title": "第6章 医療関係法規",
+    "source_file": "06_chapter-6_iryo-kankei-hoki.pdf",
+    "source_page": "19",
+    "output_page": "245",
+    "ocr_engine": "tesseract",
+    "ocr_lang": "jpn+eng",
+    "generated_at": "2026-06-16T21:12:10.837Z",
+    "content_type": "body"
+  }
+}

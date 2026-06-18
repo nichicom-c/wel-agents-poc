@@ -1,0 +1,14 @@
+{
+  "name": "@wel-agents-poc/agentcore",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "bun build index.ts --target=bun --external @aws-sdk/client-s3 --outfile=../../dist/agentcore/agentcore.mjs"
+  },
+  "dependencies": {
+    "@aws-sdk/client-bedrock-agent-runtime": "3.1068.0",
+    "@aws-sdk/client-bedrock-agentcore": "3.1068.0",
+    "@strands-agents/sdk": "1.5.0",
+    "zod": "4.4.3"
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "metadataAttributes": {
+    "corpus_id": "medical-care-law-basic-law-textbook",
+    "source_title": "保険診療 基本法令テキストブック",
+    "section": "chapter",
+    "chapter": "5",
+    "chapter_title": "第5章 診療報酬請求と審査制度",
+    "source_file": "05_chapter-5_shinryo-hoshu-seikyu-to-shinsa-seido.pdf",
+    "source_page": "22",
+    "output_page": "216",
+    "ocr_engine": "tesseract",
+    "ocr_lang": "jpn+eng",
+    "generated_at": "2026-06-16T21:12:10.837Z",
+    "content_type": "figure_or_form"
+  }
+}

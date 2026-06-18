@@ -1,0 +1,252 @@
+{
+  "generator": "wel-agents-poc/tools/law-rag/generate-child-abuse-prevention-law-corpus.ts",
+  "processor": "WEL Agents PoC",
+  "processing": "e-Gov 法令 API v2 (law_data, json_format=full) の JSON 階層構造を条単位の Markdown に整形（加工）",
+  "attribution": "デジタル庁 e-Gov 法令検索",
+  "disclaimer": "本データは e-Gov 法令データ（出典: デジタル庁 e-Gov 法令検索）を加工した内部参照用であり、法的助言ではない。",
+  "metadata_note": "metadata sidecar は law_id / law_revision_id / asof / section / article / article_num / source_url のみ（< 1024 bytes）。詳細出典・加工情報は本 manifest と各 Markdown 末尾の出典脚注に保持。",
+  "fetched_at": "2026-06-16T08:46:34.761Z",
+  "law": {
+    "law_id": "412AC1000000082",
+    "law_num": "平成十二年法律第八十二号",
+    "promulgation_date": "2000-05-24",
+    "law_title": "児童虐待の防止等に関する法律",
+    "law_title_kana": "じどうぎゃくたいのぼうしとうにかんするほうりつ",
+    "law_abbrev": "児童虐待防止法",
+    "category": "社会福祉"
+  },
+  "revision": {
+    "law_revision_id": "412AC1000000082_20240401_504AC0000000104",
+    "amendment_enforcement_date": "2024-04-01",
+    "current_revision_status": "PreviousEnforced"
+  },
+  "request": {
+    "occasion_date": "20250401",
+    "asof": "2025-04-01",
+    "source_url": "https://laws.e-gov.go.jp/law/412AC1000000082?occasion_date=20250401",
+    "api_url": "https://laws.e-gov.go.jp/api/2/law_data/412AC1000000082?asof=2025-04-01&response_format=json&law_full_text_format=json&json_format=full&omit_amendment_suppl_provision=true",
+    "response_format": "json",
+    "law_full_text_format": "json",
+    "json_format": "full",
+    "omit_amendment_suppl_provision": true
+  },
+  "counts": {
+    "article": 41,
+    "paragraph": 90,
+    "sentence": 111,
+    "supplProvision": 1
+  },
+  "expected_counts": {
+    "article": 41,
+    "paragraph": 90,
+    "sentence": 111,
+    "supplProvision": 1
+  },
+  "files": [
+    {
+      "file": "article-001.md",
+      "article": "第一条",
+      "section": "main"
+    },
+    {
+      "file": "article-002.md",
+      "article": "第二条",
+      "section": "main"
+    },
+    {
+      "file": "article-003.md",
+      "article": "第三条",
+      "section": "main"
+    },
+    {
+      "file": "article-004.md",
+      "article": "第四条",
+      "section": "main"
+    },
+    {
+      "file": "article-005.md",
+      "article": "第五条",
+      "section": "main"
+    },
+    {
+      "file": "article-006.md",
+      "article": "第六条",
+      "section": "main"
+    },
+    {
+      "file": "article-007.md",
+      "article": "第七条",
+      "section": "main"
+    },
+    {
+      "file": "article-008.md",
+      "article": "第八条",
+      "section": "main"
+    },
+    {
+      "file": "article-008-2.md",
+      "article": "第八条の二",
+      "section": "main"
+    },
+    {
+      "file": "article-009.md",
+      "article": "第九条",
+      "section": "main"
+    },
+    {
+      "file": "article-009-2.md",
+      "article": "第九条の二",
+      "section": "main"
+    },
+    {
+      "file": "article-009-3.md",
+      "article": "第九条の三",
+      "section": "main"
+    },
+    {
+      "file": "article-009-4.md",
+      "article": "第九条の四",
+      "section": "main"
+    },
+    {
+      "file": "article-009-5.md",
+      "article": "第九条の五",
+      "section": "main"
+    },
+    {
+      "file": "article-009-6.md",
+      "article": "第九条の六",
+      "section": "main"
+    },
+    {
+      "file": "article-009-7.md",
+      "article": "第九条の七",
+      "section": "main"
+    },
+    {
+      "file": "article-009-8.md",
+      "article": "第九条の八",
+      "section": "main"
+    },
+    {
+      "file": "article-009-9.md",
+      "article": "第九条の九",
+      "section": "main"
+    },
+    {
+      "file": "article-010.md",
+      "article": "第十条",
+      "section": "main"
+    },
+    {
+      "file": "article-010-2.md",
+      "article": "第十条の二",
+      "section": "main"
+    },
+    {
+      "file": "article-010-3.md",
+      "article": "第十条の三",
+      "section": "main"
+    },
+    {
+      "file": "article-010-4.md",
+      "article": "第十条の四",
+      "section": "main"
+    },
+    {
+      "file": "article-010-5.md",
+      "article": "第十条の五",
+      "section": "main"
+    },
+    {
+      "file": "article-010-6.md",
+      "article": "第十条の六",
+      "section": "main"
+    },
+    {
+      "file": "article-011.md",
+      "article": "第十一条",
+      "section": "main"
+    },
+    {
+      "file": "article-012.md",
+      "article": "第十二条",
+      "section": "main"
+    },
+    {
+      "file": "article-012-2.md",
+      "article": "第十二条の二",
+      "section": "main"
+    },
+    {
+      "file": "article-012-3.md",
+      "article": "第十二条の三",
+      "section": "main"
+    },
+    {
+      "file": "article-012-4.md",
+      "article": "第十二条の四",
+      "section": "main"
+    },
+    {
+      "file": "article-013.md",
+      "article": "第十三条",
+      "section": "main"
+    },
+    {
+      "file": "article-013-2.md",
+      "article": "第十三条の二",
+      "section": "main"
+    },
+    {
+      "file": "article-013-3.md",
+      "article": "第十三条の三",
+      "section": "main"
+    },
+    {
+      "file": "article-013-4.md",
+      "article": "第十三条の四",
+      "section": "main"
+    },
+    {
+      "file": "article-013-5.md",
+      "article": "第十三条の五",
+      "section": "main"
+    },
+    {
+      "file": "article-014.md",
+      "article": "第十四条",
+      "section": "main"
+    },
+    {
+      "file": "article-015.md",
+      "article": "第十五条",
+      "section": "main"
+    },
+    {
+      "file": "article-016.md",
+      "article": "第十六条",
+      "section": "main"
+    },
+    {
+      "file": "article-017.md",
+      "article": "第十七条",
+      "section": "main"
+    },
+    {
+      "file": "article-018.md",
+      "article": "第十八条",
+      "section": "main"
+    },
+    {
+      "file": "suppl-article-001.md",
+      "article": "第一条",
+      "section": "suppl"
+    },
+    {
+      "file": "suppl-article-002.md",
+      "article": "第二条",
+      "section": "suppl"
+    }
+  ]
+}

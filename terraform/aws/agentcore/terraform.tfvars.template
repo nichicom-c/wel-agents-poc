@@ -1,0 +1,44 @@
+# このファイルを terraform.tfvars に copy し、値を環境に合わせて調整する（model_id は region に応じた inference profile に置き換える）。
+# terraform.tfvars は git で無視される（実値・secret は commit しない）。
+
+# generation model_id の調べ方（例は東京リージョン ap-northeast-1）:
+#   1. 使う region で利用可能なモデル ID を一覧する（最も確実）
+#      aws bedrock list-foundation-models --region ap-northeast-1 --query "modelSummaries[].modelId" --output table
+#   2. 新しめのモデルは cross-region inference profile ID が必要なことが多い（例: jp.anthropic.claude-...）
+#      aws bedrock list-inference-profiles --region ap-northeast-1 --query "inferenceProfileSummaries[].inferenceProfileId" --output table
+# 前提: Bedrock → Model access で、generation / embedding 両方の model access を region ごとに有効化する。
+model_id = "jp.anthropic.claude-sonnet-4-6"
+
+# 任意: コンテナイメージを外部レジストリへ push 済みなら、その URI を直接指定できる。
+# 空（既定）なら本 module が作る ECR repository の <url>:<image_tag> を参照する。
+# agent_image_uri = ""
+# image_tag       = "latest"
+# [INFO] `mise run aws:apply[:agentcore]` は image_tag を image 入力（packages/agentcore /
+#        Dockerfile.agentcore / package.json / bun.lock / tsconfig.json）の内容ハッシュから
+#        自動算出し -var で上書きする（入力不変なら再デプロイ無し・変更時のみ新 runtime version）。
+#        手動 `terraform apply` 時のみ image_tag を明示する（update.md の通り一意なタグへ。
+#        latest は container_uri が不変＝再デプロイされない）。orchestration を使うなら
+#        image_tag は未設定のままで良い。
+
+# 任意: embedding model と次元数。embedding_dimensions は model 側と一致させる
+# (titan-embed-text-v2 は 256 / 512 / 1024)。Knowledge Base と S3 Vectors index で共有される。
+# embedding_model_id   = "amazon.titan-embed-text-v2:0"
+# embedding_dimensions = 1024
+
+# 任意: KB retrieval のチャンク数（runtime の KB_NUMBER_OF_RESULTS）。
+# kb_number_of_results = 5
+
+# 任意: Lake Formation の DATA_LOCATION_ACCESS と table SELECT / DESCRIBE 明示 grant を使う場合だけ true にする。
+# false のままなら Glue/S3/Redshift/Bedrock の IAM 経路を使い、Terraform 実行 principal に
+# Lake Formation data lake admin 権限を要求しない。
+# enable_lakeformation_data_grants = false
+
+# 任意: account 内で名前が衝突する場合は resource 名の prefix を変更する。
+# name_prefix = "wel-agents-rag"
+
+# 任意: AgentCore Memory の会話 event 保持日数 (7〜365)。
+# event_expiry_duration = 30
+
+# 任意: より厳格な IAM policy にするため、特定の generation model ARN へ絞り込める。
+# default の wildcard は PoC 向けで portable だが、production の baseline ではない。
+# bedrock_model_resource_arns = ["*"]

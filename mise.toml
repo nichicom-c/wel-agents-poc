@@ -1,0 +1,90 @@
+[tools]
+aws-cli = "2.34.63"
+bun = "1.3.14"
+jq = "1.8.1"
+terraform = "1.15.5"
+
+[tasks.bootstrap]
+alias = "bs"
+description = "プロジェクトの依存関係とセットアップを初期化する"
+run = "./tools/bootstrap.sh"
+
+[tasks.clean]
+description = "bootstrap を巻き戻す: node_modules と git hooks を削除 (bun.lock と mise tools は保持)"
+run = "./tools/clean.sh"
+
+# --- ローカル実行系エントリポイント ---
+# 各タスクは対象ランタイムのディレクトリ内で実行され、Bun / Vite がそのディレクトリの `.env` を読み込む (packages/*/.env.example を参照)。
+# パッケージ全体の build / test / check / typecheck ワークフローは package.json 側に残す。
+
+[tasks."dev:agentcore"]
+description = "AgentCore Runtime をソースから 0.0.0.0:${PORT:-8080} で起動 (/ping + /invocations)"
+dir = "{{ config_root }}/packages/agentcore"
+run = "bun index.ts"
+
+[tasks."dev:bff"]
+description = "ローカル BFF 開発サーバーをソースから 127.0.0.1:${BFF_PORT:-4174} で起動 (/ping + /api/chat)"
+dir = "{{ config_root }}/packages/bff"
+run = "bun dev-server.ts"
+
+[tasks."dev:ui"]
+description = "ローカル Chat UI を Vite で 127.0.0.1:${CHAT_UI_PORT:-4173} で起動"
+dir = "{{ config_root }}/packages/chat-ui"
+run = "bunx --bun vite --config vite.config.ts"
+
+[tasks."start:agentcore"]
+description = "ビルド済み AgentCore 成果物を実行 (先に build:agentcore を実行)"
+dir = "{{ config_root }}/packages/agentcore"
+run = "bun ../../dist/agentcore/agentcore.mjs"
+
+[tasks."start:bff"]
+description = "ビルド済みローカル BFF サーバーを実行 (先に build:bff を実行)"
+dir = "{{ config_root }}/packages/bff"
+run = "bun ../../dist/bff-dev-server/index.mjs"
+
+[tasks."start:ui"]
+description = "ビルド済み Chat UI を Vite でプレビュー (先に build:ui を実行)"
+dir = "{{ config_root }}/packages/chat-ui"
+run = "bunx --bun vite preview --config vite.config.ts"
+
+# --- terraform/aws の適用 ---
+[tasks."aws:apply"]
+description = "terraform/aws の全スタックを適用 (build, push, inject, 2パス; 完全自動)"
+run = "./tools/tf/apply-all.sh"
+
+[tasks."aws:apply:agentcore"]
+description = "agentcore のみ適用 (ECR -> イメージ build/push -> apply -> ingestion 開始)"
+run = "./tools/tf/apply-stack.sh agentcore"
+
+[tasks."aws:apply:auth"]
+description = "auth のみ適用 (chat-ui の site_url があればコールバックに注入)"
+run = "./tools/tf/apply-stack.sh auth"
+
+[tasks."aws:apply:bff"]
+description = "bff のみ適用 (build:bff + agentcore ARN と auth JWT 設定を注入)"
+run = "./tools/tf/apply-stack.sh bff"
+
+[tasks."aws:apply:chat-ui"]
+description = "chat-ui のみ適用 (VITE_AUTH_* 付きで build:ui + bff api origin を注入)"
+run = "./tools/tf/apply-stack.sh chat-ui"
+
+# --- terraform/aws の破棄 ---
+[tasks."aws:destroy"]
+description = "terraform/aws の全スタックを逆順で破棄 (完全自動, -auto-approve)"
+run = "./tools/tf/destroy-all.sh"
+
+[tasks."aws:destroy:agentcore"]
+description = "agentcore スタックのみ破棄 (-auto-approve)"
+run = "./tools/tf/destroy-stack.sh agentcore"
+
+[tasks."aws:destroy:auth"]
+description = "auth スタックのみ破棄 (-auto-approve)"
+run = "./tools/tf/destroy-stack.sh auth"
+
+[tasks."aws:destroy:bff"]
+description = "bff スタックのみ破棄 (-auto-approve)"
+run = "./tools/tf/destroy-stack.sh bff"
+
+[tasks."aws:destroy:chat-ui"]
+description = "chat-ui スタックのみ破棄 (-auto-approve)"
+run = "./tools/tf/destroy-stack.sh chat-ui"

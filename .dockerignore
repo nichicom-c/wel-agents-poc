@@ -1,0 +1,45 @@
+# AgentCore Runtime イメージに含めないもの（ビルドコンテキストから除外）。
+
+# 依存はコンテナ内で再インストールする。
+node_modules/
+.bun/
+dist/
+
+# シークレット・環境固有値（実行時は IAM role / env が供給する）。
+.env
+.env.*
+*.local
+**/settings.local.json
+.mcp.json
+.mcp.local.json
+
+# テスト・型・lint 設定（ランタイムに不要）。
+**/*.test.ts
+biome.json
+tsconfig.tsbuildinfo
+
+# Terraform（インフラ。アプリイメージに不要）。
+terraform/
+**/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+*.tfplan
+
+# ドキュメント・スクラッチ・VCS・エディタ。
+docs/
+tmp/
+.git/
+.github/
+.vscode/
+.idea/
+.agents/
+.claude/
+.cspell/
+*.md
+.gitignore
+lefthook.yml
+mise.toml
+mise.local.toml
+Dockerfile.agentcore
+.dockerignore

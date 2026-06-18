@@ -1,0 +1,16 @@
+{
+  "metadataAttributes": {
+    "corpus_id": "medical-care-law-basic-law-textbook",
+    "source_title": "保険診療 基本法令テキストブック",
+    "section": "reference",
+    "chapter": "",
+    "chapter_title": "参考 介護保険制度",
+    "source_file": "07_reference_kaigo-hoken-seido.pdf",
+    "source_page": "9",
+    "output_page": "259",
+    "ocr_engine": "tesseract",
+    "ocr_lang": "jpn+eng",
+    "generated_at": "2026-06-16T21:12:10.837Z",
+    "content_type": "body"
+  }
+}

@@ -1,0 +1,32 @@
+{
+  "name": "wel-agents-poc",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "packages/agentcore",
+    "packages/bff",
+    "packages/chat-ui"
+  ],
+  "scripts": {
+    "ci": "bun run check:fix && bun run typecheck && bun run test && bun run build",
+    "build": "bun run build:agentcore && bun run build:bff && bun run build:ui",
+    "build:agentcore": "bun run --filter='@wel-agents-poc/agentcore' build",
+    "build:bff": "bun run --filter='@wel-agents-poc/bff' build",
+    "build:ui": "bun run --filter='@wel-agents-poc/chat-ui' build",
+    "test": "bun test",
+    "check": "biome check",
+    "check:fix": "biome check --write",
+    "typecheck": "tsc --noEmit",
+    "law:generate:child-abuse-prevention": "bun run tools/law-rag/generate-child-abuse-prevention-law-corpus.ts",
+    "medical-care-law:generate:textbook": "bun run tools/medical-care-law-rag/generate-textbook-corpus.ts",
+    "structured-data:generate:support-activity": "bun run tools/structured-data/generate-support-activity-sample.ts",
+    "ncu": "bunx npm-check-updates --workspaces"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.5.0",
+    "@duckdb/node-api": "1.5.3-r.3",
+    "@types/bun": "1.3.14",
+    "lefthook": "2.1.9",
+    "typescript": "6.0.3"
+  }
+}

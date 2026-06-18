@@ -1,0 +1,25 @@
+name_prefix = "wel-agents-auth"
+
+# Hosted UI domain prefix。AWS 全体で一意である必要がある。未設定なら "<name_prefix>-<account_id>" を使う。
+# domain_prefix = "wel-agents-auth-123456789012"
+
+# OAuth callback / sign-out URLs。Cognito は https が原則。
+# local test では http://localhost / http://127.0.0.1 / http://[::1] も使える。
+# local dev の chat-ui と、デプロイ後の CloudFront URL を含める。
+callback_urls = [
+  "http://localhost:4173/",
+  # "https://xxxxxxxxxx.cloudfront.net/",
+]
+logout_urls = [
+  "http://localhost:4173/",
+  # "https://xxxxxxxxxx.cloudfront.net/",
+]
+
+# OAuth scopes（chat-ui の VITE_AUTH_SCOPE と一致させる）。
+allowed_oauth_scopes = ["openid", "email", "profile"]
+
+tags = {
+  Project   = "wel-agents-poc"
+  Purpose   = "auth"
+  ManagedBy = "terraform"
+}

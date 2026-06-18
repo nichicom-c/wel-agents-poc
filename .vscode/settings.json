@@ -1,0 +1,38 @@
+{
+  "cSpell.customDictionaries": {
+    "app-words": {
+      "name": "app-words",
+      "path": "${workspaceRoot}/.cspell/app-words.txt",
+      "description": "Words specific to this application",
+      "addWords": true,
+      "scope": "workspace"
+    }
+  },
+  "cSpell.ignorePaths": [
+    "node_modules",
+    "package-lock.json",
+    "package.json",
+    "bun.lockb",
+    "*.lock",
+    ".vscode",
+    "dist",
+    "build"
+  ],
+  "search.exclude": {
+    "**/node_modules": true
+  },
+  "explorer.fileNesting.enabled": true,
+  "explorer.fileNesting.expand": false,
+  "explorer.fileNesting.patterns": {
+    ".env": ".env*",
+    "Dockerfile.agentcore": ".dockerignore ",
+    "*.ts": "$(capture).test.ts, $(capture).spec.ts",
+    "*.tsx": "$(capture).test.tsx, $(capture).spec.tsx",
+    "package.json": "package-lock.json, bun.lockb, bun.lock, bun.lockb, .npmrc",
+    "CLAUDE.md": "AGENTS.md, .mcp.json",
+    "README.md": "cleanup.md, update.md",
+    "main.tf": "terraform.tf, providers.tf, locals.tf, data.tf, variables.tf, outputs.tf",
+    "terraform.tfvars": "terraform.tfvars.*",
+    "terraform.tfstate": "terraform.tfstate.*"
+  }
+}

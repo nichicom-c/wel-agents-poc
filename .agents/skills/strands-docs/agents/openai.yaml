@@ -1,0 +1,12 @@
+interface:
+  display_name: "Strands Docs"
+  short_description: "Research Strands docs with Claude Code MCP"
+  default_prompt: "Use $strands-docs to verify the Strands Agents TypeScript SDK pattern for this task."
+dependencies:
+  tools:
+    - type: "mcp"
+      value: "claude-code"
+      description: "Claude Code MCP server used to access approved project Strands docs tooling"
+      transport: "stdio"
+policy:
+  allow_implicit_invocation: true

@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="title">
+  <title id="title">WEL Agents Chat</title>
+  <rect width="64" height="64" rx="12" fill="#356c43" />
+  <path
+    d="M16 22c0-4.4 3.6-8 8-8h16c4.4 0 8 3.6 8 8v10c0 4.4-3.6 8-8 8h-9.5L21 48v-8.4c-3-.9-5-3.8-5-7.6V22Z"
+    fill="#fff"
+  />
+  <path d="M24 26h16M24 34h10" stroke="#356c43" stroke-width="4" stroke-linecap="round" />
+</svg>

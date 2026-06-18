@@ -1,0 +1,45 @@
+# AgentCore Runtime ARN from terraform/aws/agentcore output.
+# agent_runtime_arn = "arn:aws:bedrock-agentcore:ap-northeast-1:123456789012:runtime/wel_agents_rag-XXXXXXXXXX"
+
+agent_runtime_qualifier = "sample"
+bff_actor_claim         = "sub"
+bff_user_id_claim       = "sub"
+default_actor_id        = "web-user"
+name_prefix             = "wel-agents-bff"
+ws_url_expires_seconds  = 300
+
+# API Gateway JWT authorizer (OIDC)。推奨 IdP は Amazon Cognito User Pool（terraform/aws/auth）。
+# - jwt_issuer  : User Pool issuer（access/ID token の iss クレーム）
+#                 https://cognito-idp.<region>.amazonaws.com/<userPoolId>
+# - jwt_audience: Cognito access token は aud を持たず client_id を持つため、API Gateway は
+#                 jwt_audience を access token の client_id と照合する → App Client ID を指定する。
+# auth module を使う場合: `terraform -chdir=terraform/aws/auth output bff_jwt_config` の値を転記する。
+jwt_issuer   = "https://cognito-idp.ap-northeast-1.amazonaws.com/ap-northeast-1_xxxxxxxxx"
+jwt_audience = ["replace-with-cognito-app-client-id"]
+
+# Optional Dev Info display identifiers (non-secret IDs rendered by authenticated
+# GET /api/dev-info). `mise run aws:apply` / `aws:apply:bff` auto-injects these from
+# terraform/aws/agentcore outputs (knowledge_base_ids / memory_id), so normally leave
+# them unset. Set them here only to override, or when running a standalone
+# `terraform apply` (no orchestration) against an existing agentcore deployment.
+# dev_info_database_kb_id         = "XXXXXXXXXX"
+# dev_info_document_kb_id         = "YYYYYYYYYY"
+# dev_info_law_kb_id              = "ZZZZZZZZZZ"
+# dev_info_medical_care_law_kb_id = "WWWWWWWWWW"
+# dev_info_support_activity_kb_id = "VVVVVVVVVV"
+# dev_info_agentcore_memory_id    = "memory-id"
+#
+# Optional override. When empty, the first jwt_audience value is displayed.
+# dev_info_auth_client_id = "replace-with-cognito-app-client-id"
+
+# Optional: require specific access token scopes on /api/chat and /api/ws-url.
+# jwt_authorization_scopes = ["openid"]
+
+# Restrict this to the chat-ui CloudFront origin for non-local PoC use.
+cors_allowed_origins = ["*"]
+
+tags = {
+  Project   = "wel-agents-poc"
+  Purpose   = "bff"
+  ManagedBy = "terraform"
+}

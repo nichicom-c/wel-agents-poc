@@ -1,0 +1,16 @@
+{
+  "metadataAttributes": {
+    "corpus_id": "medical-care-law-basic-law-textbook",
+    "source_title": "保険診療 基本法令テキストブック",
+    "section": "chapter",
+    "chapter": "2",
+    "chapter_title": "第2章 公費負担医療制度の概要",
+    "source_file": "02_chapter-2_kohi-futan-iryo-seido-no-gaiyo.pdf",
+    "source_page": "1",
+    "output_page": "96",
+    "ocr_engine": "tesseract",
+    "ocr_lang": "jpn+eng",
+    "generated_at": "2026-06-16T21:12:10.837Z",
+    "content_type": "blank"
+  }
+}
