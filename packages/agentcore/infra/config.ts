@@ -51,6 +51,8 @@ export type Config = {
   readonly region: string | undefined;
   /** ドメインごとの Knowledge Base ID。 */
   readonly kbIds: Readonly<Record<DomainKey, string>>;
+  /** law KB の Hierarchical chunking 比較用 Knowledge Base ID（通常 runtime では任意）。 */
+  readonly lawHierarchicalKbId?: string;
   /** AgentCore Memory ID（任意。未設定でも履歴なしで会話は動く）。 */
   readonly memoryId: string | undefined;
   /** Knowledge Base retrieval で取得するチャンク数。 */
@@ -102,6 +104,7 @@ export function configFromEnv(env: EnvSource = process.env): Config {
     modelId: nonEmpty(env.BEDROCK_MODEL_ID) ?? "",
     region: nonEmpty(env.AWS_DEFAULT_REGION) ?? nonEmpty(env.AWS_REGION),
     kbIds,
+    lawHierarchicalKbId: nonEmpty(env.LAW_HIERARCHICAL_KB_ID),
     memoryId: nonEmpty(env.AGENTCORE_MEMORY_ID),
     numberOfResults: parseNumberOfResults(env.KB_NUMBER_OF_RESULTS),
     supportActivity: {
