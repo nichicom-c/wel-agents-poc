@@ -17,6 +17,7 @@
     "check": "biome check",
     "check:fix": "biome check --write",
     "typecheck": "tsc --noEmit",
+    "law:compare:hierarchical": "bun run packages/agentcore/evaluation/law-kb-comparison.ts",
     "law:generate:child-abuse-prevention": "bun run tools/law-rag/generate-child-abuse-prevention-law-corpus.ts",
     "medical-care-law:generate:textbook": "bun run tools/medical-care-law-rag/generate-textbook-corpus.ts",
     "structured-data:generate:support-activity": "bun run tools/structured-data/generate-support-activity-sample.ts",

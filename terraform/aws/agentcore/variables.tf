@@ -71,6 +71,42 @@ variable "kb_number_of_results" {
   }
 }
 
+variable "law_hierarchical_parent_max_tokens" {
+  description = "law_hierarchical Knowledge Base の HIERARCHICAL chunking で使う parent chunk の最大 token 数。"
+  type        = number
+  default     = 1500
+
+  validation {
+    condition     = var.law_hierarchical_parent_max_tokens > var.law_hierarchical_child_max_tokens
+    error_message = "law_hierarchical_parent_max_tokens は child max tokens より大きい値にする。"
+  }
+}
+
+variable "law_hierarchical_child_max_tokens" {
+  description = "law_hierarchical Knowledge Base の HIERARCHICAL chunking で使う child chunk の最大 token 数。"
+  type        = number
+  default     = 300
+
+  validation {
+    condition     = var.law_hierarchical_child_max_tokens > 0
+    error_message = "law_hierarchical_child_max_tokens は 1 以上で指定する。"
+  }
+}
+
+variable "law_hierarchical_overlap_tokens" {
+  description = "law_hierarchical Knowledge Base の HIERARCHICAL chunking で使う overlap token 数。"
+  type        = number
+  default     = 60
+
+  validation {
+    condition = (
+      var.law_hierarchical_overlap_tokens >= 0 &&
+      var.law_hierarchical_overlap_tokens < var.law_hierarchical_child_max_tokens
+    )
+    error_message = "law_hierarchical_overlap_tokens は 0 以上かつ child max tokens 未満で指定する。"
+  }
+}
+
 variable "event_expiry_duration" {
   description = "AgentCore Memory が会話 event (short-term) を保持する日数 (7〜365)。"
   type        = number

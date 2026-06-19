@@ -13,6 +13,7 @@ const FULL_ENV = {
   DATABASE_KB_ID: "kb-db",
   DOCUMENT_KB_ID: "kb-doc",
   LAW_KB_ID: "kb-law",
+  LAW_HIERARCHICAL_KB_ID: "kb-law-hierarchical",
   MEDICAL_CARE_LAW_KB_ID: "kb-medical-care-law",
   SUPPORT_ACTIVITY_KB_ID: "kb-support-activity",
   SUPPORT_ACTIVITY_KB_ARN:
@@ -34,6 +35,7 @@ describe("configFromEnv", () => {
       law: "kb-law",
       medical_care_law: "kb-medical-care-law",
     });
+    expect(config.lawHierarchicalKbId).toBe("kb-law-hierarchical");
     expect(config.supportActivity).toEqual({
       kbId: "kb-support-activity",
       kbArn:
@@ -97,6 +99,19 @@ describe("configFromEnv", () => {
     expect(config.supportActivity.includeGeneratedSql).toBe(false);
     expect(missingConfig(config)).toEqual([]);
   });
+
+  test("law hierarchical KB ID は比較用の任意設定として読み取る", () => {
+    const config = configFromEnv({
+      ...FULL_ENV,
+      LAW_HIERARCHICAL_KB_ID: "  kb-law-hierarchical-alt  ",
+    });
+
+    expect(config.lawHierarchicalKbId).toBe("kb-law-hierarchical-alt");
+
+    const { LAW_HIERARCHICAL_KB_ID: _omit, ...env } = FULL_ENV;
+    expect(configFromEnv(env).lawHierarchicalKbId).toBeUndefined();
+    expect(missingConfig(configFromEnv(env))).toEqual([]);
+  });
 });
 
 describe("missingConfig", () => {
@@ -108,6 +123,7 @@ describe("missingConfig", () => {
     expect(missing).toContain("LAW_KB_ID");
     expect(missing).toContain("MEDICAL_CARE_LAW_KB_ID");
     expect(missing).toContain("SUPPORT_ACTIVITY_KB_ID");
+    expect(missing).not.toContain("LAW_HIERARCHICAL_KB_ID");
     expect(missing).not.toContain("SUPPORT_ACTIVITY_KB_ARN");
     expect(missing).not.toContain("AGENTCORE_MEMORY_ID");
   });

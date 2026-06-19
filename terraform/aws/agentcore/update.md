@@ -12,6 +12,7 @@
 | (B2) support_activity structured data `data/structured-data/support-activity/` | – | [OK] | – |
 | (C) env 系設定（`model_id` / `kb_number_of_results` ほか） | – | [OK] | – |
 | (C) embedding 設定（`embedding_model_id` / `embedding_dimensions`） | – | [OK]（index / KB 再作成） | [OK] 全 KB |
+| (C) `law_hierarchical` chunking 設定 | – | [OK]（data source 再作成） | [OK] `law_hierarchical` |
 
 ## (A) コンテナイメージの入力を更新（`packages/` / `Dockerfile.agentcore` / 依存ほか）
 
@@ -109,7 +110,7 @@ mise exec -- terraform -chdir=terraform/aws/agentcore apply
 # 3) ingestion 再実行（apply はベクトル化しない＝Terraform 管理外）
 mise exec -- terraform -chdir=terraform/aws/agentcore output start_ingestion_commands
 #  → 出力された各 aws bedrock-agent start-ingestion-job ... を実行
-#    （差分取り込み：追加/更新/削除が S3 Vectors index に反映される）
+#    （差分取り込み：追加/更新/削除が S3 Vectors index と law_hierarchical OpenSearch index に反映される）
 
 # 4) COMPLETE 待ち
 aws bedrock-agent list-ingestion-jobs \
@@ -117,6 +118,8 @@ aws bedrock-agent list-ingestion-jobs \
 
 # 5) invoke で確認（COMPLETE まで該当 agent は新文書を引けない）
 ```
+
+> [INFO] `law/` prefix は通常の S3 Vectors 版 `law` KB と OpenSearch Serverless 版 `law_hierarchical` KB の両方が読む。法令 corpus を変えた場合は、同じ source に対して両方の ingestion を完了させてから比較する。
 
 > [INFO] 実データ（repo 外の資料）を S3 へ直接置く運用なら Terraform は関与しない。S3 へ upload →
 > ingestion 起動の 2 ステップだけになる（コンテナ再 build も apply も不要）。
@@ -154,8 +157,9 @@ mise exec -- terraform -chdir=terraform/aws/agentcore apply
 
 - `model_id` / `kb_number_of_results` は `runtime_env`（`locals.tf`）経由で runtime に渡るため、apply で
   環境変数が更新される。**イメージ再 build は不要。**
+- `law_hierarchical_parent_max_tokens` / `law_hierarchical_child_max_tokens` / `law_hierarchical_overlap_tokens` は `law_hierarchical` data source の `HIERARCHICAL` chunking 設定。chunking strategy は data source 作成後に変更できないため、変更時は `plan` で data source 再作成を確認し、apply 後に `law_hierarchical` ingestion を再実行する。
 - [WARNING] `embedding_model_id` / `embedding_dimensions` の変更は S3 Vectors index と Knowledge Base の
-  **再作成**を誘発する破壊的変更。全ドメインで (B) の再 ingestion が必須。必ず `plan` の
+  **再作成**を誘発する破壊的変更。OpenSearch Serverless 版の `law_hierarchical` vector index も embedding dimensions と一致させる必要がある。全ドメインで (B) の再 ingestion が必須。必ず `plan` の
   `# forces replacement` を確認してから apply する。
 
 ## 不要になったら

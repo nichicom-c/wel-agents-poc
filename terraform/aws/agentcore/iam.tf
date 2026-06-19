@@ -94,6 +94,7 @@ data "aws_iam_policy_document" "runtime" {
     actions = ["bedrock:Retrieve"]
     resources = concat(
       [for kb in aws_bedrockagent_knowledge_base.this : kb.arn],
+      [aws_bedrockagent_knowledge_base.law_hierarchical.arn],
       [aws_bedrockagent_knowledge_base.support_activity.arn],
     )
   }
@@ -221,6 +222,13 @@ data "aws_iam_policy_document" "kb_service" {
       "s3vectors:GetIndex",
     ]
     resources = [for idx in aws_s3vectors_index.this : idx.index_arn]
+  }
+
+  statement {
+    sid       = "AccessLawHierarchicalOpenSearchServerless"
+    effect    = "Allow"
+    actions   = ["aoss:APIAccessAll"]
+    resources = [aws_opensearchserverless_collection.law_hierarchical.arn]
   }
 }
 
