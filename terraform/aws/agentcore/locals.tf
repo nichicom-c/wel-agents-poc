@@ -151,6 +151,7 @@ locals {
     DATABASE_KB_ID                         = aws_bedrockagent_knowledge_base.this["database"].id
     DOCUMENT_KB_ID                         = aws_bedrockagent_knowledge_base.this["document"].id
     LAW_KB_ID                              = aws_bedrockagent_knowledge_base.this["law"].id
+    LAW_HIERARCHICAL_KB_ID                 = aws_bedrockagent_knowledge_base.law_hierarchical.id
     MEDICAL_CARE_LAW_KB_ID                 = aws_bedrockagent_knowledge_base.this["medical_care_law"].id
     SUPPORT_ACTIVITY_KB_ID                 = aws_bedrockagent_knowledge_base.support_activity.id
     SUPPORT_ACTIVITY_KB_ARN                = aws_bedrockagent_knowledge_base.support_activity.arn

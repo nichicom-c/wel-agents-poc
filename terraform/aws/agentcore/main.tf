@@ -3,6 +3,9 @@
 # 組み立てに利用する。
 data "aws_caller_identity" "current" {}
 data "aws_region" "current" {}
+data "aws_iam_session_context" "current" {
+  arn = data.aws_caller_identity.current.arn
+}
 
 # --- AgentCore Memory (short-term) ---
 # 会話 event（user + assistant のターン）を session / actor 単位で保持する。long-term strategy は
