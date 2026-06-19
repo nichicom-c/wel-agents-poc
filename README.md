@@ -60,6 +60,7 @@ flowchart LR
   subgraph AgentCoreDeps["AgentCore dependencies"]
     Bedrock["Amazon Bedrock<br/>model"]
     KnowledgeBase["Vector Knowledge Bases<br/>S3 Vectors"]
+    HierarchicalKb["law_hierarchical comparison KB<br/>OpenSearch Serverless"]
     StructuredKb["support_activity SQL KB<br/>Glue + Redshift Spectrum"]
     Memory["AgentCore Memory"]
   end
@@ -71,6 +72,7 @@ flowchart LR
   Bff --> Runtime
   Runtime --> Bedrock
   Runtime --> KnowledgeBase
+  Runtime -.-> HierarchicalKb
   Runtime --> StructuredKb
   Runtime --> Memory
 ```
@@ -94,7 +96,7 @@ wel-agents-poc/
 ├── Dockerfile.agentcore  # AgentCore Runtime 用 Bun コンテナ
 ├── terraform/            # IaC
 │   ├── aws/
-│   │   ├── agentcore/    # AgentCore Runtime・vector KB・support_activity SQL KB・Memory・ECR・IAM
+│   │   ├── agentcore/    # AgentCore Runtime・vector KB・law_hierarchical 比較 KB・support_activity SQL KB・Memory・ECR・IAM
 │   │   ├── auth/         # Cognito User Pool + App Client + Hosted UI（OIDC IdP）
 │   │   ├── bff/          # API Gateway + Lambda BFF
 │   │   └── chat-ui/      # S3 + CloudFront Chat UI hosting
