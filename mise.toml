@@ -32,6 +32,11 @@ description = "ローカル Chat UI を Vite で 127.0.0.1:${CHAT_UI_PORT:-4173}
 dir = "{{ config_root }}/packages/chat-ui"
 run = "bunx --bun vite --config vite.config.ts"
 
+[tasks."dev:workbench"]
+description = "ローカル Workbench を Vite で 127.0.0.1:${WORKBENCH_PORT:-4175} で起動"
+dir = "{{ config_root }}/packages/workbench"
+run = "bunx --bun vite --config vite.config.ts"
+
 [tasks."start:agentcore"]
 description = "ビルド済み AgentCore 成果物を実行 (先に build:agentcore を実行)"
 dir = "{{ config_root }}/packages/agentcore"
@@ -45,6 +50,11 @@ run = "bun ../../dist/bff-dev-server/index.mjs"
 [tasks."start:ui"]
 description = "ビルド済み Chat UI を Vite でプレビュー (先に build:ui を実行)"
 dir = "{{ config_root }}/packages/chat-ui"
+run = "bunx --bun vite preview --config vite.config.ts"
+
+[tasks."start:workbench"]
+description = "ビルド済み Workbench を Vite でプレビュー (先に build:workbench を実行)"
+dir = "{{ config_root }}/packages/workbench"
 run = "bunx --bun vite preview --config vite.config.ts"
 
 # --- terraform/aws の適用 ---

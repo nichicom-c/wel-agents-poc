@@ -5,14 +5,16 @@
   "workspaces": [
     "packages/agentcore",
     "packages/bff",
-    "packages/chat-ui"
+    "packages/chat-ui",
+    "packages/workbench"
   ],
   "scripts": {
     "ci": "bun run check:fix && bun run typecheck && bun run test && bun run build",
-    "build": "bun run build:agentcore && bun run build:bff && bun run build:ui",
+    "build": "bun run build:agentcore && bun run build:bff && bun run build:ui && bun run build:workbench",
     "build:agentcore": "bun run --filter='@wel-agents-poc/agentcore' build",
     "build:bff": "bun run --filter='@wel-agents-poc/bff' build",
     "build:ui": "bun run --filter='@wel-agents-poc/chat-ui' build",
+    "build:workbench": "bun run --filter='@wel-agents-poc/workbench' build",
     "test": "bun test",
     "check": "biome check",
     "check:fix": "biome check --write",

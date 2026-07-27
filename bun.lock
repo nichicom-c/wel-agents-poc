@@ -52,6 +52,19 @@
         "vite": "8.0.16",
       },
     },
+    "packages/workbench": {
+      "name": "@wel-agents-poc/workbench",
+      "dependencies": {
+        "react": "19.2.7",
+        "react-dom": "19.2.7",
+      },
+      "devDependencies": {
+        "@types/react": "19.2.17",
+        "@types/react-dom": "19.2.3",
+        "@vitejs/plugin-react": "6.0.2",
+        "vite": "8.0.16",
+      },
+    },
   },
   "packages": {
     "@aws-crypto/crc32": ["@aws-crypto/crc32@5.2.0", "", { "dependencies": { "@aws-crypto/util": "^5.2.0", "@aws-sdk/types": "^3.222.0", "tslib": "^2.6.2" } }, "sha512-nLbCWqQNgUiwwtFsen1AdzAtvuLRsQS8rYgMuxCrdKf9kOssamGLuPwyTY9wyYblNr9+1XM8v6zoDTPPSIeANg=="],
@@ -257,6 +270,8 @@
     "@wel-agents-poc/bff": ["@wel-agents-poc/bff@workspace:packages/bff"],
 
     "@wel-agents-poc/chat-ui": ["@wel-agents-poc/chat-ui@workspace:packages/chat-ui"],
+
+    "@wel-agents-poc/workbench": ["@wel-agents-poc/workbench@workspace:packages/workbench"],
 
     "accepts": ["accepts@2.0.0", "", { "dependencies": { "mime-types": "^3.0.0", "negotiator": "^1.0.0" } }, "sha512-5cvg6CtKwfgdmVqY1WIiXKc3Q1bkRqGLi+2W/6ao+6Y7gu/RCwRuAhGEzh5B4KlszSuTLgZYuqFqo5bImjNKng=="],
 

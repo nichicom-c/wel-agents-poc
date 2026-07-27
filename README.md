@@ -99,6 +99,7 @@ flowchart LR
 | [`Auth`](./terraform/aws/auth/README.md) | Cognito User Pool + public App Client + Hosted UI で OIDC provider を作り、Chat UI の PKCE login と BFF の JWT authorizer 設定を提供します。 |
 | [`BFF`](./packages/bff/README.md) | Chat UI / API Gateway と AgentCore Runtime の間で、`/api/ws-url` の presigned URL 発行、既存 `/api/chat` fallback、payload 変換を扱います。 |
 | [`Chat UI`](./packages/chat-ui/README.md) | React browser UI、WebSocket streaming chat、conversation ID、OIDC PKCE auth state、Vite dev / preview / build 設定を扱います。 |
+| [`Workbench`](./packages/workbench/README.md) | 作業目的ごとに画面を分ける React web app（Workspace Nav + SOAP Studio 等の作業画面 + Context Inspector）。現時点はホームページのみです。 |
 
 ## ディレクトリ構成
 
@@ -108,7 +109,8 @@ wel-agents-poc/
 ├── packages/                  # 各サブディレクトリは workspace（自分の package.json で依存と build を所有）
 │   ├── agentcore/        # AgentCore Runtime（@wel-agents-poc/agentcore。entrypoint + contracts/domain/application/adapters/infra）
 │   ├── bff/              # BFF（@wel-agents-poc/bff。root wrappers + contracts/domain/application/adapters/infra）
-│   └── chat-ui/          # React Chat UI（@wel-agents-poc/chat-ui。Vite dev/build、/api/ws-url + /api/chat proxy）
+│   ├── chat-ui/          # React Chat UI（@wel-agents-poc/chat-ui。Vite dev/build、/api/ws-url + /api/chat proxy）
+│   └── workbench/        # React Workbench（@wel-agents-poc/workbench。作業目的ごとの画面 shell、現状はホームページのみ）
 ├── Dockerfile.agentcore  # AgentCore Runtime 用 Bun コンテナ
 ├── terraform/            # IaC
 │   ├── aws/
