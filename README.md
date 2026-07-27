@@ -4,14 +4,29 @@ WEL-MOTHER に Agent 機能を追加するための PoC。AI Agent の構築は 
 
 ## セットアップ & 実行
 
+> [!IMPORTANT]
+> 4 つの vector Knowledge Base ID・`SUPPORT_ACTIVITY_KB_ID`・`BEDROCK_MODEL_ID` は `packages/agentcore/.env` の必須項目で、
+> [`terraform/aws/agentcore`](./terraform/aws/agentcore/README.md) を適用した AWS 環境がないと値が用意できません
+> （未設定のまま起動すると `/invocations` は KB 関連で `status: "error"` を返し、チャットが機能しません）。
+> ローカル実行の前に `mise run aws:apply:agentcore` で agentcore stack だけ適用し、
+> `terraform -chdir=terraform/aws/agentcore output knowledge_base_ids` などの出力値を `.env` に転記してください
+> （`auth` / `bff` / `chat-ui` stack は AWS ホスティング用なのでローカル実行には不要です）。
+> KB ingestion は Terraform 管理外の非同期ジョブで `aws:apply:agentcore` は起動するだけで完了を待たないため、
+> [`terraform/aws/agentcore`](./terraform/aws/agentcore/README.md#4-knowledge-base-を取り込むingestion--sync) の手順で
+> ingestion job が `COMPLETE` になったことを確認してからチャットを試してください
+> （未完了だと KB ID 設定済みでもエラーにはならず、専門 agent が文書を見つけられないまま応答します）。
+
 ```bash
 # 初期セットアップ（mise install → bun install → git hook）
 mise run bs
+
+# 前提: terraform/aws/agentcore stack を適用済み（上記 IMPORTANT 参照）
 
 # 各 runtime の env テンプレートをコピーして値を埋める（.env は gitignore 済み）
 cp packages/agentcore/.env.example packages/agentcore/.env
 cp packages/bff/.env.example       packages/bff/.env
 cp packages/chat-ui/.env.example   packages/chat-ui/.env
+# packages/agentcore/.env に terraform output の KB ID / model ID を転記する
 
 # local AgentCore を開発実行（packages/agentcore/.env を読み込む）
 mise run dev:agentcore
@@ -43,6 +58,7 @@ mise run aws:destroy
 mise run aws:apply:bff
 mise run aws:destroy:chat-ui
 ```
+export AWS_PROFILE=hp-user
 
 KB ingestion は `aws:apply` 内で起動のみ（完了は待たない）。詳細と前提は [`terraform/aws/`](./terraform/aws/README.md#一括-apply--destroy) を参照してください。
 

@@ -33,6 +33,7 @@ import {
   mergeRemoteSessions,
   messagesForSession,
   normalizeConversationId,
+  randomUUID,
   requestAwsSessions,
   type SessionMessage,
   saveSessionHistory,
@@ -82,7 +83,7 @@ function getInitialChatState(): InitialChatState {
 
 function createMessage(role: ChatMessage["role"], text: string): ChatMessage {
   return {
-    id: crypto.randomUUID(),
+    id: randomUUID(),
     role,
     text,
   };

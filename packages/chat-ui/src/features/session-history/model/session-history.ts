@@ -247,7 +247,7 @@ function validIsoDate(value: string): string | undefined {
   return Number.isNaN(Date.parse(value)) ? undefined : value;
 }
 
-function randomUUID(): string {
+export function randomUUID(): string {
   return globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`;
 }
 

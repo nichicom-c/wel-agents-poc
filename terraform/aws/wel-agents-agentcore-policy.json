@@ -1,0 +1,298 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "CommonReadAndBootstrap",
+      "Effect": "Allow",
+      "Action": [
+        "sts:GetCallerIdentity",
+        "iam:GetRole",
+        "iam:ListRolePolicies",
+        "iam:GetRolePolicy"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "IamRoleManagement",
+      "Effect": "Allow",
+      "Action": [
+        "iam:CreateRole",
+        "iam:DeleteRole",
+        "iam:PutRolePolicy",
+        "iam:DeleteRolePolicy",
+        "iam:TagRole",
+        "iam:UntagRole",
+        "iam:ListInstanceProfilesForRole"
+      ],
+      "Resource": "arn:aws:iam::*:role/wel-agents-rag-*"
+    },
+    {
+      "Sid": "IamPassRoleToServices",
+      "Effect": "Allow",
+      "Action": "iam:PassRole",
+      "Resource": "arn:aws:iam::*:role/wel-agents-rag-*",
+      "Condition": {
+        "StringEquals": {
+          "iam:PassedToService": [
+            "bedrock-agentcore.amazonaws.com",
+            "bedrock.amazonaws.com",
+            "redshift.amazonaws.com"
+          ]
+        }
+      }
+    },
+    {
+      "Sid": "CloudWatchLogs",
+      "Effect": "Allow",
+      "Action": [
+        "logs:CreateLogGroup",
+        "logs:DeleteLogGroup",
+        "logs:DescribeLogGroups",
+        "logs:PutRetentionPolicy",
+        "logs:TagResource",
+        "logs:TagLogGroup",
+        "logs:ListTagsForResource"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "Ecr",
+      "Effect": "Allow",
+      "Action": [
+        "ecr:CreateRepository",
+        "ecr:DeleteRepository",
+        "ecr:DescribeRepositories",
+        "ecr:SetRepositoryPolicy",
+        "ecr:GetRepositoryPolicy",
+        "ecr:DeleteRepositoryPolicy",
+        "ecr:TagResource",
+        "ecr:ListTagsForResource",
+        "ecr:PutLifecyclePolicy"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "EcrImagePush",
+      "Effect": "Allow",
+      "Action": [
+        "ecr:GetAuthorizationToken",
+        "ecr:BatchCheckLayerAvailability",
+        "ecr:InitiateLayerUpload",
+        "ecr:UploadLayerPart",
+        "ecr:CompleteLayerUpload",
+        "ecr:PutImage",
+        "ecr:BatchGetImage"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "S3BucketManagement",
+      "Effect": "Allow",
+      "Action": [
+        "s3:CreateBucket",
+        "s3:DeleteBucket",
+        "s3:PutBucketPolicy",
+        "s3:DeleteBucketPolicy",
+        "s3:PutBucketPublicAccessBlock",
+        "s3:PutEncryptionConfiguration",
+        "s3:PutBucketOwnershipControls",
+        "s3:PutBucketTagging",
+        "s3:GetBucket*",
+        "s3:Get*Configuration",
+        "s3:ListBucket"
+      ],
+      "Resource": "arn:aws:s3:::wel-agents-rag-*"
+    },
+    {
+      "Sid": "S3ObjectManagement",
+      "Effect": "Allow",
+      "Action": [
+        "s3:PutObject",
+        "s3:GetObject",
+        "s3:DeleteObject",
+        "s3:PutObjectTagging",
+        "s3:GetObjectTagging"
+      ],
+      "Resource": "arn:aws:s3:::wel-agents-rag-*/*"
+    },
+    {
+      "Sid": "S3Vectors",
+      "Effect": "Allow",
+      "Action": [
+        "s3vectors:CreateVectorBucket",
+        "s3vectors:DeleteVectorBucket",
+        "s3vectors:GetVectorBucket",
+        "s3vectors:ListVectorBuckets",
+        "s3vectors:CreateIndex",
+        "s3vectors:DeleteIndex",
+        "s3vectors:GetIndex",
+        "s3vectors:ListIndexes"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "BedrockKnowledgeBase",
+      "Effect": "Allow",
+      "Action": [
+        "bedrock:CreateKnowledgeBase",
+        "bedrock:DeleteKnowledgeBase",
+        "bedrock:GetKnowledgeBase",
+        "bedrock:UpdateKnowledgeBase",
+        "bedrock:CreateDataSource",
+        "bedrock:DeleteDataSource",
+        "bedrock:GetDataSource",
+        "bedrock:UpdateDataSource",
+        "bedrock:TagResource",
+        "bedrock:ListTagsForResource",
+        "bedrock:StartIngestionJob",
+        "bedrock:GetIngestionJob",
+        "bedrock:ListFoundationModels",
+        "bedrock:ListInferenceProfiles"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "BedrockAgentCore",
+      "Effect": "Allow",
+      "Action": [
+        "bedrock-agentcore:CreateAgentRuntime",
+        "bedrock-agentcore:DeleteAgentRuntime",
+        "bedrock-agentcore:GetAgentRuntime",
+        "bedrock-agentcore:UpdateAgentRuntime",
+        "bedrock-agentcore:CreateAgentRuntimeEndpoint",
+        "bedrock-agentcore:DeleteAgentRuntimeEndpoint",
+        "bedrock-agentcore:GetAgentRuntimeEndpoint",
+        "bedrock-agentcore:CreateMemory",
+        "bedrock-agentcore:DeleteMemory",
+        "bedrock-agentcore:GetMemory",
+        "bedrock-agentcore:UpdateMemory",
+        "bedrock-agentcore:TagResource",
+        "bedrock-agentcore:ListTagsForResource",
+        "bedrock-agentcore:InvokeAgentRuntime",
+        "bedrock-agentcore:CreateWorkloadIdentity",
+        "bedrock-agentcore:DeleteWorkloadIdentity",
+        "bedrock-agentcore:GetWorkloadIdentity",
+        "bedrock-agentcore:UpdateWorkloadIdentity",
+        "bedrock-agentcore:ListWorkloadIdentities"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "OpenSearchServerless",
+      "Effect": "Allow",
+      "Action": [
+        "aoss:CreateCollection",
+        "aoss:DeleteCollection",
+        "aoss:BatchGetCollection",
+        "aoss:ListCollections",
+        "aoss:CreateSecurityPolicy",
+        "aoss:GetSecurityPolicy",
+        "aoss:UpdateSecurityPolicy",
+        "aoss:CreateAccessPolicy",
+        "aoss:GetAccessPolicy",
+        "aoss:UpdateAccessPolicy",
+        "aoss:DeleteAccessPolicy",
+        "aoss:DeleteSecurityPolicy",
+        "aoss:TagResource",
+        "aoss:ListTagsForResource",
+        "aoss:APIAccessAll",
+        "aoss:DashboardsAccessAll"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "RedshiftServerless",
+      "Effect": "Allow",
+      "Action": [
+        "redshift-serverless:CreateNamespace",
+        "redshift-serverless:DeleteNamespace",
+        "redshift-serverless:GetNamespace",
+        "redshift-serverless:UpdateNamespace",
+        "redshift-serverless:CreateWorkgroup",
+        "redshift-serverless:DeleteWorkgroup",
+        "redshift-serverless:GetWorkgroup",
+        "redshift-serverless:UpdateWorkgroup",
+        "redshift-serverless:TagResource",
+        "redshift-serverless:ListTagsForResource"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "RedshiftServerlessEc2Discovery",
+      "Effect": "Allow",
+      "Action": [
+        "ec2:DescribeAccountAttributes",
+        "ec2:DescribeVpcs",
+        "ec2:DescribeSubnets",
+        "ec2:DescribeSecurityGroups",
+        "ec2:DescribeAddresses",
+        "ec2:DescribeInternetGateways",
+        "ec2:DescribeRouteTables",
+        "ec2:DescribeAvailabilityZones",
+        "ec2:CreateDefaultVpc",
+        "ec2:CreateDefaultSubnet"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "RedshiftDataApi",
+      "Effect": "Allow",
+      "Action": [
+        "redshift-data:ExecuteStatement",
+        "redshift-data:DescribeStatement",
+        "redshift-data:GetStatementResult",
+        "redshift-data:ListStatements",
+        "redshift-data:CancelStatement"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "Glue",
+      "Effect": "Allow",
+      "Action": [
+        "glue:CreateDatabase",
+        "glue:DeleteDatabase",
+        "glue:GetDatabase",
+        "glue:GetDatabases",
+        "glue:CreateTable",
+        "glue:DeleteTable",
+        "glue:GetTable",
+        "glue:GetTables",
+        "glue:UpdateTable",
+        "glue:TagResource",
+        "glue:GetTags"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "RedshiftAdminSecret",
+      "Effect": "Allow",
+      "Action": [
+        "secretsmanager:CreateSecret",
+        "secretsmanager:RotateSecret",
+        "secretsmanager:DescribeSecret",
+        "secretsmanager:UpdateSecret",
+        "secretsmanager:DeleteSecret",
+        "secretsmanager:GetRandomPassword",
+        "secretsmanager:TagResource",
+        "secretsmanager:GetSecretValue"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "LakeFormation",
+      "Effect": "Allow",
+      "Action": [
+        "lakeformation:RegisterResource",
+        "lakeformation:DeregisterResource",
+        "lakeformation:DescribeResource",
+        "lakeformation:GetDataLakeSettings",
+        "lakeformation:PutDataLakeSettings",
+        "lakeformation:GrantPermissions",
+        "lakeformation:RevokePermissions",
+        "lakeformation:ListPermissions"
+      ],
+      "Resource": "*"
+    }
+  ]
+}

@@ -21,6 +21,7 @@ export {
   mergeRemoteSessions,
   messagesForSession,
   normalizeConversationId,
+  randomUUID,
   SESSION_HISTORY_STORAGE_NAME,
   saveSessionHistory,
   updateSessionMessages,

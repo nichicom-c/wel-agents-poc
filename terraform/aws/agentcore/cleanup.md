@@ -36,3 +36,12 @@ mise exec -- terraform -chdir=terraform/aws/agentcore destroy
 - Bedrock model access（generation / embedding）はこの Terraform では作成・削除しない。不要になった
   model access の扱いは AWS account の運用方針に従う。
 - ingestion job 自体は履歴として残ることがあるが課金対象のリソースではない。
+
+## destroy 後も残る、Terraform 管理外のリソース
+
+以下は `前提` を満たすために手動で用意するもので、この module の apply / destroy では作成も削除もしない。課金対象ではないため、次回 apply に備えて残したままで問題ない。
+
+- **default VPC**（`aws ec2 create-default-vpc` で作成）
+- **Lake Formation Data Lake Administrator**（`aws lakeformation put-data-lake-settings` の `DataLakeAdmins`）
+
+不要になった場合は、それぞれ手動で削除する（VPC は依存リソース確認の上で削除、Data Lake Administrator は `DataLakeAdmins` から該当 principal を除いて再設定）。

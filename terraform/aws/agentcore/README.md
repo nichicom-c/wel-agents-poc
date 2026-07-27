@@ -76,6 +76,8 @@ flowchart LR
 - generation model と embedding model 両方への Bedrock model access が、その region で有効。
 - 対象 region で **S3 Vectors + OpenSearch Serverless + Bedrock Knowledge Base + Bedrock structured data store KB + Redshift Serverless + Glue Data Catalog + Lake Formation** が利用可能（未対応 region では apply が失敗する）。
 - Lake Formation の S3 prefix registration と database `DESCRIBE` grant は sample prefix / sample Glue database に限定して管理する。`DATA_LOCATION_ACCESS` と table `SELECT` / `DESCRIBE` の明示 grant は既定では作成しない。厳格な Lake Formation 管理を検証する場合だけ `enable_lakeformation_data_grants = true` にし、Terraform 実行 principal に Lake Formation data lake admin または対象 data location / table の grant 権限を付与する。既存 account-wide data lake settings はこの module では変更しない。
+- `enable_lakeformation_data_grants = true` にする場合、Terraform 実行 principal は事前に Lake Formation の **Data Lake Administrator** である必要がある（`aws lakeformation put-data-lake-settings` の `DataLakeAdmins` に追加。account 全体の設定でこの module の apply/destroy では管理しない）。無いと Glue `CreateTable` が `Insufficient Lake Formation permission(s)` で失敗する。
+- 対象 region に **default VPC** が必要（`aws_redshiftserverless_workgroup` が暗黙に使う。この module は `subnet_ids` / `security_group_ids` を明示しない）。無い場合は `aws ec2 create-default-vpc --region <region>` で作成する。無いと `CreateWorkgroup` が `A default VPC wasn't detected` で失敗する。
 - コンテナイメージを build / push できる Docker（または Finch / Podman）。
 
 ## 手順

@@ -1,0 +1,39 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "BedrockModelInvokeLocalDev",
+      "Effect": "Allow",
+      "Action": [
+        "bedrock:InvokeModel",
+        "bedrock:InvokeModelWithResponseStream"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "BedrockKnowledgeBaseDocumentsDiagnostics",
+      "Effect": "Allow",
+      "Action": [
+        "bedrock:ListKnowledgeBaseDocuments",
+        "bedrock:GetKnowledgeBaseDocuments"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "AgentCoreSessionsLocalDev",
+      "Effect": "Allow",
+      "Action": [
+        "bedrock-agentcore:ListSessions",
+        "bedrock-agentcore:ListEvents",
+        "bedrock-agentcore:CreateEvent"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "EcrImagesDiagnostics",
+      "Effect": "Allow",
+      "Action": ["ecr:DescribeImages", "ecr:ListImages"],
+      "Resource": "*"
+    }
+  ]
+}
