@@ -32,7 +32,10 @@
       "Resource": "arn:aws:iam::*:role/wel-agents-bff-*",
       "Condition": {
         "StringEquals": {
-          "iam:PassedToService": "lambda.amazonaws.com"
+          "iam:PassedToService": [
+            "lambda.amazonaws.com",
+            "transcribe.amazonaws.com"
+          ]
         }
       }
     },
@@ -82,6 +85,39 @@
         "arn:aws:apigateway:*::/apis",
         "arn:aws:apigateway:*::/apis/*"
       ]
+    },
+    {
+      "Sid": "S3BucketManagement",
+      "Effect": "Allow",
+      "Action": [
+        "s3:CreateBucket",
+        "s3:DeleteBucket",
+        "s3:PutBucketPolicy",
+        "s3:DeleteBucketPolicy",
+        "s3:PutBucketPublicAccessBlock",
+        "s3:PutEncryptionConfiguration",
+        "s3:PutBucketOwnershipControls",
+        "s3:PutBucketTagging",
+        "s3:GetBucket*",
+        "s3:Get*Configuration",
+        "s3:ListBucket"
+      ],
+      "Resource": "arn:aws:s3:::wel-agents-bff-*"
+    },
+    {
+      "Sid": "VoiceCaptureRuntimeS3Access",
+      "Effect": "Allow",
+      "Action": ["s3:PutObject", "s3:GetObject"],
+      "Resource": "arn:aws:s3:::wel-agents-bff-voice-capture-*/*"
+    },
+    {
+      "Sid": "VoiceCaptureTranscribe",
+      "Effect": "Allow",
+      "Action": [
+        "transcribe:StartTranscriptionJob",
+        "transcribe:GetTranscriptionJob"
+      ],
+      "Resource": "*"
     }
   ]
 }

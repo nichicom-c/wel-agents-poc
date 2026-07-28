@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import {
   buildReflectionSelections,
@@ -35,8 +35,22 @@ const STATUS_LABELS: Record<SoapCandidateStatus, string> = {
 
 type AnalyzeStatus = "idle" | "loading" | "error";
 
-export function SoapStudioView() {
+export type SoapStudioViewProps = {
+  /** Voice Capture など他画面から引き継ぐ入力素材テキスト。渡されると textarea に反映する。 */
+  seedText?: string;
+  /** seedText の由来（例: 「音声記録 rec-xxx」）。反映後も画面に表示し続ける traceability 用の tag。 */
+  seedSourceLabel?: string;
+  /** seedText を textarea へ反映し終えたことを呼び出し側へ伝える（再訪時の再反映を防ぐ）。 */
+  onSeedConsumed?: () => void;
+};
+
+export function SoapStudioView({
+  seedText,
+  seedSourceLabel,
+  onSeedConsumed,
+}: SoapStudioViewProps = {}) {
   const [text, setText] = useState("");
+  const [sourceLabel, setSourceLabel] = useState("");
   const [candidates, setCandidates] = useState<SoapDraftCandidate[] | null>(
     null,
   );
@@ -46,6 +60,16 @@ export function SoapStudioView() {
   const [error, setError] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingText, setEditingText] = useState("");
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: seedText の到着だけを検知したい（onSeedConsumed/seedSourceLabel は同時に渡される値）。
+  useEffect(() => {
+    if (!seedText) {
+      return;
+    }
+    setText(seedText);
+    setSourceLabel(seedSourceLabel ?? "");
+    onSeedConsumed?.();
+  }, [seedText]);
 
   async function handleAnalyze() {
     if (!text.trim() || analyzeStatus === "loading") {
@@ -114,6 +138,9 @@ export function SoapStudioView() {
         aria-busy={analyzeStatus === "loading"}
       >
         <h3>SOAP 下書き生成</h3>
+        {sourceLabel ? (
+          <p className="soap-draft-source-tag">由来: {sourceLabel}</p>
+        ) : null}
         <textarea
           className="soap-draft-input"
           aria-label="入力素材テキスト"

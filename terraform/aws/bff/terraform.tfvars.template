@@ -38,6 +38,9 @@ jwt_audience = ["replace-with-cognito-app-client-id"]
 # Restrict this to the chat-ui CloudFront origin for non-local PoC use.
 cors_allowed_origins = ["*"]
 
+# Optional: Amazon Transcribe LanguageCode for Voice Capture (issue #7). Defaults to "ja-JP".
+# voice_capture_language_code = "ja-JP"
+
 tags = {
   Project   = "wel-agents-poc"
   Purpose   = "bff"

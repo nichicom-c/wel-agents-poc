@@ -1,6 +1,7 @@
 import { useState } from "react";
 
 import { SoapStudioView } from "../widgets/soap-studio/index.ts";
+import { VoiceCaptureView } from "../widgets/voice-capture/index.ts";
 import {
   CONTEXT_INSPECTOR_ITEMS,
   DEFAULT_WORKSPACE_NAV_ID,
@@ -8,10 +9,19 @@ import {
   type WorkspaceNavId,
 } from "./workspace-nav.ts";
 
+/** Voice Capture から SOAP Studio へ引き継ぐ入力素材テキスト（session-local、正式記録へは未反映）。 */
+type SoapSeed = { sourceLabel: string; text: string };
+
 export function App() {
   const [activeNavId, setActiveNavId] = useState<WorkspaceNavId>(
     DEFAULT_WORKSPACE_NAV_ID,
   );
+  const [soapSeed, setSoapSeed] = useState<SoapSeed | null>(null);
+
+  function handleSendToSoapStudio(text: string, sourceLabel: string) {
+    setSoapSeed({ sourceLabel, text });
+    setActiveNavId("soap-studio");
+  }
 
   return (
     <div className="workbench-shell">
@@ -38,7 +48,13 @@ export function App() {
         </nav>
         <main className="workbench-main">
           {activeNavId === "soap-studio" ? (
-            <SoapStudioView />
+            <SoapStudioView
+              seedText={soapSeed?.text}
+              seedSourceLabel={soapSeed?.sourceLabel}
+              onSeedConsumed={() => setSoapSeed(null)}
+            />
+          ) : activeNavId === "voice-capture" ? (
+            <VoiceCaptureView onSendToSoapStudio={handleSendToSoapStudio} />
           ) : (
             <ComingSoonView navId={activeNavId} />
           )}

@@ -65,6 +65,46 @@ data "aws_iam_policy_document" "lambda" {
       resources = statement.value
     }
   }
+
+  statement {
+    sid    = "ReadWriteVoiceCaptureBucket"
+    effect = "Allow"
+    actions = [
+      "s3:PutObject",
+      "s3:GetObject",
+    ]
+    resources = [
+      aws_s3_bucket.voice_capture.arn,
+      "${aws_s3_bucket.voice_capture.arn}/*",
+    ]
+  }
+
+  statement {
+    sid    = "RunVoiceCaptureTranscriptionJobs"
+    effect = "Allow"
+    actions = [
+      "transcribe:StartTranscriptionJob",
+      "transcribe:GetTranscriptionJob",
+    ]
+    # Transcribe の job 系 API は resource-level 権限をサポートしないため "*" が必須。
+    resources = ["*"]
+  }
+
+  statement {
+    sid    = "PassVoiceCaptureTranscribeRole"
+    effect = "Allow"
+    # Forward Access Sessions だけでは StartTranscriptionJob が S3 にアクセスできない
+    # アカウントがあるため、JobExecutionSettings.DataAccessRoleArn に渡す専用 role を
+    # Transcribe サービスにだけ pass できるようにする（voice-capture.tf 参照）。
+    actions   = ["iam:PassRole"]
+    resources = [aws_iam_role.voice_capture_transcribe.arn]
+
+    condition {
+      test     = "StringEquals"
+      variable = "iam:PassedToService"
+      values   = ["transcribe.amazonaws.com"]
+    }
+  }
 }
 
 resource "aws_iam_role_policy" "lambda" {

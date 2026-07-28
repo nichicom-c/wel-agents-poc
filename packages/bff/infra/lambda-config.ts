@@ -24,6 +24,15 @@ export type LambdaConfig = {
   runtimeArn: string;
   /** user ID として使う JWT claim 名。 */
   userIdClaim: string;
+  /** Voice Capture の音声原本 / transcript を保存する S3 bucket。未設定だと該当 API は 503。 */
+  voiceCaptureBucket?: string;
+  /**
+   * Amazon Transcribe が StartTranscriptionJob で assume する data access role の ARN。
+   * 未設定なら Forward Access Sessions（呼び出し元の権限をそのまま使う既定の仕組み）に任せる。
+   */
+  voiceCaptureDataAccessRoleArn?: string;
+  /** Voice Capture の Amazon Transcribe LanguageCode。 */
+  voiceCaptureLanguageCode: string;
   /** presigned WebSocket URL の有効秒数。未設定なら caller 側で既定値を使う。 */
   wsUrlExpiresSeconds?: number;
 };
@@ -75,6 +84,12 @@ export function configFromEnv(env: EnvSource = process.env): LambdaConfig {
     requestTimeoutMs: numberFromEnv(env, "REQUEST_TIMEOUT_MS", 28000),
     runtimeArn,
     userIdClaim: cleanOptional(env.BFF_USER_ID_CLAIM) || "sub",
+    voiceCaptureBucket: cleanOptional(env.VOICE_CAPTURE_BUCKET),
+    voiceCaptureDataAccessRoleArn: cleanOptional(
+      env.VOICE_CAPTURE_TRANSCRIBE_ROLE_ARN,
+    ),
+    voiceCaptureLanguageCode:
+      cleanOptional(env.VOICE_CAPTURE_LANGUAGE_CODE) || "ja-JP",
     ...(wsUrlExpiresSeconds !== undefined ? { wsUrlExpiresSeconds } : {}),
   };
 }

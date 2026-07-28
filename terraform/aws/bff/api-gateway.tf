@@ -4,7 +4,7 @@ resource "aws_apigatewayv2_api" "this" {
 
   cors_configuration {
     allow_headers = ["authorization", "content-type"]
-    allow_methods = ["GET", "POST", "OPTIONS"]
+    allow_methods = ["GET", "POST", "PATCH", "OPTIONS"]
     allow_origins = var.cors_allowed_origins
     max_age       = 300
   }
@@ -84,6 +84,33 @@ resource "aws_apigatewayv2_route" "knowledge_base_documents" {
   authorization_type   = "JWT"
   authorizer_id        = aws_apigatewayv2_authorizer.jwt.id
   route_key            = "GET /api/knowledge-bases/{domain}/data-sources/{dataSourceId}/documents"
+  target               = "integrations/${aws_apigatewayv2_integration.lambda.id}"
+}
+
+resource "aws_apigatewayv2_route" "voice_recordings_create" {
+  api_id               = aws_apigatewayv2_api.this.id
+  authorization_scopes = var.jwt_authorization_scopes
+  authorization_type   = "JWT"
+  authorizer_id        = aws_apigatewayv2_authorizer.jwt.id
+  route_key            = "POST /api/voice-recordings"
+  target               = "integrations/${aws_apigatewayv2_integration.lambda.id}"
+}
+
+resource "aws_apigatewayv2_route" "voice_recordings_status" {
+  api_id               = aws_apigatewayv2_api.this.id
+  authorization_scopes = var.jwt_authorization_scopes
+  authorization_type   = "JWT"
+  authorizer_id        = aws_apigatewayv2_authorizer.jwt.id
+  route_key            = "GET /api/voice-recordings/{recordingId}"
+  target               = "integrations/${aws_apigatewayv2_integration.lambda.id}"
+}
+
+resource "aws_apigatewayv2_route" "voice_recordings_edit" {
+  api_id               = aws_apigatewayv2_api.this.id
+  authorization_scopes = var.jwt_authorization_scopes
+  authorization_type   = "JWT"
+  authorizer_id        = aws_apigatewayv2_authorizer.jwt.id
+  route_key            = "PATCH /api/voice-recordings/{recordingId}"
   target               = "integrations/${aws_apigatewayv2_integration.lambda.id}"
 }
 

@@ -1,4 +1,5 @@
 import { fileURLToPath } from "node:url";
+import basicSsl from "@vitejs/plugin-basic-ssl";
 import react from "@vitejs/plugin-react";
 import { defineConfig, loadEnv, type UserConfig } from "vite";
 
@@ -11,6 +12,7 @@ const rootDir = fileURLToPath(new URL(".", import.meta.url));
 export type WorkbenchDevConfig = {
   bffUrl: string;
   host: string;
+  https: boolean;
   port: number;
 };
 
@@ -20,6 +22,7 @@ export function resolveWorkbenchDevConfig(
   return {
     bffUrl: normalizeBffUrl(clean(env.BFF_URL) || DEFAULT_BFF_URL),
     host: clean(env.WORKBENCH_HOST) || DEFAULT_HOST,
+    https: isTruthy(env.WORKBENCH_HTTPS),
     port: positiveInt(env.WORKBENCH_PORT) || DEFAULT_PORT,
   };
 }
@@ -32,12 +35,19 @@ export function buildWorkbenchViteConfig(
       changeOrigin: true,
       target: config.bffUrl,
     },
+    "/api/voice-recordings": {
+      changeOrigin: true,
+      target: config.bffUrl,
+    },
   };
 
   return {
     root: rootDir,
     envDir: rootDir,
-    plugins: [react()],
+    // basicSsl は自己署名証明書で dev/preview server を https 化する（WORKBENCH_HTTPS=true の時だけ）。
+    // マイク録音（getUserMedia）は secure context 必須で、localhost 以外（ネットワークIP経由）から
+    // 使う場合はこれが無いと動かない。ブラウザは自己署名証明書の警告を出すので、初回は許可する。
+    plugins: config.https ? [react(), basicSsl()] : [react()],
     publicDir: "public",
     server: {
       host: config.host,
@@ -61,6 +71,11 @@ export function buildWorkbenchViteConfig(
 function clean(value: string | undefined) {
   const cleaned = value?.trim();
   return cleaned || undefined;
+}
+
+function isTruthy(value: string | undefined) {
+  const cleaned = value?.trim().toLowerCase();
+  return cleaned === "true" || cleaned === "1";
 }
 
 function normalizeBffUrl(value: string) {

@@ -18,6 +18,7 @@ import {
   type ListSessions,
 } from "../application/handle-sessions-request.ts";
 import { handleSoapDraftRequest } from "../application/handle-soap-draft-request.ts";
+import { handleVoiceRecordingRequest } from "../application/handle-voice-recording-request.ts";
 import {
   type CreateWebSocketUrl,
   handleWsUrlRequest,
@@ -44,6 +45,11 @@ import {
   type EnvSource,
   type LambdaConfig,
 } from "../infra/lambda-config.ts";
+import {
+  getTranscriptionJobStatus,
+  saveEditedTranscript,
+  uploadRecordingAndStartTranscription,
+} from "../infra/voice-capture-store.ts";
 
 export { configFromEnv } from "../infra/lambda-config.ts";
 
@@ -235,6 +241,21 @@ export async function handleLambdaEvent(
     );
   }
 
+  if (
+    path === "/api/voice-recordings" ||
+    path.startsWith("/api/voice-recordings/")
+  ) {
+    return handleVoiceRecordingRequest(
+      {
+        body: event.body,
+        isBase64Encoded: event.isBase64Encoded,
+        method,
+        path,
+      },
+      voiceRecordingOptions(config, deps),
+    );
+  }
+
   return handleBffRequest(
     {
       body: event.body,
@@ -256,6 +277,30 @@ async function getCallerIdentity(region: string): Promise<CallerIdentity> {
   const client = new STSClient({ region });
   const identity = await client.send(new GetCallerIdentityCommand({}));
   return { accountId: identity.Account };
+}
+
+/** Voice Capture handler が使う options を組み立てる。bucket 未設定時は handler 側が 503 を返す。 */
+function voiceRecordingOptions(
+  config: LambdaConfig,
+  deps: LambdaHandlerDeps,
+): Parameters<typeof handleVoiceRecordingRequest>[1] {
+  const storeConfig = {
+    bucket: config.voiceCaptureBucket ?? "",
+    dataAccessRoleArn: config.voiceCaptureDataAccessRoleArn,
+    languageCode: config.voiceCaptureLanguageCode,
+    region: config.region,
+  };
+
+  return {
+    createRecording: (input) =>
+      uploadRecordingAndStartTranscription(storeConfig, input),
+    getRecordingStatus: (input) =>
+      getTranscriptionJobStatus(storeConfig, input),
+    logError:
+      deps.logError ?? ((message, detail) => console.error(message, detail)),
+    saveEditedTranscript: (input) => saveEditedTranscript(storeConfig, input),
+    voiceCaptureBucket: config.voiceCaptureBucket,
+  };
 }
 
 function devInfoConfigForLambda(config: LambdaConfig): DevInfoConfig {

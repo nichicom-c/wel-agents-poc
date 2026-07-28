@@ -39,6 +39,8 @@ describe("configFromEnv", () => {
       runtimeArn:
         "arn:aws:bedrock-agentcore:ap-northeast-1:123456789012:runtime/runtime-abc",
       userIdClaim: "sub",
+      voiceCaptureBucket: undefined,
+      voiceCaptureLanguageCode: "ja-JP",
       devInfo: {
         authClientId: undefined,
         authMode: "jwt",

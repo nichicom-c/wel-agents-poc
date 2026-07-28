@@ -29,4 +29,6 @@ locals {
   ]
   function_name         = "${var.name_prefix}-handler"
   lambda_log_group_name = "/aws/lambda/${local.function_name}"
+
+  voice_capture_bucket_name = "${var.name_prefix}-voice-capture-${local.agent_runtime_account_id}-${local.agent_runtime_region}"
 }

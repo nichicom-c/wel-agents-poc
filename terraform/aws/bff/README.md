@@ -2,6 +2,11 @@
 
 静的 HTML チャット UI から呼び出す **BFF（Backend for Frontend）** を作成する Terraform module。API Gateway HTTP API が JWT authorizer で `POST /api/ws-url` / `GET /api/sessions` / `GET /api/dev-info` / `POST /api/chat` を保護する。通常の Chat UI は `POST /api/ws-url` で BFF を必ず通り、BFF が発行した短命 AgentCore WebSocket URL で AgentCore Runtime `/ws` に streaming 接続する。`GET /api/sessions` は認証済み user に対応する actor の AgentCore Memory session summary を `ListSessions` で取得し、Chat UI の左ペイン用に browser `conversationId` だけへ戻して返す。既存の `POST /api/chat` は non-streaming fallback / smoke check 用で、Lambda が Amazon Bedrock AgentCore Runtime の `InvokeAgentRuntime` を SigV4 署名付き HTTPS request で呼び出す。`GET /api/dev-info` は開発補助用で、allowlist 済みの AWS / Runtime / BFF / Auth 識別子だけを返す。
 
+Workbench 向けの追加 endpoint として、`POST /api/soap-draft`（SOAP Studio「SOAP 下書き生成」、issue #5、AgentCore Runtime の `soap_draft` 単発分類 agent を呼ぶ）と `POST /api/voice-recordings` + `GET /api/voice-recordings/{recordingId}` + `PATCH /api/voice-recordings/{recordingId}`（Voice Capture、issue #7）も同じ JWT authorizer で保護する。Voice Capture の 3 endpoint は AgentCore Runtime を経由せず、この module が作る S3 bucket（`aws_s3_bucket.voice_capture`）と Amazon Transcribe の非同期文字起こし job を Lambda が直接呼び出す（`recordingId` が S3 key prefix と Transcribe job name を兼ねるため、状態管理用の DB は持たない）。
+
+> [!IMPORTANT]
+> Amazon Transcribe の既定の認可方式（Forward Access Sessions。呼び出し元 IAM principal の権限をそのまま使う）だけでは、アカウントによって `StartTranscriptionJob` が `BadRequestException: The specified S3 bucket can't be accessed` になることが実機検証で確認されている（呼び出し元の IAM principal 自身は直接 S3 を読み書きできるのに、Transcribe 経由だと失敗する）。そのため、この module は `aws_iam_role.voice_capture_transcribe`（`transcribe.amazonaws.com` が assume する専用 role）を作り、`StartTranscriptionJob` の `JobExecutionSettings.DataAccessRoleArn` に明示的に渡す。`VOICE_CAPTURE_TRANSCRIBE_ROLE_ARN` が未設定の場合は Forward Access Sessions にフォールバックするので、Forward Access Sessions が機能するアカウントでは無くても動く。
+
 この module は BFF だけを管理する。静的 UI 配信は [`../chat-ui`](../chat-ui)、AgentCore Runtime 本体は [`../agentcore`](../agentcore) が管理する。
 
 > [WARNING] `GET /ping` は health check 用に public のままにする。`POST /api/ws-url`、`GET /api/sessions`、`GET /api/dev-info`、`POST /api/chat` は `jwt_issuer` / `jwt_audience` で設定した JWT authorizer によって保護する。
@@ -213,6 +218,56 @@ Authorization: Bearer <access_token>
 Response は account ID、region、Runtime ARN / qualifier / endpoint、5つの Knowledge Base ID、AgentCore Memory ID、BFF endpoint、Lambda function / log group、JWT issuer / client ID、health status だけを allowlist する。credential、token、presigned URL、raw Terraform state、raw env は返さない。
 production Runtime health は安全な probe を追加するまで `not_checked` として返す。
 
+`POST /api/voice-recordings` / `GET /api/voice-recordings/{recordingId}` / `PATCH /api/voice-recordings/{recordingId}`
+
+Voice Capture（issue #7）用。音声原本の保存 + Amazon Transcribe 非同期 job 開始、job 状態 / transcript の取得、利用者が確認・編集した transcript の保存を扱う。3つとも `voice_capture_bucket` output の S3 bucket 未設定時は `503` を返す。
+
+Header（共通）:
+
+```text
+Authorization: Bearer <access_token>
+```
+
+`POST /api/voice-recordings` Request:
+
+```json
+{
+  "audioBase64": "base64 encoded audio bytes",
+  "mimeType": "audio/webm"
+}
+```
+
+対応 `mimeType`（Amazon Transcribe `MediaFormat` へ変換）: `audio/webm`、`audio/wav` / `audio/x-wav`、`audio/mp3` / `audio/mpeg`、`audio/mp4` / `audio/x-m4a`、`audio/ogg`、`audio/flac`。未対応なら `400`。
+
+Response:
+
+```json
+{
+  "recordingId": "5c9e6b3e-....",
+  "status": "queued"
+}
+```
+
+`GET /api/voice-recordings/{recordingId}` Response（`status` は Transcribe の `QUEUED`/`IN_PROGRESS`/`COMPLETED`/`FAILED` をそのまま写像）:
+
+```json
+{
+  "recordingId": "5c9e6b3e-....",
+  "status": "succeeded",
+  "transcript": "文字起こし結果の本文"
+}
+```
+
+`PATCH /api/voice-recordings/{recordingId}` Request / Response:
+
+```json
+{
+  "editedTranscript": "利用者が確認・編集した本文"
+}
+```
+
+音声原本は `recordings/{recordingId}/original.<format>`、Transcribe の出力は `recordings/{recordingId}/transcript-raw.json`、編集済み transcript は `recordings/{recordingId}/transcript-edited.txt` として同じ bucket に保存する。SOAP Studio への引き継ぎ（編集済み transcript を `/api/soap-draft` の入力にする）は Workbench 側（session-local、DB 上のひも付けなし）が担う。
+
 ## このモジュールが作るリソース
 
 - `aws_apigatewayv2_api.this`
@@ -221,6 +276,10 @@ production Runtime health は安全な probe を追加するまで `not_checked`
 - `aws_apigatewayv2_route.chat`
 - `aws_apigatewayv2_route.dev_info`
 - `aws_apigatewayv2_route.sessions`
+- `aws_apigatewayv2_route.soap_draft`
+- `aws_apigatewayv2_route.voice_recordings_create`
+- `aws_apigatewayv2_route.voice_recordings_status`
+- `aws_apigatewayv2_route.voice_recordings_edit`
 - `aws_apigatewayv2_route.ws_url`
 - `aws_apigatewayv2_route.ping`
 - `aws_apigatewayv2_stage.default`
@@ -230,6 +289,10 @@ production Runtime health は安全な probe を追加するまで `not_checked`
 - `aws_cloudwatch_log_group.api`
 - `aws_iam_role.lambda`
 - `aws_iam_role_policy.lambda`
+- `aws_s3_bucket.voice_capture`
+- `aws_s3_bucket_public_access_block.voice_capture`
+- `aws_s3_bucket_server_side_encryption_configuration.voice_capture`
+- `aws_iam_role.voice_capture_transcribe` / `aws_iam_role_policy.voice_capture_transcribe`（`transcribe.amazonaws.com` が assume する data access role。Forward Access Sessions が機能しないアカウント向け）
 
 Lambda deployment package は `bun run build:bff` で `packages/bff/lambda.ts` から `dist/bff-lambda/index.mjs` に bundle し、`archive_file` data source でその build artifact から作成する。同じ build で local BFF server 用の `dist/bff-dev-server/index.mjs` も生成する。`dist/` は生成物なのでコミットしない。
 

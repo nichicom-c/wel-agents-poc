@@ -10,6 +10,7 @@ describe("resolveWorkbenchDevConfig", () => {
     expect(resolveWorkbenchDevConfig({})).toEqual({
       bffUrl: "http://localhost:4174",
       host: "127.0.0.1",
+      https: false,
       port: 4175,
     });
   });
@@ -24,8 +25,23 @@ describe("resolveWorkbenchDevConfig", () => {
     ).toEqual({
       bffUrl: "https://example.com",
       host: "0.0.0.0",
+      https: false,
       port: 5175,
     });
+  });
+
+  test("WORKBENCH_HTTPS=true を https: true として読み取る", () => {
+    expect(
+      resolveWorkbenchDevConfig({ WORKBENCH_HTTPS: " true " }),
+    ).toMatchObject({
+      https: true,
+    });
+    expect(resolveWorkbenchDevConfig({ WORKBENCH_HTTPS: "1" })).toMatchObject({
+      https: true,
+    });
+    expect(
+      resolveWorkbenchDevConfig({ WORKBENCH_HTTPS: "false" }),
+    ).toMatchObject({ https: false });
   });
 });
 
@@ -34,11 +50,13 @@ describe("buildWorkbenchViteConfig", () => {
     const config = buildWorkbenchViteConfig({
       bffUrl: "https://example.com",
       host: "127.0.0.1",
+      https: false,
       port: 4175,
     });
 
     expect(config.root).toEndWith("/packages/workbench/");
     expect(config.envDir).toBe(config.root);
+    expect(config.plugins).toHaveLength(1);
     expect(config.build?.outDir).toBe("../../dist/workbench");
     expect(config.server).toMatchObject({
       host: "127.0.0.1",
@@ -83,5 +101,15 @@ describe("buildWorkbenchViteConfig", () => {
       port: 5180,
       proxy: { "/api/soap-draft": { target: "https://bff.example.com" } },
     });
+  });
+
+  test("WORKBENCH_HTTPS=true の場合だけ basicSsl plugin を追加する", () => {
+    const httpsConfig = buildWorkbenchViteConfig(
+      resolveWorkbenchDevConfig({ WORKBENCH_HTTPS: "true" }),
+    );
+    const httpConfig = buildWorkbenchViteConfig(resolveWorkbenchDevConfig({}));
+
+    expect(httpsConfig.plugins).toHaveLength(2);
+    expect(httpConfig.plugins).toHaveLength(1);
   });
 });

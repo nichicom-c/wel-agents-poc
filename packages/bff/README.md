@@ -2,9 +2,9 @@
 
 `packages/bff` は Chat UI / API Gateway と AgentCore Runtime の間に置く BFF です。agent orchestration、RAG、Memory は `packages/agentcore` 側の責務で、ここでは HTTP request の受け口、Chat UI contract の検証、JWT / local dev auth からの user context 導出、AgentCore `/ws` 用の短命 presigned WebSocket URL 発行、fallback 用 Runtime invoke の payload 変換と response 整形だけを扱います。
 
-通常の Chat UI は `POST /api/ws-url` で BFF を必ず通り、BFF-derived user / actor / runtime session context を含む短命 WebSocket URL を受け取ります。stream 本体は BFF relay ではなく、その URL で browser が AgentCore Runtime `/ws` へ接続します。左ペイン用の `GET /api/sessions` は同じ認証済み actor だけを対象に AgentCore Memory `ListSessions` を呼び、browser `conversationId` と作成日時だけを返します。既存の `POST /api/chat` は non-streaming fallback / smoke path です。開発補助の `GET /api/dev-info` は同じ認証境界の内側で、AWS / Runtime / BFF / Auth の allowlist 済み識別子だけを返します。`POST /api/soap-draft` は `packages/workbench` の SOAP Studio（issue #5）から呼ばれる、chat とは独立した一回限りの SOAP 分類 request で、client からの conversationId を受け取らず呼び出しごとに新しい runtime session ID を生成します。
+通常の Chat UI は `POST /api/ws-url` で BFF を必ず通り、BFF-derived user / actor / runtime session context を含む短命 WebSocket URL を受け取ります。stream 本体は BFF relay ではなく、その URL で browser が AgentCore Runtime `/ws` へ接続します。左ペイン用の `GET /api/sessions` は同じ認証済み actor だけを対象に AgentCore Memory `ListSessions` を呼び、browser `conversationId` と作成日時だけを返します。既存の `POST /api/chat` は non-streaming fallback / smoke path です。開発補助の `GET /api/dev-info` は同じ認証境界の内側で、AWS / Runtime / BFF / Auth の allowlist 済み識別子だけを返します。`POST /api/soap-draft` は `packages/workbench` の SOAP Studio（issue #5）から呼ばれる、chat とは独立した一回限りの SOAP 分類 request で、client からの conversationId を受け取らず呼び出しごとに新しい runtime session ID を生成します。`POST /api/voice-recordings` + `GET /api/voice-recordings/{recordingId}` + `PATCH /api/voice-recordings/{recordingId}` は Voice Capture（issue #7）用で、AgentCore Runtime を経由せず、BFF が S3 への音声保存と Amazon Transcribe の非同期文字起こし job を直接呼び出します。
 
-このディレクトリは Bun workspace `@wel-agents-poc/bff` です。runtime 依存（`@aws-sdk/client-bedrock-agentcore` / `@aws-sdk/client-sts` / `@aws-sdk/core` / `@aws-sdk/credential-provider-node` / `@aws-crypto/sha256-js` / `@smithy/signature-v4` / `@smithy/types`）と `build` スクリプトは `package.json` が所有します（横断ツールと単一 `bun.lock` はルート）。
+このディレクトリは Bun workspace `@wel-agents-poc/bff` です。runtime 依存（`@aws-sdk/client-bedrock-agentcore` / `@aws-sdk/client-s3` / `@aws-sdk/client-sts` / `@aws-sdk/client-transcribe` / `@aws-sdk/core` / `@aws-sdk/credential-provider-node` / `@aws-crypto/sha256-js` / `@smithy/signature-v4` / `@smithy/types`）と `build` スクリプトは `package.json` が所有します（横断ツールと単一 `bun.lock` はルート）。
 
 ## Entry Points
 
@@ -19,7 +19,7 @@ BFF には production Lambda と local server の2つの source entrypoint が�
 
 ローカル実行は repo ルートから `mise run dev:bff`（packages/bff に cd して `bun dev-server.ts`）で起動し、build 済み artifact は `mise run start:bff`（`dist/bff-dev-server/index.mjs`）で起動します。どちらも `packages/bff/.env` を読み込みます。
 
-`packages/bff/.env.example` が **local BFF dev server** 用の env を所有します（すべて任意。`.env` にコピーして使う。`.env` は gitignore 済み。`adapters/dev-server.ts` の `resolveBffDevConfig` が読み取ります）。
+`packages/bff/.env.example` が **local BFF dev server** 用の env を所有します（すべて任意。`.env` にコピーして使う。`.env` は gitignore 済み。`adapters/dev-server.ts` の `resolveBffDevConfig` が読み取ります）。Voice Capture だけは `VOICE_CAPTURE_BUCKET` が実質必須で、未設定だと `/api/voice-recordings*` は `503` を返します（`terraform -chdir=terraform/aws/bff output voice_capture_bucket` の値を転記）。
 
 **production Lambda の env はここには置きません。** `AGENT_RUNTIME_ARN`、`AGENT_RUNTIME_REGION`、`AGENT_RUNTIME_QUALIFIER`、`REQUEST_TIMEOUT_MS`、`WS_URL_EXPIRES_SECONDS`、`BFF_ACTOR_CLAIM` / `BFF_USER_ID_CLAIM` などの deployed Lambda 設定は `terraform/aws/bff`（`terraform.tfvars` → Lambda `environment`）が供給し、`infra/lambda-config.ts` が読み取ります。
 
@@ -31,7 +31,7 @@ BFF には production Lambda と local server の2つの source entrypoint が�
 | `application/` | hosting に依存しない BFF use case。`/api/ws-url` の request validation / URL issuer、`/api/sessions` の認証済み actor session list、fallback `/api/chat` の Runtime payload 変換、`/api/dev-info` の認証必須化、Runtime response の正規化を担います。 |
 | `contracts/` | adapter / application / infra 間で共有する data contract。HTTP request/response と Runtime invoke result を定義します。 |
 | `domain/` | auth / chat session に閉じた純粋なルール。JWT claims からの authenticated context 導出、user-scoped runtime session ID 導出、conversation ID の生成・検証、文字列 field の取り出しを担います。 |
-| `infra/` | AWS SDK や Lambda env など外部環境に接続する実装。AgentCore Runtime invoke、AgentCore `/ws` presigned URL 生成、AgentCore Memory `ListSessions`、Dev Info response 生成、production 設定の読み取りを担います。 |
+| `infra/` | AWS SDK や Lambda env など外部環境に接続する実装。AgentCore Runtime invoke、AgentCore `/ws` presigned URL 生成、AgentCore Memory `ListSessions`、Voice Capture の S3 保存 + Amazon Transcribe job 操作、Dev Info response 生成、production 設定の読み取りを担います。 |
 
 ## Dependency Direction
 
@@ -168,29 +168,59 @@ presigned URL を返しません。production では STS `GetCallerIdentity` の
 AgentCore Runtime ARN から account ID を補完します。local dev では `AGENTCORE_RUNTIME_URL` の `/ping` を
 軽量に確認し、production Runtime health は安全な probe を設計するまで `not_checked` とします。
 
+### Voice Capture
+
+```mermaid
+flowchart LR
+  Client["Workbench Voice Capture"]
+  Entrypoint["lambda.ts<br/>or dev-server.ts"]
+  Adapter["adapters/*"]
+  Handler["application/handle-voice-recording-request.ts"]
+  Store["infra/voice-capture-store.ts"]
+  S3["S3 bucket<br/>recordings/{id}/*"]
+  Transcribe["Amazon Transcribe<br/>StartTranscriptionJob / GetTranscriptionJob"]
+  Response["JSON<br/>recordingId / status / transcript"]
+
+  Client -->|"POST /api/voice-recordings<br/>audioBase64 + mimeType"| Entrypoint
+  Entrypoint --> Adapter --> Handler --> Store
+  Store -->|PutObject original| S3
+  Store -->|StartTranscriptionJob| Transcribe
+  Client -->|"GET /api/voice-recordings/{id}"| Entrypoint
+  Store -->|GetTranscriptionJob + GetObject transcript| S3
+  Transcribe --> Store
+  Client -->|"PATCH /api/voice-recordings/{id}<br/>editedTranscript"| Entrypoint
+  Store -->|PutObject transcript-edited.txt| S3
+  Store --> Handler --> Response --> Client
+```
+
+`recordingId` が S3 key prefix（`recordings/{recordingId}/...`）と Transcribe job name を兼ねるため、状態管理用の DB は持たない。`VOICE_CAPTURE_BUCKET` が未設定の場合は 3 endpoint とも `503` を返す。SOAP Studio への引き継ぎ（編集済み transcript を `/api/soap-draft` の入力にする）は BFF ではなく `packages/workbench` 側（session-local）が担う。
+
 ## File Map
 
 | File | Summary |
 | --- | --- |
-| `adapters/dev-server.ts` | `Bun.serve` で `/ping`、`/api/ws-url`、`/api/sessions`、`/api/dev-info`、`/api/soap-draft`、fallback `/api/chat` を公開します。`/api/ws-url` は local `/ws` URL を返し、`/api/sessions` は configured Memory ID がある時だけ AWS `ListSessions` を呼び、`/api/dev-info` は local Runtime `/ping` を確認し、`/api/soap-draft` と `/api/chat` は local AgentCore Runtime へ `fetch` で forward します。 |
-| `adapters/lambda.ts` | API Gateway event を受け、`/api/ws-url`、`/api/sessions`、`/api/dev-info` は JWT claims から認証 context を作って application handler に委譲し、`/api/soap-draft` と fallback `/api/chat` は AgentCore Runtime SDK client を注入してそれぞれの handler を呼びます。 |
+| `adapters/dev-server.ts` | `Bun.serve` で `/ping`、`/api/ws-url`、`/api/sessions`、`/api/dev-info`、`/api/soap-draft`、`/api/voice-recordings*`、fallback `/api/chat` を公開します。`/api/ws-url` は local `/ws` URL を返し、`/api/sessions` は configured Memory ID がある時だけ AWS `ListSessions` を呼び、`/api/dev-info` は local Runtime `/ping` を確認し、`/api/soap-draft` と `/api/chat` は local AgentCore Runtime へ `fetch` で forward し、`/api/voice-recordings*` は S3 / Amazon Transcribe を直接呼びます。 |
+| `adapters/lambda.ts` | API Gateway event を受け、`/api/ws-url`、`/api/sessions`、`/api/dev-info` は JWT claims から認証 context を作って application handler に委譲し、`/api/soap-draft` と fallback `/api/chat` は AgentCore Runtime SDK client を注入してそれぞれの handler を呼び、`/api/voice-recordings*` は S3 / Transcribe 呼び出しを注入して handler を呼びます。 |
 | `application/handle-dev-info-request.ts` | `GET /api/dev-info` の routing、auth context 必須化、Dev Info provider 呼び出し、HTTP response 作成を担います。 |
 | `application/handle-sessions-request.ts` | `GET /api/sessions` の routing、auth context 必須化、Memory ID 設定確認、AgentCore session summary から browser `conversationId` への変換を担います。 |
 | `application/handle-ws-url-request.ts` | `POST /api/ws-url` の JSON parse、auth context 必須化、conversationId 検証、user-scoped runtime session ID 導出、WebSocket URL 発行 response 作成を担います。 |
 | `application/handle-request.ts` | fallback `/api/chat` の routing、JSON parse、message / conversationId 検証、Runtime payload 作成、HTTP response 作成を担います。 |
 | `application/handle-soap-draft-request.ts` | `POST /api/soap-draft` の routing、text 必須検証、runtime session ID 生成（`crypto.randomUUID`）、Runtime payload 作成、AgentCore 内部 error status の 502 変換を担います。 |
+| `application/handle-voice-recording-request.ts` | `POST /api/voice-recordings` + `GET`/`PATCH /api/voice-recordings/{recordingId}` の routing、recordingId 生成、mimeType → Transcribe MediaFormat 検証、bucket 未設定時の 503、store 例外の 502 変換を担います。 |
 | `application/runtime-response.ts` | AgentCore Runtime の JSON / event stream / text response を fallback `/api/chat` client 向け payload に整形します。 |
 | `contracts/dev-info.ts` | Chat UI に返す Dev Info の allowlist contract と health status を定義します。 |
 | `contracts/http.ts` | adapter が application に渡す最小 HTTP contract と、application が返す Lambda 互換 response を定義します。 |
 | `contracts/runtime.ts` | AgentCore Runtime へ送る payload、invoke result、transport seam を定義します。 |
 | `contracts/sessions.ts` | AgentCore session summary と Chat UI に返す session list response を定義します。 |
+| `contracts/voice-capture.ts` | Voice Capture の job status 定数、mimeType → Transcribe MediaFormat 変換、request/response 型を定義します。 |
 | `domain/auth.ts` | JWT claims または dev user から BFF-authenticated user / actor context を作り、runtime session ID 導出を re-export します。 |
 | `domain/chat-session.ts` | conversation ID の生成・検証、user-scoped runtime session ID の導出 / prefix 復元、unknown payload からの text 抽出を定義します。 |
 | `infra/agentcore-sessions-client.ts` | AWS SDK v3 の `ListSessionsCommand` を組み立て、AgentCore Memory session summary を BFF contract に正規化します。 |
 | `infra/agentcore-websocket-presigner.ts` | AgentCore Runtime `/ws` へ接続する SigV4 presigned WebSocket URL を生成し、BFF-derived session / user / actor context を query に含めます。 |
 | `infra/agentcore-runtime-client.ts` | AWS SDK v3 の `InvokeAgentRuntimeCommand` を組み立て、SDK response を `RuntimeInvokeResult` に正規化します。 |
 | `infra/dev-info.ts` | Lambda env / request context / STS caller identity から安全な Dev Info response を組み立てます。 |
-| `infra/lambda-config.ts` | production Lambda 用の必須 env、JWT/dev auth mode、claim 名、WebSocket URL 有効秒数、Dev Info 表示用 env、既定値を `LambdaConfig` に変換します。 |
+| `infra/lambda-config.ts` | production Lambda 用の必須 env、JWT/dev auth mode、claim 名、WebSocket URL 有効秒数、Dev Info 表示用 env、Voice Capture の bucket / LanguageCode、既定値を `LambdaConfig` に変換します。 |
+| `infra/voice-capture-store.ts` | S3 への音声原本 / 編集済み transcript 保存、Amazon Transcribe の `StartTranscriptionJob` / `GetTranscriptionJob`、完了時の transcript 読み出しを担います。 |
 
 ## Change Guide
 
@@ -200,6 +230,7 @@ AgentCore Runtime ARN から account ID を補完します。local dev では `A
 - JWT claim 名、dev auth mode、Lambda env を変える場合は `infra/lambda-config.ts`、`domain/auth.ts`、Terraform の BFF env / JWT authorizer 設定を合わせます。
 - fallback `/api/chat` の Runtime payload や invoke result の shape を変える場合は `contracts/runtime.ts` を更新し、`application/handle-request.ts` と `infra/agentcore-runtime-client.ts` の両方を合わせます。
 - `/api/soap-draft` の request/response contract を変える場合は `application/handle-soap-draft-request.ts` を更新し、`packages/agentcore/contracts/soap-draft.ts` / `domain/soap-draft.ts`、`packages/workbench` の `src/features/soap-draft/api/soap-draft.ts`、`terraform/aws/bff/api-gateway.tf` の route を合わせます。
+- `/api/voice-recordings*` の request/response contract や対応 mimeType を変える場合は `application/handle-voice-recording-request.ts`、`contracts/voice-capture.ts`、`infra/voice-capture-store.ts` を更新し、`packages/workbench` の `src/features/voice-capture/api/voice-capture.ts`、`terraform/aws/bff`（`api-gateway.tf` の route、`voice-capture.tf` の bucket、`iam.tf` の S3/Transcribe 権限）を合わせます。
 - Dev Info の表示項目を変える場合は `contracts/dev-info.ts`、`infra/dev-info.ts`、`packages/chat-ui/dev-info.ts`、Terraform の BFF env、docs を合わせます。credential、token、presigned URL、raw env は返しません。
 - local server だけの CORS / port / forward 先 / local WebSocket URL を変える場合は `adapters/dev-server.ts` に閉じます。
 - production Lambda の SDK invoke 設定を変える場合は `infra/lambda-config.ts` と `infra/agentcore-runtime-client.ts` に閉じます。

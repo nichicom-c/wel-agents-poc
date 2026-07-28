@@ -9,7 +9,9 @@
     "@aws-crypto/sha256-js": "5.2.0",
     "@aws-sdk/client-bedrock-agent": "3.1068.0",
     "@aws-sdk/client-bedrock-agentcore": "3.1068.0",
+    "@aws-sdk/client-s3": "3.1068.0",
     "@aws-sdk/client-sts": "3.1068.0",
+    "@aws-sdk/client-transcribe": "3.1068.0",
     "@aws-sdk/core": "3.974.20",
     "@aws-sdk/credential-provider-node": "3.972.55",
     "@smithy/signature-v4": "5.4.7"

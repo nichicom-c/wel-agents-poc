@@ -470,6 +470,62 @@ button:focus-visible {
   min-height: 80px;
 }
 
+.soap-draft-source-tag {
+  margin: 0;
+  color: var(--text-subtle);
+  font-size: 12px;
+}
+
+.voice-capture-form {
+  display: grid;
+  gap: var(--space-3);
+  margin-top: var(--space-5);
+  padding-top: var(--space-5);
+  border-top: 1px solid var(--divider);
+}
+
+.voice-capture-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.voice-capture-file-label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--secondary-button-border);
+  border-radius: var(--radius-control);
+  color: var(--text-primary);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.voice-capture-preview {
+  width: 100%;
+}
+
+.voice-capture-status {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.voice-capture-transcript {
+  display: grid;
+  gap: var(--space-3);
+  margin-top: var(--space-5);
+}
+
+.voice-capture-transcript h3 {
+  margin: 0;
+  color: var(--text-strong);
+  font-size: 16px;
+}
+
 .context-inspector ul {
   display: grid;
   gap: var(--space-2);

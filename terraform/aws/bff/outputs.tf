@@ -45,3 +45,13 @@ output "ping_endpoint" {
   description = "Health check endpoint for the BFF."
   value       = "${aws_apigatewayv2_api.this.api_endpoint}/ping"
 }
+
+output "voice_capture_bucket" {
+  description = "S3 bucket storing Voice Capture audio originals and transcripts."
+  value       = aws_s3_bucket.voice_capture.bucket
+}
+
+output "voice_capture_transcribe_role_arn" {
+  description = "IAM role Amazon Transcribe assumes (via JobExecutionSettings.DataAccessRoleArn) to read/write the Voice Capture bucket."
+  value       = aws_iam_role.voice_capture_transcribe.arn
+}

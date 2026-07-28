@@ -17,6 +17,7 @@ import {
   type ListSessions,
 } from "../application/handle-sessions-request.ts";
 import { handleSoapDraftRequest } from "../application/handle-soap-draft-request.ts";
+import { handleVoiceRecordingRequest } from "../application/handle-voice-recording-request.ts";
 import { handleWsUrlRequest } from "../application/handle-ws-url-request.ts";
 import { runtimeInvokeResultFromResponse } from "../application/runtime-response.ts";
 import type { KnowledgeBaseIds } from "../contracts/knowledge-base-detail.ts";
@@ -25,6 +26,11 @@ import { authContextFromJwtClaims } from "../domain/auth.ts";
 import { listAgentCoreSessions } from "../infra/agentcore-sessions-client.ts";
 import { buildDevInfo } from "../infra/dev-info.ts";
 import { makeKnowledgeBaseDetailProvider } from "../infra/knowledge-base-detail.ts";
+import {
+  getTranscriptionJobStatus,
+  saveEditedTranscript,
+  uploadRecordingAndStartTranscription,
+} from "../infra/voice-capture-store.ts";
 
 const DEFAULT_ACTOR_ID = "web-user";
 const DEFAULT_HOST = "127.0.0.1";
@@ -66,6 +72,15 @@ export type BffDevConfig = {
   knowledgeBaseIds: KnowledgeBaseIds;
   /** forward 先の AgentCore Runtime base URL。 */
   agentCoreRuntimeUrl: string;
+  /** Voice Capture の音声原本 / transcript を保存する S3 bucket。未設定なら該当 API は 503。 */
+  voiceCaptureBucket?: string;
+  /**
+   * Amazon Transcribe が StartTranscriptionJob で assume する data access role の ARN。
+   * 未設定なら Forward Access Sessions（呼び出し元の権限をそのまま使う既定の仕組み）に任せる。
+   */
+  voiceCaptureDataAccessRoleArn?: string;
+  /** Voice Capture の Amazon Transcribe LanguageCode。 */
+  voiceCaptureLanguageCode: string;
 };
 
 type BffDevDeps = {
@@ -103,6 +118,9 @@ export function resolveBffDevConfig(
       DEFAULT_REGION,
     agentCoreRuntimeUrl:
       clean(env.AGENTCORE_RUNTIME_URL) || DEFAULT_AGENTCORE_RUNTIME_URL,
+    voiceCaptureBucket: clean(env.VOICE_CAPTURE_BUCKET),
+    voiceCaptureDataAccessRoleArn: clean(env.VOICE_CAPTURE_TRANSCRIBE_ROLE_ARN),
+    voiceCaptureLanguageCode: clean(env.VOICE_CAPTURE_LANGUAGE_CODE) || "ja-JP",
   };
 }
 
@@ -265,6 +283,38 @@ export async function handleBffDevRequest(
     return responseFromBff(bffResponse);
   }
 
+  if (
+    url.pathname === "/api/voice-recordings" ||
+    url.pathname.startsWith("/api/voice-recordings/")
+  ) {
+    const storeConfig = {
+      bucket: config.voiceCaptureBucket ?? "",
+      dataAccessRoleArn: config.voiceCaptureDataAccessRoleArn,
+      languageCode: config.voiceCaptureLanguageCode,
+      region: config.region,
+    };
+
+    const bffResponse = await handleVoiceRecordingRequest(
+      {
+        body,
+        method: request.method,
+        path: url.pathname,
+      },
+      {
+        createRecording: (input) =>
+          uploadRecordingAndStartTranscription(storeConfig, input),
+        getRecordingStatus: (input) =>
+          getTranscriptionJobStatus(storeConfig, input),
+        logError: (message, detail) => console.error(message, detail),
+        saveEditedTranscript: (input) =>
+          saveEditedTranscript(storeConfig, input),
+        voiceCaptureBucket: config.voiceCaptureBucket,
+      },
+    );
+
+    return responseFromBff(bffResponse);
+  }
+
   const bffResponse = await handleBffRequest(
     {
       body,
@@ -322,7 +372,7 @@ async function invokeLocalRuntime(
 function corsHeaders() {
   return {
     "access-control-allow-headers": "authorization, content-type",
-    "access-control-allow-methods": "GET, POST, OPTIONS",
+    "access-control-allow-methods": "GET, POST, PATCH, OPTIONS",
     "access-control-allow-origin": "*",
   };
 }

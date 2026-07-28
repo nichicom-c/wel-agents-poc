@@ -22,6 +22,7 @@ const CONFIG: BffDevConfig = {
   },
   port: 4174,
   region: "ap-northeast-1",
+  voiceCaptureLanguageCode: "ja-JP",
 };
 
 const CONFIG_WITH_KB_IDS: BffDevConfig = {
@@ -42,6 +43,7 @@ const CONFIG_WITHOUT_DEV_USER: BffDevConfig = {
   host: "127.0.0.1",
   port: 4174,
   region: "ap-northeast-1",
+  voiceCaptureLanguageCode: "ja-JP",
   knowledgeBaseIds: {
     database: undefined,
     document: undefined,
@@ -89,6 +91,7 @@ describe("resolveBffDevConfig", () => {
         medical_care_law: "KBMED00001",
         support_activity: "KBSUP00001",
       },
+      voiceCaptureLanguageCode: "ja-JP",
     });
   });
 });

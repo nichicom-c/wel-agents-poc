@@ -26,6 +26,7 @@ mise run bs
 cp packages/agentcore/.env.example packages/agentcore/.env
 cp packages/bff/.env.example       packages/bff/.env
 cp packages/chat-ui/.env.example   packages/chat-ui/.env
+cp packages/workbench/.env.example packages/workbench/.env
 # packages/agentcore/.env に terraform output の KB ID / model ID を転記する
 
 # local AgentCore を開発実行（packages/agentcore/.env を読み込む）
@@ -37,9 +38,42 @@ mise run dev:bff
 # 別 terminal で静的 Chat UI を起動（packages/chat-ui/.env を読み込む）
 mise run dev:ui
 
+# 別 terminal で Workbench（SOAP Studio / Voice Capture 等）を起動（packages/workbench/.env を読み込む）
+mise run dev:workbench
+
 # テスト実行（bun test でも可）
 bun run test
 ```
+
+> [!IMPORTANT]
+> **Voice Capture**（`packages/workbench` の Workspace Nav、issue #7）は音声原本の保存と文字起こしに
+> 実際の S3 + Amazon Transcribe を使うため、`VOICE_CAPTURE_BUCKET` は `packages/bff/.env` の実質必須項目です
+> （未設定のまま `/api/voice-recordings*` を呼ぶと `503` を返します）。この bucket は
+> [`terraform/aws/bff`](./terraform/aws/bff/README.md) が作りますが、Voice Capture をローカルで試すだけなら
+> `auth` / `chat-ui` stack はもちろん、bff の API Gateway / Lambda / IAM もまだ不要です
+> （`local BFF dev server` はそれらを経由せず、あなた自身の AWS 認証情報で直接 S3 / Transcribe を呼びます）。
+>
+> ```bash
+> # bff の tfvars を用意する（jwt_issuer / jwt_audience は S3 bucket 作成には使わないためダミー値で可。
+> # agent_runtime_arn は terraform/aws/agentcore output agent_runtime_arn の値を転記する）
+> cp terraform/aws/bff/terraform.tfvars.template terraform/aws/bff/terraform.tfvars
+>
+> # Voice Capture 用の S3 bucket だけを作る（API Gateway / Lambda / IAM はまだ作らない）
+> mise exec -- terraform -chdir=terraform/aws/bff init
+> mise exec -- terraform -chdir=terraform/aws/bff apply \
+>   -target=aws_s3_bucket.voice_capture \
+>   -target=aws_s3_bucket_public_access_block.voice_capture \
+>   -target=aws_s3_bucket_server_side_encryption_configuration.voice_capture
+>
+> # bucket 名を packages/bff/.env の VOICE_CAPTURE_BUCKET に転記する
+> mise exec -- terraform -chdir=terraform/aws/bff output voice_capture_bucket
+> ```
+>
+> あなたの AWS 認証情報（profile / SSO login）に、この bucket への `s3:PutObject` / `s3:GetObject` と
+> `transcribe:StartTranscriptionJob` / `transcribe:GetTranscriptionJob` の権限が必要です
+> （`AccessDenied` が出る場合はここを確認してください）。BFF を AWS へフル公開する場合は、
+> 後で `terraform/aws/auth` を適用し、`jwt_issuer` / `jwt_audience` を実値に差し替えて
+> `-target` なしで `terraform apply` すれば API Gateway / Lambda / IAM も揃います。
 
 ## デプロイ
 
@@ -97,9 +131,9 @@ flowchart LR
 | --- | --- |
 | [`AgentCore Runtime`](./packages/agentcore/README.md) | supervisor + 複数の専門 RAG agent、vector Knowledge Base retrieval、support_activity structured-data provider、Memory 連携を扱います。 |
 | [`Auth`](./terraform/aws/auth/README.md) | Cognito User Pool + public App Client + Hosted UI で OIDC provider を作り、Chat UI の PKCE login と BFF の JWT authorizer 設定を提供します。 |
-| [`BFF`](./packages/bff/README.md) | Chat UI / API Gateway と AgentCore Runtime の間で、`/api/ws-url` の presigned URL 発行、既存 `/api/chat` fallback、payload 変換を扱います。 |
+| [`BFF`](./packages/bff/README.md) | Chat UI / API Gateway と AgentCore Runtime の間で、`/api/ws-url` の presigned URL 発行、既存 `/api/chat` fallback、SOAP Studio / Voice Capture 用の追加 endpoint、payload 変換を扱います。 |
 | [`Chat UI`](./packages/chat-ui/README.md) | React browser UI、WebSocket streaming chat、conversation ID、OIDC PKCE auth state、Vite dev / preview / build 設定を扱います。 |
-| [`Workbench`](./packages/workbench/README.md) | 作業目的ごとに画面を分ける React web app（Workspace Nav + SOAP Studio 等の作業画面 + Context Inspector）。現時点はホームページのみです。 |
+| [`Workbench`](./packages/workbench/README.md) | 作業目的ごとに画面を分ける React web app（Workspace Nav + Context Inspector）。SOAP Studio（issue #5）と Voice Capture（issue #7）を実装済みで、他の nav 項目は準備中です。 |
 
 ## ディレクトリ構成
 

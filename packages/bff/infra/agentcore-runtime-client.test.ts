@@ -14,6 +14,7 @@ const CONFIG: LambdaConfig = {
   runtimeArn:
     "arn:aws:bedrock-agentcore:ap-northeast-1:123456789012:runtime/runtime-abc",
   userIdClaim: "sub",
+  voiceCaptureLanguageCode: "ja-JP",
 };
 
 const RUNTIME_SESSION_ID = "chat-00000000-0000-4000-8000-000000000000";

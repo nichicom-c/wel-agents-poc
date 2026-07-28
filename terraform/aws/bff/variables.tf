@@ -275,6 +275,12 @@ variable "tags" {
   }
 }
 
+variable "voice_capture_language_code" {
+  description = "Amazon Transcribe LanguageCode used for Voice Capture transcription jobs."
+  type        = string
+  default     = "ja-JP"
+}
+
 variable "throttling_burst_limit" {
   description = "API Gateway default route throttling burst limit."
   type        = number
