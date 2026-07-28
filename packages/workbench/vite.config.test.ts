@@ -8,6 +8,7 @@ import {
 describe("resolveWorkbenchDevConfig", () => {
   test("既定値を返す", () => {
     expect(resolveWorkbenchDevConfig({})).toEqual({
+      bffUrl: "http://localhost:4174",
       host: "127.0.0.1",
       port: 4175,
     });
@@ -16,10 +17,12 @@ describe("resolveWorkbenchDevConfig", () => {
   test("Workbench 用 env を trim して読み取る", () => {
     expect(
       resolveWorkbenchDevConfig({
+        BFF_URL: " https://example.com/api/soap-draft/ ",
         WORKBENCH_HOST: " 0.0.0.0 ",
         WORKBENCH_PORT: "5175",
       }),
     ).toEqual({
+      bffUrl: "https://example.com",
       host: "0.0.0.0",
       port: 5175,
     });
@@ -29,6 +32,7 @@ describe("resolveWorkbenchDevConfig", () => {
 describe("buildWorkbenchViteConfig", () => {
   test("packages/workbench を root にして dist/workbench へ build する", () => {
     const config = buildWorkbenchViteConfig({
+      bffUrl: "https://example.com",
       host: "127.0.0.1",
       port: 4175,
     });
@@ -39,12 +43,45 @@ describe("buildWorkbenchViteConfig", () => {
     expect(config.server).toMatchObject({
       host: "127.0.0.1",
       port: 4175,
+      proxy: {
+        "/api/soap-draft": {
+          changeOrigin: true,
+          target: "https://example.com",
+        },
+      },
       strictPort: true,
     });
     expect(config.preview).toMatchObject({
       host: "127.0.0.1",
       port: 4175,
+      proxy: {
+        "/api/soap-draft": {
+          changeOrigin: true,
+          target: "https://example.com",
+        },
+      },
       strictPort: true,
+    });
+  });
+
+  test("読み込んだ Workbench env が proxy target / host / port を駆動する", () => {
+    const config = buildWorkbenchViteConfig(
+      resolveWorkbenchDevConfig({
+        BFF_URL: "https://bff.example.com",
+        WORKBENCH_HOST: "0.0.0.0",
+        WORKBENCH_PORT: "5180",
+      }),
+    );
+
+    expect(config.server).toMatchObject({
+      host: "0.0.0.0",
+      port: 5180,
+      proxy: { "/api/soap-draft": { target: "https://bff.example.com" } },
+    });
+    expect(config.preview).toMatchObject({
+      host: "0.0.0.0",
+      port: 5180,
+      proxy: { "/api/soap-draft": { target: "https://bff.example.com" } },
     });
   });
 });

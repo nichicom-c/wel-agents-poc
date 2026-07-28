@@ -495,6 +495,73 @@ describe("handleLambdaEvent", () => {
     });
   });
 
+  test("POST /api/soap-draft を AgentCore Runtime SDK command に変換する", async () => {
+    let commandInput: Record<string, unknown> | undefined;
+
+    const response = await handleLambdaEvent(
+      {
+        body: JSON.stringify({
+          text: "最近眠れていない",
+        }),
+        rawPath: "/api/soap-draft",
+        requestContext: { http: { method: "POST" } },
+      },
+      ENV,
+      {
+        sender: async (command) => {
+          commandInput = command.input as Record<string, unknown>;
+
+          return {
+            $metadata: { httpStatusCode: 200 },
+            contentType: "application/json",
+            response: {
+              transformToString: async () =>
+                JSON.stringify({
+                  status: "success",
+                  type: "soap_draft",
+                  candidates: [
+                    {
+                      category: "S",
+                      draftText: "draft",
+                      evidenceQuote: "最近眠れていない",
+                      reasoning: "reason",
+                      confidence: 0.8,
+                    },
+                  ],
+                  recommendedRecordTypes: ["support_activity"],
+                }),
+            },
+            statusCode: 200,
+          } as unknown as InvokeAgentRuntimeCommandOutput;
+        },
+      },
+    );
+
+    expect(response.statusCode).toBe(200);
+    expect(JSON.parse(response.body)).toEqual({
+      candidates: [
+        {
+          category: "S",
+          draftText: "draft",
+          evidenceQuote: "最近眠れていない",
+          reasoning: "reason",
+          confidence: 0.8,
+        },
+      ],
+      recommendedRecordTypes: ["support_activity"],
+    });
+    expect(commandInput?.runtimeSessionId).toMatch(/^[0-9a-f-]{36}$/);
+    const payload = JSON.parse(
+      new TextDecoder().decode(commandInput?.payload as Uint8Array),
+    );
+    expect(payload).toEqual({
+      actor_id: "web-user",
+      type: "soap_draft",
+      text: "最近眠れていない",
+      session_id: commandInput?.runtimeSessionId,
+    });
+  });
+
   test("SDK service error を BFF の 502 にする", async () => {
     const response = await handleLambdaEvent(
       {

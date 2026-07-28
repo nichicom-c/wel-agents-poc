@@ -17,6 +17,7 @@ import {
   handleSessionsRequest,
   type ListSessions,
 } from "../application/handle-sessions-request.ts";
+import { handleSoapDraftRequest } from "../application/handle-soap-draft-request.ts";
 import {
   type CreateWebSocketUrl,
   handleWsUrlRequest,
@@ -211,6 +212,25 @@ export async function handleLambdaEvent(
           deps.logError ??
           ((message, detail) => console.error(message, detail)),
         qualifier: config.qualifier,
+      },
+    );
+  }
+
+  if (path === "/api/soap-draft") {
+    return handleSoapDraftRequest(
+      {
+        body: event.body,
+        isBase64Encoded: event.isBase64Encoded,
+        method,
+        path,
+      },
+      {
+        actorId: config.actorId,
+        invokeRuntime: (runtimeSessionId, payload) =>
+          invokeAgentCoreRuntime(config, runtimeSessionId, payload, deps),
+        logError:
+          deps.logError ??
+          ((message, detail) => console.error(message, detail)),
       },
     );
   }

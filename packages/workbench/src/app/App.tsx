@@ -1,9 +1,9 @@
 import { useState } from "react";
 
+import { SoapStudioView } from "../widgets/soap-studio/index.ts";
 import {
   CONTEXT_INSPECTOR_ITEMS,
   DEFAULT_WORKSPACE_NAV_ID,
-  SOAP_STUDIO_CARDS,
   WORKSPACE_NAV_ITEMS,
   type WorkspaceNavId,
 } from "./workspace-nav.ts";
@@ -53,29 +53,6 @@ export function App() {
         </aside>
       </div>
     </div>
-  );
-}
-
-function SoapStudioView() {
-  return (
-    <>
-      <h2>SOAP Studio</h2>
-      <p className="workbench-main-description">
-        入力素材から SOAP 下書きと不足確認を作る作業画面
-      </p>
-      <div className="soap-studio-grid">
-        {SOAP_STUDIO_CARDS.map((card) => (
-          <section
-            key={card.id}
-            className="soap-studio-card"
-            data-accent={card.accent}
-          >
-            <h3>{card.title}</h3>
-            <p>{card.description}</p>
-          </section>
-        ))}
-      </div>
-    </>
   );
 }
 

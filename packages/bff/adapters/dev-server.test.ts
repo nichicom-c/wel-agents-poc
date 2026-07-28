@@ -161,6 +161,80 @@ describe("handleBffDevRequest", () => {
     expect(response.status).toBe(400);
   });
 
+  test("POST /api/soap-draft を local runtime payload に変換する", async () => {
+    let runtimeRequest: Record<string, unknown> | undefined;
+    const fetchFn = async (url: string | URL | Request, init?: RequestInit) => {
+      runtimeRequest = {
+        body: JSON.parse(String(init?.body)),
+        method: init?.method,
+        url: String(url),
+      };
+      return Response.json({
+        status: "success",
+        type: "soap_draft",
+        candidates: [
+          {
+            category: "S",
+            draftText: "draft",
+            evidenceQuote: "最近眠れていない",
+            reasoning: "reason",
+            confidence: 0.8,
+          },
+        ],
+        recommendedRecordTypes: ["support_activity"],
+      });
+    };
+
+    const response = await handleBffDevRequest(
+      new Request("http://localhost:4174/api/soap-draft", {
+        body: JSON.stringify({
+          text: "最近眠れていない",
+        }),
+        method: "POST",
+      }),
+      CONFIG,
+      fetchFn,
+    );
+
+    await expect(response.json()).resolves.toEqual({
+      candidates: [
+        {
+          category: "S",
+          draftText: "draft",
+          evidenceQuote: "最近眠れていない",
+          reasoning: "reason",
+          confidence: 0.8,
+        },
+      ],
+      recommendedRecordTypes: ["support_activity"],
+    });
+    expect(response.status).toBe(200);
+    expect(runtimeRequest?.method).toBe("POST");
+    expect(runtimeRequest?.url).toBe("http://localhost:8080/invocations");
+    const body = runtimeRequest?.body as Record<string, unknown>;
+    expect(body).toMatchObject({
+      actor_id: "web-user",
+      type: "soap_draft",
+      text: "最近眠れていない",
+    });
+    expect(typeof body.session_id).toBe("string");
+  });
+
+  test("POST /api/soap-draft の text 欠落は 400 にする", async () => {
+    const response = await handleBffDevRequest(
+      new Request("http://localhost:4174/api/soap-draft", {
+        body: JSON.stringify({}),
+        method: "POST",
+      }),
+      CONFIG,
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({
+      error: "text is required",
+    });
+  });
+
   test("POST /api/ws-url に local WebSocket URL を返す", async () => {
     const response = await handleBffDevRequest(
       new Request("http://localhost:4174/api/ws-url", {

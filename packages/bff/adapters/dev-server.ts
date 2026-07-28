@@ -16,6 +16,7 @@ import {
   handleSessionsRequest,
   type ListSessions,
 } from "../application/handle-sessions-request.ts";
+import { handleSoapDraftRequest } from "../application/handle-soap-draft-request.ts";
 import { handleWsUrlRequest } from "../application/handle-ws-url-request.ts";
 import { runtimeInvokeResultFromResponse } from "../application/runtime-response.ts";
 import type { KnowledgeBaseIds } from "../contracts/knowledge-base-detail.ts";
@@ -240,6 +241,24 @@ export async function handleBffDevRequest(
             runtimeSessionId,
             userId,
           }),
+      },
+    );
+
+    return responseFromBff(bffResponse);
+  }
+
+  if (url.pathname === "/api/soap-draft") {
+    const bffResponse = await handleSoapDraftRequest(
+      {
+        body,
+        method: request.method,
+        path: url.pathname,
+      },
+      {
+        actorId: config.actorId,
+        invokeRuntime: (_runtimeSessionId, payload) =>
+          invokeLocalRuntime(config, payload, fetchFn),
+        logError: (message, detail) => console.error(message, detail),
       },
     );
 

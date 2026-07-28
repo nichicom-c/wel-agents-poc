@@ -10,6 +10,8 @@
 
 認証・URL 発行・HTTP contract 変換は `packages/bff` の責務で、本ディレクトリは AgentCore Runtime contract / WebSocket stream adapter / agent orchestration / Knowledge Base retrieval / Memory 連携を担います。
 
+`POST /invocations` は payload の `type` フィールドで chat（supervisor、既定）と `soap_draft`（SOAP Studio の SOAP 下書き生成、issue #5）を振り分けます。`soap_draft` は supervisor の agents-as-tools 経路には乗らない独立した単発の分類 agent で、KB / Memory を使わず `BEDROCK_MODEL_ID` だけを必要とします。分類タスクは supervisor の会話より軽いことが多いため、任意の `SOAP_DRAFT_MODEL_ID` で専用 model ID に差し替えて応答時間を短縮できます（未設定時は `BEDROCK_MODEL_ID` にフォールバック）。記録種別（支援実績/汎用記録/会議/サマリー）は分類前の入力ではなく、分類後に入力テキスト全体（個々の候補ではない）に対する反映候補（`recommendedRecordTypes`、0個以上）として model が推薦する出力側の情報です。詳細は `application/soap-draft-agent.ts` / `application/build-soap-draft-response.ts` を参照してください。
+
 ## Entry Point
 
 `index.ts` が AgentCore Runtime の root wrapper です。`adapters/http-server.ts` を公開し、`bun run build:agentcore` で `dist/agentcore/agentcore.mjs` に bundle されます。
@@ -117,10 +119,14 @@ flowchart LR
 | `application/specialists/support-activity-agent.ts` | support_activity（住民台帳・世帯・支援ケース・活動ログの synthetic structured data）専門 agent と supervisor 用 tool 変換を定義します。 |
 | `application/supervisor-agent.ts` | 専門 tool を束ねた supervisor agent を組み立てます。 |
 | `application/message-text.ts` | Strands `Message` から user-facing な `textBlock` だけを連結して取り出します。 |
-| `contracts/runtime.ts` | AgentCore Runtime の入力 / 出力 JSON と `Responder` seam を定義します。 |
+| `application/soap-draft-agent.ts` | SOAP 下書き生成用の単発 agent（`structuredOutputSchema`）と記録種別ラベルを定義します。supervisor の tool ではありません。 |
+| `application/build-soap-draft-response.ts` | `type: "soap_draft"` payload の text 検証、agent 実行、`StructuredOutputError` の error 応答変換を担います。 |
+| `contracts/runtime.ts` | AgentCore Runtime の入力 / 出力 JSON（chat と soap_draft 両方）と `Responder` seam を定義します。 |
+| `contracts/soap-draft.ts` | SOAP 分類・記録種別の zod schema（`soapDraftCandidateSchema` / `soapDraftOutputSchema`）と型を定義します。 |
 | `contracts/websocket.ts` | Browser から受ける `user_message` / `ping` と、AgentCore から返す stream event contract を定義します。 |
 | `domain/session.ts` | prompt / actor ID / session ID の取り出しと、履歴付き supervisor message の組み立てを定義します。 |
-| `infra/config.ts` | Bedrock model ID、複数の KB ID、support_activity SQL KB ID / optional ARN、Memory ID、region、retrieval 件数を env から読み取ります。 |
+| `domain/soap-draft.ts` | payload が `soap_draft` リクエストかどうかの判定、分類対象テキストの取り出しを定義します。 |
+| `infra/config.ts` | Bedrock model ID、SOAP 下書き生成専用 model ID（任意）、複数の KB ID、support_activity SQL KB ID / optional ARN、Memory ID、region、retrieval 件数を env から読み取ります。 |
 | `infra/knowledge-base.ts` | AWS SDK v3 の `RetrieveCommand` と Strands `tool()` を使い、専用 KB 検索 tool を作ります。 |
 | `infra/structured-data.ts` | support_activity structured-data RAG 用の provider seam と Strands `query_structured_data` tool を定義します。 |
 | `infra/structured-data-bedrock.ts` | Bedrock SQL Knowledge Base の `Retrieve` と optional `GenerateQuery` debug output を provider に閉じます。 |
@@ -133,6 +139,7 @@ flowchart LR
 - AgentCore HTTP endpoint、status code、decode / response 化を変える場合は `adapters/http-server.ts` と `contracts/runtime.ts` を先に見ます。
 - WebSocket endpoint、upgrade context、browser event contract、message size / validation を変える場合は `adapters/http-server.ts` と `contracts/websocket.ts` を先に見ます。
 - Runtime payload、prompt / actor / session の扱いを変える場合は `contracts/runtime.ts` と `domain/session.ts` を更新し、`application/build-response.ts` / `application/build-stream-response.ts` の利用箇所を合わせます。
+- SOAP 下書き生成の分類 schema・system prompt・反映候補（記録種別）の推薦ロジックを変える場合は `contracts/soap-draft.ts`、`domain/soap-draft.ts`、`application/soap-draft-agent.ts`、`application/build-soap-draft-response.ts` を合わせ、`packages/bff/application/handle-soap-draft-request.ts` と `packages/workbench` の `src/features/soap-draft/` も確認します。
 - Strands stream event から browser event への表示内容を変える場合は `application/stream-events.ts` と Chat UI 側の `packages/chat-ui/websocket-chat.ts` を合わせます。
 - supervisor の system prompt や専門 tool の束ね方を変える場合は `application/supervisor-agent.ts` を見ます。
 - 複数の専門 agent の構成、tool 名、system prompt、KB / structured-data provider 割り当てを変える場合は `application/specialists/` 配下の該当 domain file と `infra/config.ts` を合わせます。

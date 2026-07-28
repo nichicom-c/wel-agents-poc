@@ -151,7 +151,7 @@ describe("buildResponse", () => {
       },
     );
     expect(result.status).toBe("success");
-    if (result.status === "success") {
+    if (result.status === "success" && !("type" in result)) {
       expect(result.response).toBe("");
     }
     expect(warnings.some((w) => w.includes("empty response"))).toBe(true);
@@ -215,5 +215,35 @@ describe("buildResponse", () => {
     expect(result.status).toBe("success");
     expect(supervisor.messages[0]).toBe("hi");
     expect(warnings.some((w) => w.includes("recentHistory failed"))).toBe(true);
+  });
+
+  test("type: soap_draft は supervisor を経由せず buildSoapDraftResponse に委譲する", async () => {
+    const supervisor = fakeSupervisor();
+    const result = await buildResponse(
+      { type: "soap_draft", text: "x" },
+      {
+        config: makeConfig(),
+        supervisorRunner: supervisor.run,
+        soapDraftRunner: async () => ({
+          candidates: [
+            {
+              category: "S",
+              draftText: "draft",
+              evidenceQuote: "x",
+              reasoning: "reason",
+              confidence: 0.5,
+            },
+          ],
+          recommendedRecordTypes: [],
+        }),
+      },
+    );
+
+    expect(result.status).toBe("success");
+    if (result.status === "success" && "type" in result) {
+      expect(result.type).toBe("soap_draft");
+      expect(result.candidates).toHaveLength(1);
+    }
+    expect(supervisor.messages).toHaveLength(0);
   });
 });

@@ -59,6 +59,12 @@ export type Config = {
   readonly numberOfResults: number;
   /** support_activity structured-data RAG の provider 設定。 */
   readonly supportActivity: SupportActivityConfig;
+  /**
+   * SOAP 下書き生成専用の Bedrock model ID（任意）。未設定なら `modelId` を使う。
+   * 分類タスクは supervisor の会話より軽いモデルでも十分なことが多く、応答時間を
+   * 短縮したい場合にここだけ別の（より高速な）model ID を指定できる。
+   */
+  readonly soapDraftModelId?: string;
 };
 
 /** trim 後に非空の値だけを返す（空文字・空白のみは未設定扱い）。 */
@@ -114,6 +120,7 @@ export function configFromEnv(env: EnvSource = process.env): Config {
         env.SUPPORT_ACTIVITY_INCLUDE_GENERATED_SQL,
       ),
     },
+    soapDraftModelId: nonEmpty(env.SOAP_DRAFT_MODEL_ID),
   };
 }
 
