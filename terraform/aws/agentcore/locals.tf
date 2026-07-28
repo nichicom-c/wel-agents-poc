@@ -145,18 +145,22 @@ locals {
   container_uri = var.agent_image_uri != "" ? var.agent_image_uri : "${aws_ecr_repository.this.repository_url}:${var.image_tag}"
 
   # Runtime に渡す環境変数。app（packages/agentcore/config.ts）が読む名前と一致させる。
-  runtime_env = {
-    AWS_DEFAULT_REGION                     = data.aws_region.current.region
-    BEDROCK_MODEL_ID                       = var.model_id
-    DATABASE_KB_ID                         = aws_bedrockagent_knowledge_base.this["database"].id
-    DOCUMENT_KB_ID                         = aws_bedrockagent_knowledge_base.this["document"].id
-    LAW_KB_ID                              = aws_bedrockagent_knowledge_base.this["law"].id
-    LAW_HIERARCHICAL_KB_ID                 = aws_bedrockagent_knowledge_base.law_hierarchical.id
-    MEDICAL_CARE_LAW_KB_ID                 = aws_bedrockagent_knowledge_base.this["medical_care_law"].id
-    SUPPORT_ACTIVITY_KB_ID                 = aws_bedrockagent_knowledge_base.support_activity.id
-    SUPPORT_ACTIVITY_KB_ARN                = aws_bedrockagent_knowledge_base.support_activity.arn
-    SUPPORT_ACTIVITY_INCLUDE_GENERATED_SQL = tostring(local.support_activity.include_generated_sql)
-    AGENTCORE_MEMORY_ID                    = aws_bedrockagentcore_memory.this.id
-    KB_NUMBER_OF_RESULTS                   = tostring(var.kb_number_of_results)
-  }
+  # LAW_HIERARCHICAL_KB_ID は enable_law_hierarchical_comparison = true の時だけ含める
+  # （app 側は元々任意項目として扱うため、未設定でも通常の chat / SOAP draft には影響しない）。
+  runtime_env = merge(
+    {
+      AWS_DEFAULT_REGION                     = data.aws_region.current.region
+      BEDROCK_MODEL_ID                       = var.model_id
+      DATABASE_KB_ID                         = aws_bedrockagent_knowledge_base.this["database"].id
+      DOCUMENT_KB_ID                         = aws_bedrockagent_knowledge_base.this["document"].id
+      LAW_KB_ID                              = aws_bedrockagent_knowledge_base.this["law"].id
+      MEDICAL_CARE_LAW_KB_ID                 = aws_bedrockagent_knowledge_base.this["medical_care_law"].id
+      SUPPORT_ACTIVITY_KB_ID                 = aws_bedrockagent_knowledge_base.support_activity.id
+      SUPPORT_ACTIVITY_KB_ARN                = aws_bedrockagent_knowledge_base.support_activity.arn
+      SUPPORT_ACTIVITY_INCLUDE_GENERATED_SQL = tostring(local.support_activity.include_generated_sql)
+      AGENTCORE_MEMORY_ID                    = aws_bedrockagentcore_memory.this.id
+      KB_NUMBER_OF_RESULTS                   = tostring(var.kb_number_of_results)
+    },
+    var.enable_law_hierarchical_comparison ? { LAW_HIERARCHICAL_KB_ID = aws_bedrockagent_knowledge_base.law_hierarchical[0].id } : {},
+  )
 }

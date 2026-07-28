@@ -28,6 +28,11 @@ model_id = "jp.anthropic.claude-sonnet-4-6"
 # 任意: KB retrieval のチャンク数（runtime の KB_NUMBER_OF_RESULTS）。
 # kb_number_of_results = 5
 
+# 任意: law_hierarchical 比較用 KB（OpenSearch Serverless）を作成するか（既定 false）。
+# OpenSearch Serverless は稼働の有無に関わらず継続課金されるため、bun run law:compare:hierarchical
+# で比較する期間だけ true にして apply し、終わったら false に戻して apply（destroy）する運用を想定する。
+# enable_law_hierarchical_comparison = false
+
 # 任意: law_hierarchical 比較用 KB の Hierarchical chunking 設定。
 # parent=1500 / child=300 / overlap=60 は AWS advanced chunking sample に合わせた初期値。
 # law_hierarchical_parent_max_tokens = 1500

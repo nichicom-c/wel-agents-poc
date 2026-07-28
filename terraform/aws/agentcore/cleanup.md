@@ -1,6 +1,8 @@
 # agentcore cleanup
 
-この module は AgentCore Runtime / endpoint / Memory、4つの S3 Vectors backed vector Knowledge Base、`law_hierarchical` OpenSearch Serverless backed Knowledge Base、support_activity SQL Knowledge Base、S3 Vectors の vector bucket と4つの index、OpenSearch Serverless collection / vector index、Redshift Serverless namespace / workgroup、Glue Data Catalog database / tables、Lake Formation sample S3 prefix registration / database permission、data source 用 S3 bucket / objects、ECR repository / images、IAM role / policy を作成する。`enable_lakeformation_data_grants = true` の場合だけ Lake Formation data location / table permissions も作成する。学習後は `destroy` する。
+この module は AgentCore Runtime / endpoint / Memory、4つの S3 Vectors backed vector Knowledge Base、`law_hierarchical` OpenSearch Serverless backed Knowledge Base（`enable_law_hierarchical_comparison = true` の場合のみ）、support_activity SQL Knowledge Base、S3 Vectors の vector bucket と4つの index、OpenSearch Serverless collection / vector index、Redshift Serverless namespace / workgroup、Glue Data Catalog database / tables、Lake Formation sample S3 prefix registration / database permission、data source 用 S3 bucket / objects、ECR repository / images、IAM role / policy を作成する。`enable_lakeformation_data_grants = true` の場合だけ Lake Formation data location / table permissions も作成する。学習後は `destroy` する。
+
+> [INFO] OpenSearch Serverless（`law_hierarchical`）だけを止めたい場合、module 全体を `destroy` する必要はない。`terraform.tfvars` の `enable_law_hierarchical_comparison` を `false`（既定値）にして `apply` すれば、OpenSearch Serverless collection / index / KB / data source だけが destroy され、残りのリソースはそのまま維持される。
 
 > [INFO] AgentCore Runtime の作成時に AWS 側が暗黙の `DEFAULT` endpoint（version 1 を指す）を生成する。
 > 本 module は別途 `sample` endpoint を作り、invoke は `sample` qualifier を使う。`DEFAULT` endpoint は

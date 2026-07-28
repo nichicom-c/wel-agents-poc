@@ -71,6 +71,12 @@ variable "kb_number_of_results" {
   }
 }
 
+variable "enable_law_hierarchical_comparison" {
+  description = "law_hierarchical 比較用 Knowledge Base（OpenSearch Serverless + HIERARCHICAL chunking）を作成するか。通常の law_rag_agent は使わない比較専用リソースで、OpenSearch Serverless は稼働の有無に関わらず継続課金されるため、既定では作成しない。`bun run law:compare:hierarchical` で比較する期間だけ true にして apply し、終わったら false に戻して apply（destroy）することを想定する。"
+  type        = bool
+  default     = false
+}
+
 variable "law_hierarchical_parent_max_tokens" {
   description = "law_hierarchical Knowledge Base の HIERARCHICAL chunking で使う parent chunk の最大 token 数。"
   type        = number

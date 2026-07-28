@@ -1,10 +1,12 @@
 # agentcore
 
-Amazon Bedrock AgentCore Runtime 上に、**supervisor + 複数の専門 RAG agent** の TypeScript runtime を構築する Terraform module。4つの既存専門 agent はそれぞれ独立した Bedrock vector Knowledge Base（vector store は **S3 Vectors**）を検索し、追加の `support_activity` agent は Bedrock **SQL Knowledge Base** から Redshift Spectrum / Glue Data Catalog backed by S3 Parquet を検索する。比較用に、同じ `law/` corpus を OpenSearch Serverless + `HIERARCHICAL` chunking へ取り込む `law_hierarchical` Knowledge Base も作成するが、通常の `law_rag_agent` は引き続き S3 Vectors 版の `LAW_KB_ID` を使う。supervisor が質問を分類・委譲・統合し、会話履歴は **AgentCore Memory**（short-term）で session / actor 単位に保持する。
+Amazon Bedrock AgentCore Runtime 上に、**supervisor + 複数の専門 RAG agent** の TypeScript runtime を構築する Terraform module。4つの既存専門 agent はそれぞれ独立した Bedrock vector Knowledge Base（vector store は **S3 Vectors**）を検索し、追加の `support_activity` agent は Bedrock **SQL Knowledge Base** から Redshift Spectrum / Glue Data Catalog backed by S3 Parquet を検索する。比較用に、同じ `law/` corpus を OpenSearch Serverless + `HIERARCHICAL` chunking へ取り込む `law_hierarchical` Knowledge Base も作成できるが（`enable_law_hierarchical_comparison = true` の場合のみ、既定は false）、通常の `law_rag_agent` は引き続き S3 Vectors 版の `LAW_KB_ID` を使う。supervisor が質問を分類・委譲・統合し、会話履歴は **AgentCore Memory**（short-term）で session / actor 単位に保持する。
 
 アプリ本体はこのリポジトリの [`packages/`](../../../packages)（Bun + TypeScript + Strands Agents）で、[`Dockerfile.agentcore`](../../../Dockerfile.agentcore) の builder stage が `packages/agentcore/index.ts` を `dist/agentcore/agentcore.mjs` に bundle し、runtime image には build 済み artifact だけをコピーする。そのイメージを **ECR** へ push し、AgentCore Runtime が container artifact として起動する（Python の direct code ZIP は使わない）。BFF が発行する AgentCore WebSocket URL には BFF-derived user / actor context を含めるため、この module は `X-Amzn-Bedrock-AgentCore-Runtime-Custom-ActorId` と `X-Amzn-Bedrock-AgentCore-Runtime-Custom-UserId` を Runtime の request header allowlist に登録する。通常の Chat UI は BFF の `POST /api/ws-url` で短命 presigned WebSocket URL を取得し、その URL で AgentCore Runtime `/ws` へ接続する。`POST /invocations` は non-streaming smoke / fallback path として残す。
 
 > [WARNING] **AgentCore Runtime・Bedrock model invocation・Knowledge Base・S3 Vectors・OpenSearch Serverless・Redshift Serverless / Spectrum・Glue Data Catalog・Lake Formation・S3・Memory・ECR は利用量に応じて課金される可能性がある。** 使用しない場合は [`cleanup.md`](./cleanup.md) に従って削除する。
+>
+> [WARNING] **OpenSearch Serverless（`law_hierarchical` 比較用 KB）は稼働の有無に関わらず継続課金される。** `enable_law_hierarchical_comparison`（既定 `false`）で on/off できるので、`bun run law:compare:hierarchical` で比較する期間だけ `true` にして apply し、終わったら `false` に戻して apply（destroy）する。
 
 ## 構成図（概念）
 
@@ -124,7 +126,7 @@ mise exec -- terraform -chdir=terraform/aws/agentcore apply
 
 ### 4. Knowledge Base を取り込む（ingestion / sync）
 
-apply は vector KB・data source・S3 への文書 upload と、support_activity SQL KB / `REDSHIFT_METADATA` data source / Glue / Redshift Spectrum external schema の作成までを行う。**KB ingestion / sync は Terraform 管理外**なので、apply 後（および文書・schema 変更時）に ingestion job を起動する。`mise run aws:apply:agentcore` / `mise run aws:apply` は S3 Vectors 版 vector KB、OpenSearch Serverless 版 `law_hierarchical` KB、support_activity SQL KB の metadata ingestion を起動する。
+apply は vector KB・data source・S3 への文書 upload と、support_activity SQL KB / `REDSHIFT_METADATA` data source / Glue / Redshift Spectrum external schema の作成までを行う。**KB ingestion / sync は Terraform 管理外**なので、apply 後（および文書・schema 変更時）に ingestion job を起動する。`mise run aws:apply:agentcore` / `mise run aws:apply` は S3 Vectors 版 vector KB、support_activity SQL KB の metadata ingestion、および `enable_law_hierarchical_comparison = true` の場合は OpenSearch Serverless 版 `law_hierarchical` KB の ingestion も起動する。
 
 ```bash
 mise exec -- terraform -chdir=terraform/aws/agentcore output start_ingestion_commands
@@ -139,11 +141,13 @@ support_activity SQL KB の metadata ingestion が `COMPLETE` になった後、
 mise exec -- terraform -chdir=terraform/aws/agentcore output -raw support_activity_retrieve_command
 ```
 
-`law_hierarchical` ingestion が `COMPLETE` になった後、現行 `law` KB と Hierarchical 版を同一 query で比較する場合は、`LAW_KB_ID` と `LAW_HIERARCHICAL_KB_ID` を設定して次を実行する。
+現行 `law` KB と Hierarchical 版を比較する場合は、まず `enable_law_hierarchical_comparison = true` を `terraform.tfvars` に設定して apply し（OpenSearch Serverless の課金が始まる点に注意）、`law_hierarchical` ingestion が `COMPLETE` になった後、`LAW_KB_ID` と `LAW_HIERARCHICAL_KB_ID` を設定して次を実行する。
 
 ```bash
 bun run law:compare:hierarchical --query "児童虐待の通告義務はどの条文ですか？"
 ```
+
+比較が終わったら `enable_law_hierarchical_comparison = false` に戻して再度 apply し、OpenSearch Serverless collection を destroy して課金を止める。
 
 ### 5. Smoke test
 
@@ -160,7 +164,7 @@ mise exec -- terraform -chdir=terraform/aws/agentcore output -raw invoke_command
 - `aws_s3_bucket.data` / `aws_s3_bucket_public_access_block.data` / `aws_s3_object.data`（vector KB 用サンプル文書 + 児童虐待防止法 corpus + 保険診療基本法令テキストブック OCR corpus + support_activity synthetic CSV / Parquet）
 - `aws_s3vectors_vector_bucket.this` / `aws_s3vectors_index.this`（4 つ）
 - `aws_bedrockagent_knowledge_base.this`（vector KB 4 つ）/ `aws_bedrockagent_data_source.this`（4 つ）
-- `aws_opensearchserverless_collection.law_hierarchical` / `opensearch_index.law_hierarchical` / `aws_bedrockagent_knowledge_base.law_hierarchical` / `aws_bedrockagent_data_source.law_hierarchical`（law corpus の Hierarchical chunking 比較用）
+- `aws_opensearchserverless_collection.law_hierarchical` / `opensearch_index.law_hierarchical` / `aws_bedrockagent_knowledge_base.law_hierarchical` / `aws_bedrockagent_data_source.law_hierarchical`（law corpus の Hierarchical chunking 比較用。`enable_law_hierarchical_comparison = true` の場合のみ作成。既定 `false` では作成されず、既存分があれば destroy される）
 - `aws_bedrockagent_knowledge_base.support_activity` / `aws_bedrockagent_data_source.support_activity_metadata`（support_activity SQL Knowledge Base と SQL 生成用 metadata data source）
 - `aws_redshiftserverless_namespace.support_activity` / `aws_redshiftserverless_workgroup.support_activity` / `aws_redshiftdata_statement.support_activity_external_schema` / `aws_redshiftdata_statement.support_activity_kb_*`
 - `aws_glue_catalog_database.support_activity` / `aws_glue_catalog_table.support_activity`（4 tables）

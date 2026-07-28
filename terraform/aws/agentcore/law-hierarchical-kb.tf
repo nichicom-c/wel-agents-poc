@@ -46,6 +46,8 @@ locals {
 }
 
 resource "aws_opensearchserverless_security_policy" "law_hierarchical_encryption" {
+  count = var.enable_law_hierarchical_comparison ? 1 : 0
+
   name = "${local.law_hierarchical.collection_policy_id}-enc"
   type = "encryption"
   policy = jsonencode({
@@ -60,6 +62,8 @@ resource "aws_opensearchserverless_security_policy" "law_hierarchical_encryption
 }
 
 resource "aws_opensearchserverless_security_policy" "law_hierarchical_network" {
+  count = var.enable_law_hierarchical_comparison ? 1 : 0
+
   name = "${local.law_hierarchical.collection_policy_id}-net"
   type = "network"
   policy = jsonencode([
@@ -80,6 +84,8 @@ resource "aws_opensearchserverless_security_policy" "law_hierarchical_network" {
 }
 
 resource "aws_opensearchserverless_collection" "law_hierarchical" {
+  count = var.enable_law_hierarchical_comparison ? 1 : 0
+
   name        = local.law_hierarchical.collection_name
   description = "Vector search collection for law hierarchical chunking comparison."
   type        = "VECTORSEARCH"
@@ -95,6 +101,8 @@ resource "aws_opensearchserverless_collection" "law_hierarchical" {
 }
 
 resource "aws_opensearchserverless_access_policy" "law_hierarchical_data" {
+  count = var.enable_law_hierarchical_comparison ? 1 : 0
+
   name = "${local.law_hierarchical.collection_policy_id}-data"
   type = "data"
   policy = jsonencode([
@@ -102,7 +110,7 @@ resource "aws_opensearchserverless_access_policy" "law_hierarchical_data" {
       Rules = [
         {
           ResourceType = "index"
-          Resource     = ["index/${aws_opensearchserverless_collection.law_hierarchical.name}/*"]
+          Resource     = ["index/${aws_opensearchserverless_collection.law_hierarchical[0].name}/*"]
           Permission = [
             "aoss:CreateIndex",
             "aoss:DeleteIndex",
@@ -114,7 +122,7 @@ resource "aws_opensearchserverless_access_policy" "law_hierarchical_data" {
         },
         {
           ResourceType = "collection"
-          Resource     = ["collection/${aws_opensearchserverless_collection.law_hierarchical.name}"]
+          Resource     = ["collection/${aws_opensearchserverless_collection.law_hierarchical[0].name}"]
           Permission = [
             "aoss:CreateCollectionItems",
             "aoss:DeleteCollectionItems",
@@ -129,11 +137,15 @@ resource "aws_opensearchserverless_access_policy" "law_hierarchical_data" {
 }
 
 resource "time_sleep" "law_hierarchical_wait_for_data_access_policy" {
+  count = var.enable_law_hierarchical_comparison ? 1 : 0
+
   depends_on      = [aws_opensearchserverless_access_policy.law_hierarchical_data]
   create_duration = "60s"
 }
 
 resource "opensearch_index" "law_hierarchical" {
+  count = var.enable_law_hierarchical_comparison ? 1 : 0
+
   name                           = local.law_hierarchical.vector_index_name
   number_of_shards               = "1"
   number_of_replicas             = "1"
@@ -146,6 +158,8 @@ resource "opensearch_index" "law_hierarchical" {
 }
 
 resource "aws_bedrockagent_knowledge_base" "law_hierarchical" {
+  count = var.enable_law_hierarchical_comparison ? 1 : 0
+
   name        = "${var.name_prefix}-law-hierarchical"
   description = "law corpus comparison KB using OpenSearch Serverless and HIERARCHICAL chunking."
   role_arn    = aws_iam_role.kb_service.arn
@@ -169,8 +183,8 @@ resource "aws_bedrockagent_knowledge_base" "law_hierarchical" {
     type = "OPENSEARCH_SERVERLESS"
 
     opensearch_serverless_configuration {
-      collection_arn    = aws_opensearchserverless_collection.law_hierarchical.arn
-      vector_index_name = opensearch_index.law_hierarchical.name
+      collection_arn    = aws_opensearchserverless_collection.law_hierarchical[0].arn
+      vector_index_name = opensearch_index.law_hierarchical[0].name
 
       field_mapping {
         vector_field   = local.law_hierarchical.vector_field
@@ -189,7 +203,9 @@ resource "aws_bedrockagent_knowledge_base" "law_hierarchical" {
 }
 
 resource "aws_bedrockagent_data_source" "law_hierarchical" {
-  knowledge_base_id = aws_bedrockagent_knowledge_base.law_hierarchical.id
+  count = var.enable_law_hierarchical_comparison ? 1 : 0
+
+  knowledge_base_id = aws_bedrockagent_knowledge_base.law_hierarchical[0].id
   name              = "${var.name_prefix}-law-hierarchical-s3"
 
   data_source_configuration {

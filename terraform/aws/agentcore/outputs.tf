@@ -24,22 +24,22 @@ output "vector_bucket_name" {
 }
 
 output "knowledge_base_ids" {
-  description = "ドメインごとの Knowledge Base ID（app の DATABASE_KB_ID / DOCUMENT_KB_ID / LAW_KB_ID / LAW_HIERARCHICAL_KB_ID / MEDICAL_CARE_LAW_KB_ID / SUPPORT_ACTIVITY_KB_ID に対応）。"
+  description = "ドメインごとの Knowledge Base ID（app の DATABASE_KB_ID / DOCUMENT_KB_ID / LAW_KB_ID / LAW_HIERARCHICAL_KB_ID / MEDICAL_CARE_LAW_KB_ID / SUPPORT_ACTIVITY_KB_ID に対応）。enable_law_hierarchical_comparison = false の場合は law_hierarchical キーを含まない。"
   value = merge(
     { for key, kb in aws_bedrockagent_knowledge_base.this : key => kb.id },
-    { law_hierarchical = aws_bedrockagent_knowledge_base.law_hierarchical.id },
+    var.enable_law_hierarchical_comparison ? { law_hierarchical = aws_bedrockagent_knowledge_base.law_hierarchical[0].id } : {},
     { support_activity = aws_bedrockagent_knowledge_base.support_activity.id },
   )
 }
 
 output "law_hierarchical_knowledge_base_id" {
-  description = "law_hierarchical 比較用 Knowledge Base ID（app の LAW_HIERARCHICAL_KB_ID に対応）。"
-  value       = aws_bedrockagent_knowledge_base.law_hierarchical.id
+  description = "law_hierarchical 比較用 Knowledge Base ID（app の LAW_HIERARCHICAL_KB_ID に対応）。enable_law_hierarchical_comparison = false の場合は null。"
+  value       = try(aws_bedrockagent_knowledge_base.law_hierarchical[0].id, null)
 }
 
 output "law_hierarchical_opensearch_collection_endpoint" {
-  description = "law_hierarchical OpenSearch Serverless collection endpoint。"
-  value       = aws_opensearchserverless_collection.law_hierarchical.collection_endpoint
+  description = "law_hierarchical OpenSearch Serverless collection endpoint。enable_law_hierarchical_comparison = false の場合は null。"
+  value       = try(aws_opensearchserverless_collection.law_hierarchical[0].collection_endpoint, null)
 }
 
 output "support_activity_knowledge_base_id" {
@@ -97,15 +97,15 @@ output "build_push_commands" {
 }
 
 output "start_ingestion_commands" {
-  description = "VECTOR Knowledge Base の文書 ingestion と support_activity SQL Knowledge Base の metadata sync を起動する AWS CLI コマンド。"
+  description = "VECTOR Knowledge Base の文書 ingestion と support_activity SQL Knowledge Base の metadata sync を起動する AWS CLI コマンド。enable_law_hierarchical_comparison = false の場合は law_hierarchical 分を含まない。"
   value = concat(
     [
       for key, ds in aws_bedrockagent_data_source.this :
       "aws bedrock-agent start-ingestion-job --knowledge-base-id ${aws_bedrockagent_knowledge_base.this[key].id} --data-source-id ${ds.data_source_id} --region ${data.aws_region.current.region}"
     ],
-    [
-      "aws bedrock-agent start-ingestion-job --knowledge-base-id ${aws_bedrockagent_knowledge_base.law_hierarchical.id} --data-source-id ${aws_bedrockagent_data_source.law_hierarchical.data_source_id} --region ${data.aws_region.current.region}",
-    ],
+    var.enable_law_hierarchical_comparison ? [
+      "aws bedrock-agent start-ingestion-job --knowledge-base-id ${aws_bedrockagent_knowledge_base.law_hierarchical[0].id} --data-source-id ${aws_bedrockagent_data_source.law_hierarchical[0].data_source_id} --region ${data.aws_region.current.region}",
+    ] : [],
     [
       "aws bedrock-agent start-ingestion-job --knowledge-base-id ${aws_bedrockagent_knowledge_base.support_activity.id} --data-source-id ${aws_bedrockagent_data_source.support_activity_metadata.data_source_id} --region ${data.aws_region.current.region}",
     ],
