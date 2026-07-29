@@ -57,6 +57,20 @@ function createCandidateId(): string {
   return `soap-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
+/**
+ * API 分類結果ではなく、利用者入力（不足確認への回答など）から新しい候補を追加する。
+ * 追加した候補は利用者が明示的に入力した内容のため、既定 status は "adopted" にする。
+ */
+export function addManualCandidate(
+  candidates: SoapDraftCandidate[],
+  input: Omit<SoapDraftCandidate, "id" | "status">,
+): SoapDraftCandidate[] {
+  return [
+    ...candidates,
+    { ...input, id: createCandidateId(), status: "adopted" },
+  ];
+}
+
 /** 指定した候補だけ status を更新した新しい配列を返す。 */
 export function withStatus(
   candidates: SoapDraftCandidate[],

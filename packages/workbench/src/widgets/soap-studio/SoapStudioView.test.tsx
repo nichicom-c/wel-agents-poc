@@ -31,4 +31,11 @@ describe("SoapStudioView", () => {
     // 分類前のフォームに記録種別セレクタは存在しない（候補が無いので反映候補チェックボックスも未描画）。
     expect(html).not.toContain("記録種別");
   });
+
+  test("候補が無い初期状態では不足確認セクションを描画しない", () => {
+    const html = renderToStaticMarkup(<SoapStudioView />);
+
+    expect(html).not.toContain("soap-gaps-section");
+    expect(html).not.toContain("不足を確認");
+  });
 });

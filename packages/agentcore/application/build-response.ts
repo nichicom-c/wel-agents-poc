@@ -18,12 +18,17 @@ import {
   getSessionId,
 } from "../domain/session.ts";
 import { isSoapDraftRequest } from "../domain/soap-draft.ts";
+import { isSoapGapsRequest } from "../domain/soap-gaps.ts";
 import { type Config, configFromEnv, missingConfig } from "../infra/config.ts";
 import { ConversationMemory, type MemoryStore } from "../infra/memory.ts";
 import {
   buildSoapDraftResponse,
   type SoapDraftDeps,
 } from "./build-soap-draft-response.ts";
+import {
+  buildSoapGapsResponse,
+  type SoapGapsDeps,
+} from "./build-soap-gaps-response.ts";
 import { extractText } from "./message-text.ts";
 import { type AgentDeps, buildSupervisor } from "./supervisor-agent.ts";
 
@@ -39,7 +44,8 @@ export type RuntimeDeps = {
   memory?: MemoryStore | null;
   /** best-effort 失敗時の警告出力（省略時は console.warn）。 */
   warn?: (message: string) => void;
-} & SoapDraftDeps;
+} & SoapDraftDeps &
+  SoapGapsDeps;
 
 /** 必須設定が欠けているときに返すエラー応答。 */
 export function configError(missing: string[]): RuntimeResponse {
@@ -65,7 +71,8 @@ function defaultSupervisorRunner(config: Config): SupervisorRunner {
  * リクエストを処理し、返す JSON 相当の値を組み立てる。
  *
  * `payload.type === "soap_draft"` のときは chat（supervisor）を経由せず
- * {@link buildSoapDraftResponse} に委譲する。それ以外（省略含む）は従来どおり chat として扱う。
+ * {@link buildSoapDraftResponse} に、`payload.type === "soap_gaps"` のときは
+ * {@link buildSoapGapsResponse} に委譲する。それ以外（省略含む）は従来どおり chat として扱う。
  *
  * chat の流れ: 設定解決 → 必須チェック → 直近履歴取得（best-effort）→ supervisor 実行 →
  * 今回ターンの保存（best-effort）→ 応答整形。
@@ -76,6 +83,9 @@ export async function buildResponse(
 ): Promise<RuntimeResponse> {
   if (isSoapDraftRequest(payload)) {
     return buildSoapDraftResponse(payload, deps);
+  }
+  if (isSoapGapsRequest(payload)) {
+    return buildSoapGapsResponse(payload, deps);
   }
 
   const config = deps.config ?? configFromEnv();

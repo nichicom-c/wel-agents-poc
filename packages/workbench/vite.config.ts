@@ -35,6 +35,10 @@ export function buildWorkbenchViteConfig(
       changeOrigin: true,
       target: config.bffUrl,
     },
+    "/api/soap-gaps": {
+      changeOrigin: true,
+      target: config.bffUrl,
+    },
     "/api/voice-recordings": {
       changeOrigin: true,
       target: config.bffUrl,

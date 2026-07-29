@@ -1,12 +1,14 @@
 import type { SoapDraftCandidate, SoapRecordType } from "./soap-draft.ts";
+import type { Gap, GapQuestion } from "./soap-gaps.ts";
 
 /**
  * AgentCore Runtime への入力 JSON。
  *
- * `type` 省略時（または `"soap_draft"` 以外）は chat（supervisor）として扱う。
+ * `type` 省略時（または `"soap_draft"` / `"soap_gaps"` 以外）は chat（supervisor）として扱う。
  * `text` は `type: "soap_draft"` のときだけ使う。記録種別は入力ではなく、分類後に
  * 入力全体に対する反映候補（`recommendedRecordTypes`）として model が出力する
- * （個々の候補ではない）。
+ * （個々の候補ではない）。`candidates` は `type: "soap_gaps"` のときだけ使い、
+ * 既存の SOAP 下書き候補（`soap_draft` の出力）を不足確認の対象として渡す。
  */
 export type RuntimeRequest = {
   prompt?: unknown;
@@ -15,6 +17,7 @@ export type RuntimeRequest = {
   user_id?: unknown;
   type?: unknown;
   text?: unknown;
+  candidates?: unknown;
 };
 
 /** AgentCore Runtime からの出力 JSON。 */
@@ -32,6 +35,17 @@ export type RuntimeResponse =
       candidates: SoapDraftCandidate[];
       /** 個々の候補ではなく、入力全体に対する反映候補（記録種別）。 */
       recommendedRecordTypes: SoapRecordType[];
+      session_id: string;
+      actor_id: string;
+      model_id: string;
+    }
+  | {
+      status: "success";
+      type: "soap_gaps";
+      /** ルールベースで検出した不足の全件（AI 質問生成の成否に関わらず常に含む）。 */
+      gaps: Gap[];
+      /** 優先度上位を AI が自然文化した（または fallback の）質問。 */
+      questions: GapQuestion[];
       session_id: string;
       actor_id: string;
       model_id: string;

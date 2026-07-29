@@ -2,7 +2,8 @@
  * AgentCore Runtime `/invocations` に渡す payload。
  *
  * `type` 省略時は chat として扱われる（`prompt` を使う）。`type: "soap_draft"` のときは
- * `prompt` の代わりに `text` を使う。どちらも agentcore 側 `RuntimeRequest` の wire shape
+ * `prompt` の代わりに `text` を使う。`type: "soap_gaps"` のときは `candidates`（`soap_draft`
+ * の出力）を不足確認の対象として渡す。いずれも agentcore 側 `RuntimeRequest` の wire shape
  * に合わせたもの。記録種別は入力ではなく、分類後に候補ごとの反映候補として返る。
  */
 export type RuntimePayload = {
@@ -13,9 +14,11 @@ export type RuntimePayload = {
   /** Runtime / Memory の会話 session ID。 */
   session_id: string;
   /** リクエスト種別。省略時は chat 扱い。 */
-  type?: "soap_draft";
+  type?: "soap_draft" | "soap_gaps";
   /** type: "soap_draft" のときの分類対象テキスト。 */
   text?: string;
+  /** type: "soap_gaps" のときの不足確認対象（SOAP 下書き候補）。 */
+  candidates?: unknown[];
 };
 
 /** Runtime invoke の成否を BFF core が扱いやすい形に正規化した結果。 */

@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 
 import type { SoapDraftApiCandidate } from "../api/soap-draft.ts";
 import {
+  addManualCandidate,
   confidenceTier,
   fromApiCandidates,
   groupByCategory,
@@ -73,6 +74,26 @@ describe("groupByCategory", () => {
 
     expect(groups.map((g) => g.category)).toEqual(["S", "O"]);
     expect(groups[0]?.candidates).toHaveLength(1);
+  });
+});
+
+describe("addManualCandidate", () => {
+  test("id を採番し status を adopted にして末尾へ追加する", () => {
+    const candidates = fromApiCandidates(API_CANDIDATES);
+    const updated = addManualCandidate(candidates, {
+      category: "P",
+      draftText: "利用者からの回答",
+      evidenceQuote: "利用者からの回答",
+      reasoning: "不足確認への回答として追加。",
+      confidence: 1,
+    });
+
+    expect(updated).toHaveLength(candidates.length + 1);
+    const added = updated[updated.length - 1];
+    expect(added?.status).toBe("adopted");
+    expect(added?.draftText).toBe("利用者からの回答");
+    expect(typeof added?.id).toBe("string");
+    expect(added?.id.length).toBeGreaterThan(0);
   });
 });
 

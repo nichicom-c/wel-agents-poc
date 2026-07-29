@@ -66,6 +66,10 @@ describe("buildWorkbenchViteConfig", () => {
           changeOrigin: true,
           target: "https://example.com",
         },
+        "/api/soap-gaps": {
+          changeOrigin: true,
+          target: "https://example.com",
+        },
       },
       strictPort: true,
     });
@@ -74,6 +78,10 @@ describe("buildWorkbenchViteConfig", () => {
       port: 4175,
       proxy: {
         "/api/soap-draft": {
+          changeOrigin: true,
+          target: "https://example.com",
+        },
+        "/api/soap-gaps": {
           changeOrigin: true,
           target: "https://example.com",
         },
@@ -94,12 +102,18 @@ describe("buildWorkbenchViteConfig", () => {
     expect(config.server).toMatchObject({
       host: "0.0.0.0",
       port: 5180,
-      proxy: { "/api/soap-draft": { target: "https://bff.example.com" } },
+      proxy: {
+        "/api/soap-draft": { target: "https://bff.example.com" },
+        "/api/soap-gaps": { target: "https://bff.example.com" },
+      },
     });
     expect(config.preview).toMatchObject({
       host: "0.0.0.0",
       port: 5180,
-      proxy: { "/api/soap-draft": { target: "https://bff.example.com" } },
+      proxy: {
+        "/api/soap-draft": { target: "https://bff.example.com" },
+        "/api/soap-gaps": { target: "https://bff.example.com" },
+      },
     });
   });
 

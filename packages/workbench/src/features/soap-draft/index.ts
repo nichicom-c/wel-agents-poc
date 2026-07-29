@@ -18,6 +18,7 @@ export type {
   SoapDraftCandidate,
 } from "./model/soap-draft-candidates.ts";
 export {
+  addManualCandidate,
   confidenceTier,
   fromApiCandidates,
   groupByCategory,

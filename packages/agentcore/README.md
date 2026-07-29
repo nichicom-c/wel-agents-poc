@@ -10,7 +10,9 @@
 
 認証・URL 発行・HTTP contract 変換は `packages/bff` の責務で、本ディレクトリは AgentCore Runtime contract / WebSocket stream adapter / agent orchestration / Knowledge Base retrieval / Memory 連携を担います。
 
-`POST /invocations` は payload の `type` フィールドで chat（supervisor、既定）と `soap_draft`（SOAP Studio の SOAP 下書き生成、issue #5）を振り分けます。`soap_draft` は supervisor の agents-as-tools 経路には乗らない独立した単発の分類 agent で、KB / Memory を使わず `BEDROCK_MODEL_ID` だけを必要とします。分類タスクは supervisor の会話より軽いことが多いため、任意の `SOAP_DRAFT_MODEL_ID` で専用 model ID に差し替えて応答時間を短縮できます（未設定時は `BEDROCK_MODEL_ID` にフォールバック）。記録種別（支援実績/汎用記録/会議/サマリー）は分類前の入力ではなく、分類後に入力テキスト全体（個々の候補ではない）に対する反映候補（`recommendedRecordTypes`、0個以上）として model が推薦する出力側の情報です。詳細は `application/soap-draft-agent.ts` / `application/build-soap-draft-response.ts` を参照してください。
+`POST /invocations` は payload の `type` フィールドで chat（supervisor、既定）、`soap_draft`（SOAP Studio の SOAP 下書き生成、issue #5）、`soap_gaps`（SOAP Studio の不足確認、issue #6）を振り分けます。`soap_draft` は supervisor の agents-as-tools 経路には乗らない独立した単発の分類 agent で、KB / Memory を使わず `BEDROCK_MODEL_ID` だけを必要とします。分類タスクは supervisor の会話より軽いことが多いため、任意の `SOAP_DRAFT_MODEL_ID` で専用 model ID に差し替えて応答時間を短縮できます（未設定時は `BEDROCK_MODEL_ID` にフォールバック）。記録種別（支援実績/汎用記録/会議/サマリー）は分類前の入力ではなく、分類後に入力テキスト全体（個々の候補ではない）に対する反映候補（`recommendedRecordTypes`、0個以上）として model が推薦する出力側の情報です。詳細は `application/soap-draft-agent.ts` / `application/build-soap-draft-response.ts` を参照してください。
+
+`soap_gaps` は `soap_draft` の出力（SOAP 下書き候補）を受け取り、不足・曖昧・矛盾・根拠不足を検出して1問1意図の追加入力質問を返す単発パスです。検出は2段階です。まずルールベース（`domain/soap-gaps.ts`、字句・構造ベースの決定的なルールで AI を使わない。S/O の有無、P の日付/方法/担当者の欠落、固定キーワードの曖昧表現・対義語ペア、UNCLASSIFIED/低信頼度）で常に成功する不足一覧を作ります。次に、字句・構造だけでは拾えない意味的な不足（S/O の内容が A の結論を実際に支えているか、S/O の混在、字句一致しない矛盾、数値化されていない曖昧表現など）を別の AI（`application/soap-gaps-detection-agent.ts`）で追加検出し、ルールベースの結果と統合します（`domain/soap-gaps.ts` の `mergeGapLists`。同じ (gapType, soapCategory, targetItem) の重複はルールベース側を優先）。この検出 AI が `StructuredOutputError` で失敗してもルールベースの結果だけで継続します。統合した不足のうち必須不足・根拠不足・矛盾を優先した上位だけを、さらに別の AI（`application/soap-gaps-agent.ts`）に渡して自然な日本語の質問に変換します。この質問生成 AI が失敗しても fallback のテンプレート質問文で置き換えるため、不足一覧（`gaps`）自体はどちらの AI が失敗しても常に表示できます。両方の AI は任意の `SOAP_GAPS_MODEL_ID` で専用 model ID に差し替えられます（共有設定）。
 
 ## Entry Point
 
@@ -121,12 +123,17 @@ flowchart LR
 | `application/message-text.ts` | Strands `Message` から user-facing な `textBlock` だけを連結して取り出します。 |
 | `application/soap-draft-agent.ts` | SOAP 下書き生成用の単発 agent（`structuredOutputSchema`）と記録種別ラベルを定義します。supervisor の tool ではありません。 |
 | `application/build-soap-draft-response.ts` | `type: "soap_draft"` payload の text 検証、agent 実行、`StructuredOutputError` の error 応答変換を担います。 |
-| `contracts/runtime.ts` | AgentCore Runtime の入力 / 出力 JSON（chat と soap_draft 両方）と `Responder` seam を定義します。 |
+| `application/soap-gaps-detection-agent.ts` | 意味的な不足検出用の単発 agent（`structuredOutputSchema`）を定義します。ルールベースでは拾えない、S/O が A を意味的に支えているか・S/O の混在・字句一致しない矛盾・数値化されていない曖昧表現を検出します。 |
+| `application/soap-gaps-agent.ts` | 不足確認の質問生成用の単発 agent（`structuredOutputSchema`）を定義します。不足の判定は行わず、渡された不足を自然文の質問に変換するだけです。 |
+| `application/build-soap-gaps-response.ts` | `type: "soap_gaps"` payload の candidates 検証、ルールベース不足検出、AI による意味的な不足検出と統合（`mergeGapLists`）、優先度上位への AI 質問生成、両 AI ステップの fallback（不足一覧そのまま / テンプレート質問文）への変換を担います。 |
+| `contracts/runtime.ts` | AgentCore Runtime の入力 / 出力 JSON（chat / soap_draft / soap_gaps）と `Responder` seam を定義します。 |
 | `contracts/soap-draft.ts` | SOAP 分類・記録種別の zod schema（`soapDraftCandidateSchema` / `soapDraftOutputSchema`）と型を定義します。 |
+| `contracts/soap-gaps.ts` | 不足種別・不足（`gapSchema`）・質問（`gapQuestionSchema`）・AI 意味的検出 agent 用 schema（`aiGapDetectionOutputSchema`）・AI 質問生成 agent 用 schema の zod schema と型を定義します。 |
 | `contracts/websocket.ts` | Browser から受ける `user_message` / `ping` と、AgentCore から返す stream event contract を定義します。 |
 | `domain/session.ts` | prompt / actor ID / session ID の取り出しと、履歴付き supervisor message の組み立てを定義します。 |
 | `domain/soap-draft.ts` | payload が `soap_draft` リクエストかどうかの判定、分類対象テキストの取り出しを定義します。 |
-| `infra/config.ts` | Bedrock model ID、SOAP 下書き生成専用 model ID（任意）、複数の KB ID、support_activity SQL KB ID / optional ARN、Memory ID、region、retrieval 件数を env から読み取ります。 |
+| `domain/soap-gaps.ts` | SOAP 下書き候補からの不足検出ルール（根拠不足・次回予定の欠落・曖昧表現・矛盾・確認推奨）、AI 検出結果への決定的な skippable 付与（`toGap`）、ルールベースと AI 検出結果の統合・重複排除（`mergeGapLists`）、優先度付け、fallback 質問文生成を定義します。 |
+| `infra/config.ts` | Bedrock model ID、SOAP 下書き生成 / 不足確認質問生成それぞれの専用 model ID（任意）、複数の KB ID、support_activity SQL KB ID / optional ARN、Memory ID、region、retrieval 件数を env から読み取ります。 |
 | `infra/knowledge-base.ts` | AWS SDK v3 の `RetrieveCommand` と Strands `tool()` を使い、専用 KB 検索 tool を作ります。 |
 | `infra/structured-data.ts` | support_activity structured-data RAG 用の provider seam と Strands `query_structured_data` tool を定義します。 |
 | `infra/structured-data-bedrock.ts` | Bedrock SQL Knowledge Base の `Retrieve` と optional `GenerateQuery` debug output を provider に閉じます。 |
@@ -140,6 +147,7 @@ flowchart LR
 - WebSocket endpoint、upgrade context、browser event contract、message size / validation を変える場合は `adapters/http-server.ts` と `contracts/websocket.ts` を先に見ます。
 - Runtime payload、prompt / actor / session の扱いを変える場合は `contracts/runtime.ts` と `domain/session.ts` を更新し、`application/build-response.ts` / `application/build-stream-response.ts` の利用箇所を合わせます。
 - SOAP 下書き生成の分類 schema・system prompt・反映候補（記録種別）の推薦ロジックを変える場合は `contracts/soap-draft.ts`、`domain/soap-draft.ts`、`application/soap-draft-agent.ts`、`application/build-soap-draft-response.ts` を合わせ、`packages/bff/application/handle-soap-draft-request.ts` と `packages/workbench` の `src/features/soap-draft/` も確認します。
+- 不足確認のルールベース検出ルール（種別・優先度・fallback 質問文・AI 検出結果との統合）を変える場合は `contracts/soap-gaps.ts` と `domain/soap-gaps.ts` を見ます。意味的な不足検出の system prompt を変える場合は `application/soap-gaps-detection-agent.ts` を、質問生成の system prompt を変える場合は `application/soap-gaps-agent.ts` を見ます。3者の組み合わせ方（ルールベース→AI 検出統合→優先度上位だけ質問生成 AI に渡す・各 AI 失敗時の fallback）を変える場合は `application/build-soap-gaps-response.ts` を見ます。あわせて `packages/bff/application/handle-soap-gaps-request.ts` と `packages/workbench` の `src/features/soap-gaps/` も確認します。
 - Strands stream event から browser event への表示内容を変える場合は `application/stream-events.ts` と Chat UI 側の `packages/chat-ui/websocket-chat.ts` を合わせます。
 - supervisor の system prompt や専門 tool の束ね方を変える場合は `application/supervisor-agent.ts` を見ます。
 - 複数の専門 agent の構成、tool 名、system prompt、KB / structured-data provider 割り当てを変える場合は `application/specialists/` 配下の該当 domain file と `infra/config.ts` を合わせます。

@@ -564,6 +564,98 @@ describe("handleLambdaEvent", () => {
     });
   });
 
+  test("POST /api/soap-gaps を AgentCore Runtime SDK command に変換する", async () => {
+    let commandInput: Record<string, unknown> | undefined;
+
+    const candidate = {
+      category: "A",
+      draftText: "転倒リスクが高い。",
+      evidenceQuote: "転倒リスクが高い",
+      reasoning: "観察結果からの評価。",
+      confidence: 0.8,
+    };
+
+    const response = await handleLambdaEvent(
+      {
+        body: JSON.stringify({ candidates: [candidate] }),
+        rawPath: "/api/soap-gaps",
+        requestContext: { http: { method: "POST" } },
+      },
+      ENV,
+      {
+        sender: async (command) => {
+          commandInput = command.input as Record<string, unknown>;
+
+          return {
+            $metadata: { httpStatusCode: 200 },
+            contentType: "application/json",
+            response: {
+              transformToString: async () =>
+                JSON.stringify({
+                  status: "success",
+                  type: "soap_gaps",
+                  gaps: [
+                    {
+                      gapType: "insufficient_reasoning",
+                      soapCategory: "A",
+                      targetItem: "転倒リスクが高い。",
+                      detail: "根拠となる S/O が見当たりません。",
+                      relatedEvidenceQuotes: ["転倒リスクが高い"],
+                      skippable: false,
+                    },
+                  ],
+                  questions: [
+                    {
+                      gapType: "insufficient_reasoning",
+                      soapCategory: "A",
+                      targetItem: "転倒リスクが高い。",
+                      questionText:
+                        "転倒リスクの根拠となる様子はありましたか？",
+                      skippable: false,
+                    },
+                  ],
+                }),
+            },
+            statusCode: 200,
+          } as unknown as InvokeAgentRuntimeCommandOutput;
+        },
+      },
+    );
+
+    expect(response.statusCode).toBe(200);
+    expect(JSON.parse(response.body)).toEqual({
+      gaps: [
+        {
+          gapType: "insufficient_reasoning",
+          soapCategory: "A",
+          targetItem: "転倒リスクが高い。",
+          detail: "根拠となる S/O が見当たりません。",
+          relatedEvidenceQuotes: ["転倒リスクが高い"],
+          skippable: false,
+        },
+      ],
+      questions: [
+        {
+          gapType: "insufficient_reasoning",
+          soapCategory: "A",
+          targetItem: "転倒リスクが高い。",
+          questionText: "転倒リスクの根拠となる様子はありましたか？",
+          skippable: false,
+        },
+      ],
+    });
+    expect(commandInput?.runtimeSessionId).toMatch(/^[0-9a-f-]{36}$/);
+    const payload = JSON.parse(
+      new TextDecoder().decode(commandInput?.payload as Uint8Array),
+    );
+    expect(payload).toEqual({
+      actor_id: "web-user",
+      type: "soap_gaps",
+      candidates: [candidate],
+      session_id: commandInput?.runtimeSessionId,
+    });
+  });
+
   test("SDK service error を BFF の 502 にする", async () => {
     const response = await handleLambdaEvent(
       {

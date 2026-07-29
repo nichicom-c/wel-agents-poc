@@ -123,6 +123,17 @@ describe("configFromEnv", () => {
     expect(configFromEnv(FULL_ENV).soapDraftModelId).toBeUndefined();
     expect(missingConfig(configFromEnv(FULL_ENV))).toEqual([]);
   });
+
+  test("SOAP 不足確認の質問生成専用 model ID は任意設定として読み取る", () => {
+    const config = configFromEnv({
+      ...FULL_ENV,
+      SOAP_GAPS_MODEL_ID: "  jp.anthropic.claude-haiku-4-5  ",
+    });
+
+    expect(config.soapGapsModelId).toBe("jp.anthropic.claude-haiku-4-5");
+    expect(configFromEnv(FULL_ENV).soapGapsModelId).toBeUndefined();
+    expect(missingConfig(configFromEnv(FULL_ENV))).toEqual([]);
+  });
 });
 
 describe("missingConfig", () => {

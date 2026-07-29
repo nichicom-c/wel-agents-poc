@@ -242,7 +242,43 @@ describe("buildResponse", () => {
     expect(result.status).toBe("success");
     if (result.status === "success" && "type" in result) {
       expect(result.type).toBe("soap_draft");
-      expect(result.candidates).toHaveLength(1);
+      if (result.type === "soap_draft") {
+        expect(result.candidates).toHaveLength(1);
+      }
+    }
+    expect(supervisor.messages).toHaveLength(0);
+  });
+
+  test("type: soap_gaps は supervisor を経由せず buildSoapGapsResponse に委譲する", async () => {
+    const supervisor = fakeSupervisor();
+    const result = await buildResponse(
+      {
+        type: "soap_gaps",
+        candidates: [
+          {
+            category: "A",
+            draftText: "転倒リスクが高い。",
+            evidenceQuote: "転倒リスクが高い",
+            reasoning: "観察結果からの評価。",
+            confidence: 0.8,
+          },
+        ],
+      },
+      {
+        config: makeConfig(),
+        supervisorRunner: supervisor.run,
+        soapGapsDetectionRunner: async () => ({ gaps: [] }),
+        soapGapsRunner: async () => ({ questions: [] }),
+      },
+    );
+
+    expect(result.status).toBe("success");
+    if (result.status === "success" && "type" in result) {
+      expect(result.type).toBe("soap_gaps");
+      if (result.type === "soap_gaps") {
+        expect(result.gaps).toHaveLength(1);
+        expect(result.questions).toHaveLength(1);
+      }
     }
     expect(supervisor.messages).toHaveLength(0);
   });

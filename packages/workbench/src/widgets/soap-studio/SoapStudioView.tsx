@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 
 import {
+  addManualCandidate,
   buildReflectionSelections,
   confidenceTier,
   fromApiCandidates,
@@ -16,6 +17,18 @@ import {
   withEditedText,
   withStatus,
 } from "../../features/soap-draft/index.ts";
+import {
+  fromApiQuestions,
+  type GapApiItem,
+  type GapQuestionItem,
+  gapTypeLabel,
+  groupByGapType,
+  markAnswered,
+  markSkipped,
+  postSoapGaps,
+  withDraftAnswer,
+  withDraftSkipReason,
+} from "../../features/soap-gaps/index.ts";
 
 const CATEGORY_LABELS: Record<SoapCategory, string> = {
   S: "S・主観的情報",
@@ -33,7 +46,14 @@ const STATUS_LABELS: Record<SoapCandidateStatus, string> = {
   deferred: "後で確認",
 };
 
+const QUESTION_STATUS_LABELS: Record<GapQuestionItem["status"], string> = {
+  pending: "未対応",
+  answered: "回答済み",
+  skipped: "スキップ",
+};
+
 type AnalyzeStatus = "idle" | "loading" | "error";
+type GapsStatus = "idle" | "loading" | "error";
 
 export type SoapStudioViewProps = {
   /** Voice Capture など他画面から引き継ぐ入力素材テキスト。渡されると textarea に反映する。 */
@@ -60,6 +80,10 @@ export function SoapStudioView({
   const [error, setError] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingText, setEditingText] = useState("");
+  const [gaps, setGaps] = useState<GapApiItem[] | null>(null);
+  const [questions, setQuestions] = useState<GapQuestionItem[] | null>(null);
+  const [gapsStatus, setGapsStatus] = useState<GapsStatus>("idle");
+  const [gapsError, setGapsError] = useState("");
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: seedText の到着だけを検知したい（onSeedConsumed/seedSourceLabel は同時に渡される値）。
   useEffect(() => {
@@ -77,6 +101,10 @@ export function SoapStudioView({
     }
     setAnalyzeStatus("loading");
     setError("");
+    setGaps(null);
+    setQuestions(null);
+    setGapsStatus("idle");
+    setGapsError("");
     try {
       const result = await postSoapDraft({ text });
       setCandidates(fromApiCandidates(result.candidates));
@@ -88,6 +116,55 @@ export function SoapStudioView({
       setAnalyzeStatus("error");
       setError(caught instanceof Error ? caught.message : String(caught));
     }
+  }
+
+  async function handleCheckGaps() {
+    if (!candidates || candidates.length === 0 || gapsStatus === "loading") {
+      return;
+    }
+    setGapsStatus("loading");
+    setGapsError("");
+    try {
+      const apiCandidates = candidates.map(
+        ({ category, draftText, evidenceQuote, reasoning, confidence }) => ({
+          category,
+          draftText,
+          evidenceQuote,
+          reasoning,
+          confidence,
+        }),
+      );
+      const result = await postSoapGaps({ candidates: apiCandidates });
+      setGaps(result.gaps);
+      setQuestions(fromApiQuestions(result.questions));
+      setGapsStatus("idle");
+    } catch (caught) {
+      setGapsStatus("error");
+      setGapsError(caught instanceof Error ? caught.message : String(caught));
+    }
+  }
+
+  function handleAnswerQuestion(question: GapQuestionItem) {
+    const trimmed = question.answerText.trim();
+    if (!trimmed) {
+      return;
+    }
+    setCandidates((prev) =>
+      prev
+        ? addManualCandidate(prev, {
+            category: question.soapCategory,
+            draftText: trimmed,
+            evidenceQuote: trimmed,
+            reasoning: `不足確認「${question.questionText}」への回答として追加。`,
+            confidence: 1,
+          })
+        : prev,
+    );
+    setQuestions((prev) => (prev ? markAnswered(prev, question.id) : prev));
+  }
+
+  function handleSkipQuestion(question: GapQuestionItem) {
+    setQuestions((prev) => (prev ? markSkipped(prev, question.id) : prev));
   }
 
   function handleStatusChange(id: string, next: SoapCandidateStatus) {
@@ -192,13 +269,18 @@ export function SoapStudioView({
             </p>
           ) : (
             groups.map((group) => (
-              <div key={group.category} className="soap-draft-category-group">
+              <div
+                key={group.category}
+                className="soap-draft-category-group"
+                data-category={group.category}
+              >
                 <h4>{CATEGORY_LABELS[group.category]}</h4>
                 <ul className="soap-draft-candidate-list">
                   {group.candidates.map((candidate) => (
                     <li
                       key={candidate.id}
                       className="soap-draft-candidate"
+                      data-category={candidate.category}
                       data-status={candidate.status}
                     >
                       <div className="soap-draft-candidate-header">
@@ -289,6 +371,153 @@ export function SoapStudioView({
               </div>
             ))
           )}
+        </section>
+      ) : null}
+
+      {candidates && candidates.length > 0 ? (
+        <section
+          className="soap-gaps-section"
+          aria-label="不足確認"
+          aria-busy={gapsStatus === "loading"}
+        >
+          <h3>不足確認</h3>
+          <button
+            type="button"
+            className="soap-gaps-check-button"
+            disabled={gapsStatus === "loading"}
+            onClick={() => void handleCheckGaps()}
+          >
+            {gapsStatus === "loading" ? "確認中…" : "不足を確認"}
+          </button>
+          {gapsStatus === "error" ? (
+            <p className="soap-draft-error">{gapsError}</p>
+          ) : null}
+
+          {gaps ? (
+            <div className="soap-gaps-summary">
+              <h4>不足一覧</h4>
+              {gaps.length === 0 ? (
+                <p className="workbench-main-description">
+                  不足は見つかりませんでした。
+                </p>
+              ) : (
+                groupByGapType(gaps).map((group) => (
+                  <div key={group.gapType} className="soap-gaps-group">
+                    <h5>{gapTypeLabel(group.gapType)}</h5>
+                    <ul className="soap-gaps-list">
+                      {group.items.map((gap) => (
+                        <li
+                          key={`${gap.gapType}:${gap.soapCategory}:${gap.targetItem}:${gap.detail}`}
+                          className="soap-gap-item"
+                        >
+                          <span
+                            className="soap-gap-category"
+                            data-category={gap.soapCategory}
+                          >
+                            {CATEGORY_LABELS[gap.soapCategory]}
+                          </span>
+                          <p className="soap-gap-detail">{gap.detail}</p>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ))
+              )}
+            </div>
+          ) : null}
+
+          {questions ? (
+            <div className="soap-gaps-questions">
+              <h4>確認質問</h4>
+              {questions.length === 0 ? (
+                <p className="workbench-main-description">
+                  確認が必要な質問はありません。
+                </p>
+              ) : (
+                <ul className="soap-gaps-question-list">
+                  {questions.map((question) => (
+                    <li
+                      key={question.id}
+                      className="soap-gaps-question"
+                      data-status={question.status}
+                    >
+                      <div className="soap-gaps-question-header">
+                        <span className="soap-gap-type-badge">
+                          {gapTypeLabel(question.gapType)}
+                        </span>
+                        <span
+                          className="soap-gap-category"
+                          data-category={question.soapCategory}
+                        >
+                          {CATEGORY_LABELS[question.soapCategory]}
+                        </span>
+                        <span className="soap-candidate-status">
+                          {QUESTION_STATUS_LABELS[question.status]}
+                        </span>
+                      </div>
+                      <p className="soap-gaps-question-text">
+                        {question.questionText}
+                      </p>
+                      <textarea
+                        className="soap-gaps-answer-input"
+                        aria-label="回答"
+                        placeholder="補足情報を入力してください"
+                        value={question.answerText}
+                        onChange={(event) =>
+                          setQuestions((prev) =>
+                            prev
+                              ? withDraftAnswer(
+                                  prev,
+                                  question.id,
+                                  event.target.value,
+                                )
+                              : prev,
+                          )
+                        }
+                      />
+                      <div className="soap-draft-candidate-actions">
+                        <button
+                          type="button"
+                          disabled={!question.answerText.trim()}
+                          onClick={() => handleAnswerQuestion(question)}
+                        >
+                          回答して下書きに反映
+                        </button>
+                        {question.skippable ? (
+                          <>
+                            <input
+                              className="soap-gaps-skip-reason-input"
+                              aria-label="スキップ理由"
+                              placeholder="スキップ理由（任意）"
+                              value={question.skipReason}
+                              onChange={(event) =>
+                                setQuestions((prev) =>
+                                  prev
+                                    ? withDraftSkipReason(
+                                        prev,
+                                        question.id,
+                                        event.target.value,
+                                      )
+                                    : prev,
+                                )
+                              }
+                            />
+                            <button
+                              type="button"
+                              className="secondary-button"
+                              onClick={() => handleSkipQuestion(question)}
+                            >
+                              スキップ
+                            </button>
+                          </>
+                        ) : null}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          ) : null}
         </section>
       ) : null}
     </>

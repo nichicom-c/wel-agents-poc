@@ -238,6 +238,104 @@ describe("handleBffDevRequest", () => {
     });
   });
 
+  test("POST /api/soap-gaps を local runtime payload に変換する", async () => {
+    let runtimeRequest: Record<string, unknown> | undefined;
+    const fetchFn = async (url: string | URL | Request, init?: RequestInit) => {
+      runtimeRequest = {
+        body: JSON.parse(String(init?.body)),
+        method: init?.method,
+        url: String(url),
+      };
+      return Response.json({
+        status: "success",
+        type: "soap_gaps",
+        gaps: [
+          {
+            gapType: "insufficient_reasoning",
+            soapCategory: "A",
+            targetItem: "転倒リスクが高い。",
+            detail: "根拠となる S/O が見当たりません。",
+            relatedEvidenceQuotes: ["転倒リスクが高い"],
+            skippable: false,
+          },
+        ],
+        questions: [
+          {
+            gapType: "insufficient_reasoning",
+            soapCategory: "A",
+            targetItem: "転倒リスクが高い。",
+            questionText: "転倒リスクの根拠となる様子はありましたか？",
+            skippable: false,
+          },
+        ],
+      });
+    };
+
+    const candidate = {
+      category: "A",
+      draftText: "転倒リスクが高い。",
+      evidenceQuote: "転倒リスクが高い",
+      reasoning: "観察結果からの評価。",
+      confidence: 0.8,
+    };
+
+    const response = await handleBffDevRequest(
+      new Request("http://localhost:4174/api/soap-gaps", {
+        body: JSON.stringify({ candidates: [candidate] }),
+        method: "POST",
+      }),
+      CONFIG,
+      fetchFn,
+    );
+
+    await expect(response.json()).resolves.toEqual({
+      gaps: [
+        {
+          gapType: "insufficient_reasoning",
+          soapCategory: "A",
+          targetItem: "転倒リスクが高い。",
+          detail: "根拠となる S/O が見当たりません。",
+          relatedEvidenceQuotes: ["転倒リスクが高い"],
+          skippable: false,
+        },
+      ],
+      questions: [
+        {
+          gapType: "insufficient_reasoning",
+          soapCategory: "A",
+          targetItem: "転倒リスクが高い。",
+          questionText: "転倒リスクの根拠となる様子はありましたか？",
+          skippable: false,
+        },
+      ],
+    });
+    expect(response.status).toBe(200);
+    expect(runtimeRequest?.method).toBe("POST");
+    expect(runtimeRequest?.url).toBe("http://localhost:8080/invocations");
+    const body = runtimeRequest?.body as Record<string, unknown>;
+    expect(body).toMatchObject({
+      actor_id: "web-user",
+      type: "soap_gaps",
+      candidates: [candidate],
+    });
+    expect(typeof body.session_id).toBe("string");
+  });
+
+  test("POST /api/soap-gaps の candidates 欠落は 400 にする", async () => {
+    const response = await handleBffDevRequest(
+      new Request("http://localhost:4174/api/soap-gaps", {
+        body: JSON.stringify({}),
+        method: "POST",
+      }),
+      CONFIG,
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({
+      error: "candidates is required",
+    });
+  });
+
   test("POST /api/ws-url に local WebSocket URL を返す", async () => {
     const response = await handleBffDevRequest(
       new Request("http://localhost:4174/api/ws-url", {

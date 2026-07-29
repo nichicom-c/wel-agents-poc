@@ -17,6 +17,7 @@ import {
   type ListSessions,
 } from "../application/handle-sessions-request.ts";
 import { handleSoapDraftRequest } from "../application/handle-soap-draft-request.ts";
+import { handleSoapGapsRequest } from "../application/handle-soap-gaps-request.ts";
 import { handleVoiceRecordingRequest } from "../application/handle-voice-recording-request.ts";
 import { handleWsUrlRequest } from "../application/handle-ws-url-request.ts";
 import { runtimeInvokeResultFromResponse } from "../application/runtime-response.ts";
@@ -267,6 +268,24 @@ export async function handleBffDevRequest(
 
   if (url.pathname === "/api/soap-draft") {
     const bffResponse = await handleSoapDraftRequest(
+      {
+        body,
+        method: request.method,
+        path: url.pathname,
+      },
+      {
+        actorId: config.actorId,
+        invokeRuntime: (_runtimeSessionId, payload) =>
+          invokeLocalRuntime(config, payload, fetchFn),
+        logError: (message, detail) => console.error(message, detail),
+      },
+    );
+
+    return responseFromBff(bffResponse);
+  }
+
+  if (url.pathname === "/api/soap-gaps") {
+    const bffResponse = await handleSoapGapsRequest(
       {
         body,
         method: request.method,

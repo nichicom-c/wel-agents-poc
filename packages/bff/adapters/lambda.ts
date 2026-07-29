@@ -18,6 +18,7 @@ import {
   type ListSessions,
 } from "../application/handle-sessions-request.ts";
 import { handleSoapDraftRequest } from "../application/handle-soap-draft-request.ts";
+import { handleSoapGapsRequest } from "../application/handle-soap-gaps-request.ts";
 import { handleVoiceRecordingRequest } from "../application/handle-voice-recording-request.ts";
 import {
   type CreateWebSocketUrl,
@@ -224,6 +225,25 @@ export async function handleLambdaEvent(
 
   if (path === "/api/soap-draft") {
     return handleSoapDraftRequest(
+      {
+        body: event.body,
+        isBase64Encoded: event.isBase64Encoded,
+        method,
+        path,
+      },
+      {
+        actorId: config.actorId,
+        invokeRuntime: (runtimeSessionId, payload) =>
+          invokeAgentCoreRuntime(config, runtimeSessionId, payload, deps),
+        logError:
+          deps.logError ??
+          ((message, detail) => console.error(message, detail)),
+      },
+    );
+  }
+
+  if (path === "/api/soap-gaps") {
+    return handleSoapGapsRequest(
       {
         body: event.body,
         isBase64Encoded: event.isBase64Encoded,
