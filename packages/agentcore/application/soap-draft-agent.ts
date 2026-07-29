@@ -48,6 +48,10 @@ const RECORD_TYPE_DESCRIPTIONS_TEXT = Object.values(
  *
  * 相談支援記録の下書き作成を支援するアシスタントとして、入力テキストを SOAP 形式
  * （S: 主観的情報 / O: 客観的情報 / A: アセスメント / P: 支援計画）の候補に分割する。
+ * A（アセスメント）は、入力テキストに元々書かれている支援者自身の評価・判断の文だけを
+ * 対象とする。複数の S/O を AI が統合・推論して新たに導き出した結論は「分類」ではなく
+ * 「生成」であり、専門職の判断を AI が代弁してしまうリスクがあるため、A にはせず
+ * UNCLASSIFIED とする（入力に明示的な評価文が無ければ A 候補を作らない）。
  * 各候補には根拠原文の引用・分類理由・0〜1 の信頼度を必ず含める。確信が持てない場合は
  * 無理に S/O/A/P へ分類せず UNCLASSIFIED を使う。根拠原文は入力テキストに実在する文言を
  * そのまま引用し、要約・創作をしない。入力テキストに存在しない情報を候補に含めない。
@@ -59,7 +63,19 @@ const SOAP_DRAFT_SYSTEM_PROMPT =
   "You are an assistant that helps draft support-record entries from free-text input. " +
   "Split the input text into SOAP candidates: S (subjective information, typically the " +
   "person's own words/feelings), O (objective information, observed facts), A (assessment), " +
-  "and P (support plan). For every candidate you MUST include: an evidenceQuote copied " +
+  "and P (support plan). " +
+  "IMPORTANT constraint on A: only classify a passage as A when the input text ITSELF " +
+  "already contains an explicit assessment or judgment written by the support worker — a " +
+  "sentence stating their own evaluation, interpretation, or conclusion, not a bare recitation " +
+  "of facts. Do NOT create an A candidate by synthesizing or inferring a new conclusion from " +
+  "multiple S/O facts when that conclusion is not itself explicitly stated in the input — that " +
+  "is generation, not classification, and it risks presenting an AI-authored professional " +
+  "judgment as if it were the human support worker's own. If the input only contains raw " +
+  "observations or statements with no explicit assessment sentence, do not manufacture an A " +
+  "for them; leave those passages classified as S/O only. When a passage gestures toward a " +
+  "judgment but does not itself constitute a clear, explicit assessment statement, use " +
+  "UNCLASSIFIED rather than inferring an A. " +
+  "For every candidate you MUST include: an evidenceQuote copied " +
   "verbatim from the input text (never paraphrase or invent it), a reasoning for why this " +
   "category was chosen, and a confidence between 0 and 1. When you are not confident a " +
   "sentence clearly belongs to S/O/A/P, do not force it into one of those categories — use " +

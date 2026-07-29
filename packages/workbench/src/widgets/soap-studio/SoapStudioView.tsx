@@ -35,7 +35,7 @@ const CATEGORY_LABELS: Record<SoapCategory, string> = {
   O: "O・客観的情報",
   A: "A・アセスメント",
   P: "P・支援計画",
-  UNCLASSIFIED: "未分類・確認待ち",
+  UNCLASSIFIED: "該当なし",
 };
 
 const STATUS_LABELS: Record<SoapCandidateStatus, string> = {
@@ -263,7 +263,7 @@ export function SoapStudioView({
             ))}
           </fieldset>
 
-          {groups.length === 0 ? (
+          {candidates.length === 0 ? (
             <p className="workbench-main-description">
               候補が見つかりませんでした。
             </p>
@@ -275,99 +275,103 @@ export function SoapStudioView({
                 data-category={group.category}
               >
                 <h4>{CATEGORY_LABELS[group.category]}</h4>
-                <ul className="soap-draft-candidate-list">
-                  {group.candidates.map((candidate) => (
-                    <li
-                      key={candidate.id}
-                      className="soap-draft-candidate"
-                      data-category={candidate.category}
-                      data-status={candidate.status}
-                    >
-                      <div className="soap-draft-candidate-header">
-                        <span
-                          className="soap-confidence-badge"
-                          data-tier={confidenceTier(candidate.confidence)}
-                        >
-                          確信度 {Math.round(candidate.confidence * 100)}%
-                        </span>
-                        <span className="soap-candidate-status">
-                          {STATUS_LABELS[candidate.status]}
-                        </span>
-                      </div>
-                      {editingId === candidate.id ? (
-                        <>
-                          <textarea
-                            className="soap-draft-edit-input"
-                            aria-label="下書き文章を編集"
-                            value={editingText}
-                            onChange={(event) =>
-                              setEditingText(event.target.value)
-                            }
-                          />
-                          <div className="soap-draft-candidate-actions">
-                            <button type="button" onClick={saveEditing}>
-                              保存
-                            </button>
-                            <button
-                              type="button"
-                              className="secondary-button"
-                              onClick={cancelEditing}
-                            >
-                              キャンセル
-                            </button>
-                          </div>
-                        </>
-                      ) : (
-                        <>
-                          <p className="soap-draft-text">
-                            {candidate.draftText}
-                          </p>
-                          <blockquote className="soap-evidence-quote">
-                            {candidate.evidenceQuote}
-                          </blockquote>
-                          <p className="soap-reasoning">
-                            {candidate.reasoning}
-                          </p>
-                          <div className="soap-draft-candidate-actions">
-                            <button
-                              type="button"
-                              onClick={() =>
-                                handleStatusChange(candidate.id, "adopted")
+                {group.candidates.length === 0 ? (
+                  <p className="workbench-main-description">該当なし</p>
+                ) : (
+                  <ul className="soap-draft-candidate-list">
+                    {group.candidates.map((candidate) => (
+                      <li
+                        key={candidate.id}
+                        className="soap-draft-candidate"
+                        data-category={candidate.category}
+                        data-status={candidate.status}
+                      >
+                        <div className="soap-draft-candidate-header">
+                          <span
+                            className="soap-confidence-badge"
+                            data-tier={confidenceTier(candidate.confidence)}
+                          >
+                            確信度 {Math.round(candidate.confidence * 100)}%
+                          </span>
+                          <span className="soap-candidate-status">
+                            {STATUS_LABELS[candidate.status]}
+                          </span>
+                        </div>
+                        {editingId === candidate.id ? (
+                          <>
+                            <textarea
+                              className="soap-draft-edit-input"
+                              aria-label="下書き文章を編集"
+                              value={editingText}
+                              onChange={(event) =>
+                                setEditingText(event.target.value)
                               }
-                            >
-                              採用
-                            </button>
-                            <button
-                              type="button"
-                              className="secondary-button"
-                              onClick={() => startEditing(candidate)}
-                            >
-                              編集
-                            </button>
-                            <button
-                              type="button"
-                              className="secondary-button"
-                              onClick={() =>
-                                handleStatusChange(candidate.id, "rejected")
-                              }
-                            >
-                              却下
-                            </button>
-                            <button
-                              type="button"
-                              className="secondary-button"
-                              onClick={() =>
-                                handleStatusChange(candidate.id, "deferred")
-                              }
-                            >
-                              後で確認
-                            </button>
-                          </div>
-                        </>
-                      )}
-                    </li>
-                  ))}
-                </ul>
+                            />
+                            <div className="soap-draft-candidate-actions">
+                              <button type="button" onClick={saveEditing}>
+                                保存
+                              </button>
+                              <button
+                                type="button"
+                                className="secondary-button"
+                                onClick={cancelEditing}
+                              >
+                                キャンセル
+                              </button>
+                            </div>
+                          </>
+                        ) : (
+                          <>
+                            <p className="soap-draft-text">
+                              {candidate.draftText}
+                            </p>
+                            <blockquote className="soap-evidence-quote">
+                              {candidate.evidenceQuote}
+                            </blockquote>
+                            <p className="soap-reasoning">
+                              {candidate.reasoning}
+                            </p>
+                            <div className="soap-draft-candidate-actions">
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  handleStatusChange(candidate.id, "adopted")
+                                }
+                              >
+                                採用
+                              </button>
+                              <button
+                                type="button"
+                                className="secondary-button"
+                                onClick={() => startEditing(candidate)}
+                              >
+                                編集
+                              </button>
+                              <button
+                                type="button"
+                                className="secondary-button"
+                                onClick={() =>
+                                  handleStatusChange(candidate.id, "rejected")
+                                }
+                              >
+                                却下
+                              </button>
+                              <button
+                                type="button"
+                                className="secondary-button"
+                                onClick={() =>
+                                  handleStatusChange(candidate.id, "deferred")
+                                }
+                              >
+                                後で確認
+                              </button>
+                            </div>
+                          </>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </div>
             ))
           )}

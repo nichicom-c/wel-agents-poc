@@ -68,12 +68,47 @@ describe("withStatus / withEditedText", () => {
 });
 
 describe("groupByCategory", () => {
-  test("カテゴリごとにまとめ、候補がないカテゴリは含めない", () => {
+  test("SOAP_CATEGORIES の順序で、S/O/A/P は候補が0件でも常に含める", () => {
     const candidates = fromApiCandidates(API_CANDIDATES);
     const groups = groupByCategory(candidates);
 
-    expect(groups.map((g) => g.category)).toEqual(["S", "O"]);
+    expect(groups.map((g) => g.category)).toEqual(["S", "O", "A", "P"]);
     expect(groups[0]?.candidates).toHaveLength(1);
+  });
+
+  test("候補が無い S/A/P は空配列を持つ", () => {
+    const candidates = fromApiCandidates(API_CANDIDATES);
+    const groups = groupByCategory(candidates);
+
+    for (const category of ["A", "P"] as const) {
+      const group = groups.find((g) => g.category === category);
+      expect(group).toBeDefined();
+      expect(group?.candidates).toHaveLength(0);
+    }
+  });
+
+  test("UNCLASSIFIED は候補が0件ならセクションごと含めない", () => {
+    const candidates = fromApiCandidates(API_CANDIDATES);
+    const groups = groupByCategory(candidates);
+
+    expect(groups.find((g) => g.category === "UNCLASSIFIED")).toBeUndefined();
+  });
+
+  test("UNCLASSIFIED の候補があるときは含める", () => {
+    const candidates = fromApiCandidates([
+      ...API_CANDIDATES,
+      {
+        category: "UNCLASSIFIED",
+        draftText: "unclassified candidate",
+        evidenceQuote: "u evidence",
+        reasoning: "r",
+        confidence: 0.5,
+      },
+    ]);
+    const groups = groupByCategory(candidates);
+
+    const unclassified = groups.find((g) => g.category === "UNCLASSIFIED");
+    expect(unclassified?.candidates).toHaveLength(1);
   });
 });
 

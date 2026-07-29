@@ -95,7 +95,14 @@ export function withEditedText(
   );
 }
 
-/** カテゴリごとに候補をまとめる。SOAP_CATEGORIES の順序を保つ。 */
+/**
+ * カテゴリごとに候補をまとめる。SOAP_CATEGORIES の順序を保つ。
+ *
+ * S/O/A/P は候補が0件でも常にセクションを表示する（0件のときに「判定漏れ」なのか
+ * 「意図的に該当が無い」のか利用者が区別できるよう、widget 側で「該当なし」と表示する）。
+ * UNCLASSIFIED だけは見出し自体が「該当なし」を表す表示のため、0件のときはセクションごと
+ * 非表示にする（0件時に見出しと本文で「該当なし」が二重に出るのを避けるため）。
+ */
 export function groupByCategory(
   candidates: SoapDraftCandidate[],
 ): Array<{ category: SoapCategory; candidates: SoapDraftCandidate[] }> {
@@ -104,7 +111,9 @@ export function groupByCategory(
     candidates: candidates.filter(
       (candidate) => candidate.category === category,
     ),
-  })).filter((group) => group.candidates.length > 0);
+  })).filter(
+    (group) => group.candidates.length > 0 || group.category !== "UNCLASSIFIED",
+  );
 }
 
 /** 信頼度を表示用の3段階（high/medium/low）に変換する。 */
