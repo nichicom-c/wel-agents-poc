@@ -3,7 +3,8 @@ export type WorkspaceNavId =
   | "soap-studio"
   | "voice-capture"
   | "knowledge-review"
-  | "training";
+  | "training"
+  | "admin";
 
 export type WorkspaceNavItem = {
   id: WorkspaceNavId;
@@ -16,6 +17,7 @@ export const WORKSPACE_NAV_ITEMS: readonly WorkspaceNavItem[] = [
   { id: "voice-capture", label: "Voice Capture" },
   { id: "knowledge-review", label: "Knowledge Review" },
   { id: "training", label: "Training" },
+  { id: "admin", label: "Admin" },
 ];
 
 export const DEFAULT_WORKSPACE_NAV_ID: WorkspaceNavId = "soap-studio";

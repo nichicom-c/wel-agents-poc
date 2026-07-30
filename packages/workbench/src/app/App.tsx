@@ -1,5 +1,6 @@
 import { useState } from "react";
 
+import { AdminView } from "../widgets/admin/index.ts";
 import { KnowledgeReviewView } from "../widgets/knowledge-review/index.ts";
 import { SoapStudioView } from "../widgets/soap-studio/index.ts";
 import { VoiceCaptureView } from "../widgets/voice-capture/index.ts";
@@ -58,6 +59,8 @@ export function App() {
             <VoiceCaptureView onSendToSoapStudio={handleSendToSoapStudio} />
           ) : activeNavId === "knowledge-review" ? (
             <KnowledgeReviewView />
+          ) : activeNavId === "admin" ? (
+            <AdminView />
           ) : (
             <ComingSoonView navId={activeNavId} />
           )}
@@ -81,6 +84,7 @@ const NAV_LABELS: Record<WorkspaceNavId, string> = {
   "voice-capture": "Voice Capture",
   "knowledge-review": "Knowledge Review",
   training: "Training",
+  admin: "Admin",
 };
 
 function ComingSoonView({ navId }: { navId: WorkspaceNavId }) {
