@@ -12,14 +12,20 @@ import {
   type KnowledgeBaseDetailProvider,
 } from "../application/handle-knowledge-base-detail-request.ts";
 import { handleMaterialCandidateRequest } from "../application/handle-material-candidate-request.ts";
+import { handleMaterialRequest } from "../application/handle-material-request.ts";
 import { handleProfessionalCommentRequest } from "../application/handle-professional-comment-request.ts";
+import { handleQualityMetricsRequest } from "../application/handle-quality-metrics-request.ts";
+import { handleReferenceKnowledgeRequest } from "../application/handle-reference-knowledge-request.ts";
 import { handleBffRequest } from "../application/handle-request.ts";
+import { handleRequiredItemRequest } from "../application/handle-required-item-request.ts";
+import { handleRubricRequest } from "../application/handle-rubric-request.ts";
 import {
   handleSessionsRequest,
   type ListSessions,
 } from "../application/handle-sessions-request.ts";
 import { handleSoapDraftRequest } from "../application/handle-soap-draft-request.ts";
 import { handleSoapGapsRequest } from "../application/handle-soap-gaps-request.ts";
+import { handleSoapMappingRequest } from "../application/handle-soap-mapping-request.ts";
 import { handleSoapRecordRequest } from "../application/handle-soap-record-request.ts";
 import { handleVoiceRecordingRequest } from "../application/handle-voice-recording-request.ts";
 import { handleWsUrlRequest } from "../application/handle-ws-url-request.ts";
@@ -36,9 +42,29 @@ import {
   listMaterialCandidates,
 } from "../infra/material-candidate-store.ts";
 import {
+  changeMaterialStatus,
+  createMaterial,
+  listMaterials,
+} from "../infra/material-store.ts";
+import {
   createProfessionalComment,
   listCommentsForVersion,
 } from "../infra/professional-comment-store.ts";
+import { listQualityMetrics } from "../infra/quality-metrics-store.ts";
+import { listReferenceKnowledge } from "../infra/reference-knowledge-store.ts";
+import {
+  createRequiredItem,
+  listRequiredItems,
+} from "../infra/required-item-store.ts";
+import {
+  createRubric,
+  listRubrics,
+  setRubricReviewStatus,
+} from "../infra/rubric-store.ts";
+import {
+  createSoapMappingVersion,
+  listSoapMappingVersions,
+} from "../infra/soap-mapping-store.ts";
 import {
   createSoapRecordVersion,
   listSoapRecords,
@@ -422,6 +448,196 @@ export async function handleBffDevRequest(
           decideMaterialCandidateStatus(storeConfig, input),
         listCandidates: (filters) =>
           listMaterialCandidates(storeConfig, filters),
+        logError: (message, detail) => console.error(message, detail),
+        trainingDataConfigured: Boolean(
+          config.trainingDataClusterArn &&
+            config.trainingDataDatabaseName &&
+            config.trainingDataSecretArn,
+        ),
+      },
+    );
+
+    return responseFromBff(bffResponse);
+  }
+
+  if (
+    url.pathname === "/api/materials" ||
+    url.pathname.startsWith("/api/materials/")
+  ) {
+    const storeConfig = {
+      clusterArn: config.trainingDataClusterArn ?? "",
+      database: config.trainingDataDatabaseName ?? "",
+      region: config.region,
+      secretArn: config.trainingDataSecretArn ?? "",
+    };
+
+    const bffResponse = await handleMaterialRequest(
+      {
+        body,
+        method: request.method,
+        path: url.pathname,
+        query: queryFromUrl(url),
+      },
+      {
+        authContext: authContextForConfig(config),
+        changeStatus: (input) => changeMaterialStatus(storeConfig, input),
+        createMaterial: (input) => createMaterial(storeConfig, input),
+        listMaterials: (filters) => listMaterials(storeConfig, filters),
+        logError: (message, detail) => console.error(message, detail),
+        trainingDataConfigured: Boolean(
+          config.trainingDataClusterArn &&
+            config.trainingDataDatabaseName &&
+            config.trainingDataSecretArn,
+        ),
+      },
+    );
+
+    return responseFromBff(bffResponse);
+  }
+
+  if (
+    url.pathname === "/api/rubrics" ||
+    url.pathname.startsWith("/api/rubrics/")
+  ) {
+    const storeConfig = {
+      clusterArn: config.trainingDataClusterArn ?? "",
+      database: config.trainingDataDatabaseName ?? "",
+      region: config.region,
+      secretArn: config.trainingDataSecretArn ?? "",
+    };
+
+    const bffResponse = await handleRubricRequest(
+      {
+        body,
+        method: request.method,
+        path: url.pathname,
+        query: queryFromUrl(url),
+      },
+      {
+        authContext: authContextForConfig(config),
+        createRubric: (input) => createRubric(storeConfig, input),
+        listRubrics: () => listRubrics(storeConfig),
+        logError: (message, detail) => console.error(message, detail),
+        setReviewStatus: (input) => setRubricReviewStatus(storeConfig, input),
+        trainingDataConfigured: Boolean(
+          config.trainingDataClusterArn &&
+            config.trainingDataDatabaseName &&
+            config.trainingDataSecretArn,
+        ),
+      },
+    );
+
+    return responseFromBff(bffResponse);
+  }
+
+  if (url.pathname === "/api/reference-knowledge") {
+    const storeConfig = {
+      clusterArn: config.trainingDataClusterArn ?? "",
+      database: config.trainingDataDatabaseName ?? "",
+      region: config.region,
+      secretArn: config.trainingDataSecretArn ?? "",
+    };
+
+    const bffResponse = await handleReferenceKnowledgeRequest(
+      {
+        body,
+        method: request.method,
+        path: url.pathname,
+      },
+      {
+        authContext: authContextForConfig(config),
+        listReferenceKnowledge: () => listReferenceKnowledge(storeConfig),
+        logError: (message, detail) => console.error(message, detail),
+        trainingDataConfigured: Boolean(
+          config.trainingDataClusterArn &&
+            config.trainingDataDatabaseName &&
+            config.trainingDataSecretArn,
+        ),
+      },
+    );
+
+    return responseFromBff(bffResponse);
+  }
+
+  if (url.pathname === "/api/soap-mapping-versions") {
+    const storeConfig = {
+      clusterArn: config.trainingDataClusterArn ?? "",
+      database: config.trainingDataDatabaseName ?? "",
+      region: config.region,
+      secretArn: config.trainingDataSecretArn ?? "",
+    };
+
+    const bffResponse = await handleSoapMappingRequest(
+      {
+        body,
+        method: request.method,
+        path: url.pathname,
+        query: queryFromUrl(url),
+      },
+      {
+        authContext: authContextForConfig(config),
+        createVersion: (input) => createSoapMappingVersion(storeConfig, input),
+        listVersions: (input) => listSoapMappingVersions(storeConfig, input),
+        logError: (message, detail) => console.error(message, detail),
+        trainingDataConfigured: Boolean(
+          config.trainingDataClusterArn &&
+            config.trainingDataDatabaseName &&
+            config.trainingDataSecretArn,
+        ),
+      },
+    );
+
+    return responseFromBff(bffResponse);
+  }
+
+  if (url.pathname === "/api/required-items") {
+    const storeConfig = {
+      clusterArn: config.trainingDataClusterArn ?? "",
+      database: config.trainingDataDatabaseName ?? "",
+      region: config.region,
+      secretArn: config.trainingDataSecretArn ?? "",
+    };
+
+    const bffResponse = await handleRequiredItemRequest(
+      {
+        body,
+        method: request.method,
+        path: url.pathname,
+        query: queryFromUrl(url),
+      },
+      {
+        authContext: authContextForConfig(config),
+        createItem: (input) => createRequiredItem(storeConfig, input),
+        listItems: (filters) => listRequiredItems(storeConfig, filters),
+        logError: (message, detail) => console.error(message, detail),
+        trainingDataConfigured: Boolean(
+          config.trainingDataClusterArn &&
+            config.trainingDataDatabaseName &&
+            config.trainingDataSecretArn,
+        ),
+      },
+    );
+
+    return responseFromBff(bffResponse);
+  }
+
+  if (url.pathname === "/api/quality-metrics") {
+    const storeConfig = {
+      clusterArn: config.trainingDataClusterArn ?? "",
+      database: config.trainingDataDatabaseName ?? "",
+      region: config.region,
+      secretArn: config.trainingDataSecretArn ?? "",
+    };
+
+    const bffResponse = await handleQualityMetricsRequest(
+      {
+        body,
+        method: request.method,
+        path: url.pathname,
+      },
+      {
+        authContext: authContextForConfig(config),
+        listMetrics: () => listQualityMetrics(storeConfig),
         logError: (message, detail) => console.error(message, detail),
         trainingDataConfigured: Boolean(
           config.trainingDataClusterArn &&

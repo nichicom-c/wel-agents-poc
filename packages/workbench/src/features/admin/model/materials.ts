@@ -1,5 +1,3 @@
-import { createId } from "./create-id.ts";
-
 /** issue #8 由来の教材候補（承認済み）が採る形。教材の種類は暫定の3種類。 */
 export const MATERIAL_TYPES = [
   "teaching_case",
@@ -47,14 +45,18 @@ export type MaterialRevision = {
   changedAt: string;
 };
 
+/**
+ * 教材。BFF `/api/materials`（Aurora Serverless v2 + RDS Data API）から取得する
+ * （`docs/notes/2026-07-30-training-materials-db-schema-and-aws-infra.md` 参照）。
+ */
 export type Material = {
   id: string;
   materialType: MaterialType;
   title: string;
   publicationStatus: PublicationStatus;
-  specialtyId: string;
-  learningThemeId: string;
-  difficultyId: string;
+  specialtyId?: string;
+  learningThemeId?: string;
+  difficultyId?: string;
   createdBy: string;
   createdAt: string;
   revisions: MaterialRevision[];
@@ -64,80 +66,3 @@ export type MaterialFilters = {
   materialType?: MaterialType;
   publicationStatus?: PublicationStatus;
 };
-
-export function filterMaterials(
-  materials: readonly Material[],
-  filters: MaterialFilters,
-): Material[] {
-  return materials.filter(
-    (material) =>
-      (!filters.materialType ||
-        material.materialType === filters.materialType) &&
-      (!filters.publicationStatus ||
-        material.publicationStatus === filters.publicationStatus),
-  );
-}
-
-/** 公開状態を明示的な state として管理する（issue #10 の Technical Approach）。 */
-export function changeMaterialPublicationStatus(
-  materials: readonly Material[],
-  id: string,
-  nextStatus: PublicationStatus,
-  changedBy: string,
-): Material[] {
-  return materials.map((material) => {
-    if (material.id !== id) {
-      return material;
-    }
-    return {
-      ...material,
-      publicationStatus: nextStatus,
-      revisions: [
-        ...material.revisions,
-        {
-          changedAt: new Date().toISOString(),
-          changedBy,
-          fromStatus: material.publicationStatus,
-          toStatus: nextStatus,
-        },
-      ],
-    };
-  });
-}
-
-export type NewMaterialInput = {
-  materialType: MaterialType;
-  title: string;
-  specialtyId: string;
-  learningThemeId: string;
-  difficultyId: string;
-  createdBy: string;
-};
-
-/** 新規教材を status: draft で作る（issue #8 の教材候補承認や手動登録の受け口）。 */
-export function createMaterial(
-  materials: readonly Material[],
-  input: NewMaterialInput,
-): Material[] {
-  const createdAt = new Date().toISOString();
-  const created: Material = {
-    createdAt,
-    createdBy: input.createdBy,
-    difficultyId: input.difficultyId,
-    id: createId("material"),
-    learningThemeId: input.learningThemeId,
-    materialType: input.materialType,
-    publicationStatus: "draft",
-    revisions: [
-      {
-        changedAt: createdAt,
-        changedBy: input.createdBy,
-        fromStatus: null,
-        toStatus: "draft",
-      },
-    ],
-    specialtyId: input.specialtyId,
-    title: input.title,
-  };
-  return [...materials, created];
-}

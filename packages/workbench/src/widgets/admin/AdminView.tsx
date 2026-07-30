@@ -12,6 +12,7 @@ import {
   changeMaterialStatus,
   currentVersionForRecordType,
   listMaterials,
+  listQualityMetrics,
   listReferenceKnowledge,
   listRequiredItems,
   listRubrics,
@@ -26,7 +27,7 @@ import {
   PUBLICATION_STATUSES,
   type PublicationStatus,
   publicationStatusLabel,
-  QUALITY_METRIC_DEFINITIONS,
+  type QualityMetricDefinition,
   REQUIREMENT_LEVELS,
   type ReferenceKnowledge,
   type RequiredItemFilters,
@@ -71,27 +72,17 @@ const ADMIN_TABS: ReadonlyArray<{ id: AdminTab; label: string }> = [
   { id: "quality-metrics", label: "品質指標" },
 ];
 
-/** dummy データ段階では認証が無いため、role をそのまま実行者名の代わりに使う。 */
-const DUMMY_AUTHOR_NAMES: Record<AdminDemoRole, string> = {
-  admin: "管理者（デモ）",
-  guest: "未選択",
-  nurse: "専門職（デモ）",
-  reviewer: "レビュー承認者（デモ）",
-  trainee: "新人保健師（デモ）",
-};
-
 export function AdminView() {
   const [role, setRole] = useState<AdminDemoRole>("admin");
   const [activeTab, setActiveTab] = useState<AdminTab>("materials");
   const canView = canViewAdmin(role);
-  const authorName = DUMMY_AUTHOR_NAMES[role];
 
   return (
     <>
       <h2>Admin</h2>
       <p className="workbench-main-description">
         教材・評価ルーブリック・参照知識・マスタ対応を管理する作業画面（issue
-        #10・dummy データ）
+        #10）
       </p>
 
       <fieldset className="knowledge-review-role-select">
@@ -131,13 +122,13 @@ export function AdminView() {
           </div>
 
           {activeTab === "materials" ? (
-            <MaterialsTab authorName={authorName} />
+            <MaterialsTab />
           ) : activeTab === "rubrics" ? (
-            <RubricsTab authorName={authorName} />
+            <RubricsTab />
           ) : activeTab === "reference-knowledge" ? (
             <ReferenceKnowledgeTab />
           ) : activeTab === "soap-mapping" ? (
-            <SoapMappingTab authorName={authorName} />
+            <SoapMappingTab />
           ) : activeTab === "required-items" ? (
             <RequiredItemsTab />
           ) : (
@@ -149,9 +140,7 @@ export function AdminView() {
   );
 }
 
-type AuthorNameProps = { authorName: string };
-
-function MaterialsTab({ authorName }: AuthorNameProps) {
+function MaterialsTab() {
   const [filters, setFilters] = useState<MaterialFilters>({});
   const [materials, setMaterials] = useState<Material[] | null>(null);
   const [nextStatusById, setNextStatusById] = useState<
@@ -192,7 +181,7 @@ function MaterialsTab({ authorName }: AuthorNameProps) {
     if (!nextStatus) {
       return;
     }
-    await changeMaterialStatus(id, nextStatus, authorName);
+    await changeMaterialStatus(id, nextStatus);
     await refresh();
   }
 
@@ -201,7 +190,6 @@ function MaterialsTab({ authorName }: AuthorNameProps) {
       return;
     }
     await addMaterial({
-      createdBy: authorName,
       difficultyId: newDifficultyId,
       learningThemeId: newLearningThemeId,
       materialType: newMaterialType,
@@ -275,9 +263,21 @@ function MaterialsTab({ authorName }: AuthorNameProps) {
             </div>
             <div className="knowledge-review-tag-row">
               <span>{materialTypeLabel(material.materialType)}</span>
-              <span>{tagLabel(SPECIALTIES, material.specialtyId)}</span>
-              <span>{tagLabel(LEARNING_THEMES, material.learningThemeId)}</span>
-              <span>{tagLabel(DIFFICULTY_LEVELS, material.difficultyId)}</span>
+              <span>
+                {material.specialtyId
+                  ? tagLabel(SPECIALTIES, material.specialtyId)
+                  : "未設定"}
+              </span>
+              <span>
+                {material.learningThemeId
+                  ? tagLabel(LEARNING_THEMES, material.learningThemeId)
+                  : "未設定"}
+              </span>
+              <span>
+                {material.difficultyId
+                  ? tagLabel(DIFFICULTY_LEVELS, material.difficultyId)
+                  : "未設定"}
+              </span>
             </div>
             <div className="knowledge-review-decision-form">
               <label>
@@ -386,7 +386,7 @@ function MaterialsTab({ authorName }: AuthorNameProps) {
   );
 }
 
-function RubricsTab({ authorName }: AuthorNameProps) {
+function RubricsTab() {
   const [rubrics, setRubrics] = useState<Rubric[] | null>(null);
   const [newName, setNewName] = useState("");
   const [newTargetType, setNewTargetType] = useState<RubricTargetType>(
@@ -419,7 +419,6 @@ function RubricsTab({ authorName }: AuthorNameProps) {
       return;
     }
     await addRubric({
-      createdBy: authorName,
       name: newName.trim(),
       targetType: newTargetType,
     });
@@ -587,7 +586,7 @@ function ReferenceKnowledgeTab() {
   );
 }
 
-function SoapMappingTab({ authorName }: AuthorNameProps) {
+function SoapMappingTab() {
   const [recordType, setRecordType] = useState<SoapRecordType>(
     SOAP_RECORD_TYPES[0],
   );
@@ -624,7 +623,7 @@ function SoapMappingTab({ authorName }: AuthorNameProps) {
     if (!canSave) {
       return;
     }
-    const updated = await addSoapMappingVersion(recordType, draft, authorName);
+    const updated = await addSoapMappingVersion(recordType, draft);
     setVersions(updated);
     setConfirmedNoRetroactive(false);
   }
@@ -867,6 +866,22 @@ function RequiredItemsTab() {
 }
 
 function QualityMetricsTab() {
+  const [metrics, setMetrics] = useState<QualityMetricDefinition[] | null>(
+    null,
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+    listQualityMetrics().then((result) => {
+      if (!cancelled) {
+        setMetrics(result);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   return (
     <section aria-label="品質指標">
       <p className="workbench-main-description">
@@ -874,7 +889,7 @@ function QualityMetricsTab() {
         のため、ここでは定義のみを表示する。
       </p>
       <ul className="knowledge-review-comment-list">
-        {QUALITY_METRIC_DEFINITIONS.map((metric) => (
+        {(metrics ?? []).map((metric) => (
           <li key={metric.metricKey} className="knowledge-review-comment">
             <div className="knowledge-review-comment-header">
               <span>{metric.displayName}</span>

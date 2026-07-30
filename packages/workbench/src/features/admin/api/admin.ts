@@ -1,422 +1,674 @@
-import type { SoapRecordType } from "../../soap-draft/index.ts";
 import {
-  changeMaterialPublicationStatus,
-  createMaterial,
-  filterMaterials,
+  isSoapRecordType,
+  type SoapRecordType,
+} from "../../soap-draft/index.ts";
+import {
+  MATERIAL_TYPES,
   type Material,
   type MaterialFilters,
-  type NewMaterialInput,
+  type MaterialRevision,
+  type MaterialType,
+  PUBLICATION_STATUSES,
   type PublicationStatus,
 } from "../model/materials.ts";
-import type { ReferenceKnowledge } from "../model/reference-knowledge.ts";
+import type { QualityMetricDefinition } from "../model/quality-metrics.ts";
+import type {
+  ReferenceKnowledge,
+  ReferenceKnowledgeSourceType,
+} from "../model/reference-knowledge.ts";
+import { REFERENCE_KNOWLEDGE_SOURCE_TYPES } from "../model/reference-knowledge.ts";
 import {
-  createRequiredItem,
-  filterRequiredItems,
-  type NewRequiredItemInput,
+  REQUIREMENT_LEVELS,
   type RequiredItemFilters,
   type RequiredRecommendedItem,
+  type RequirementLevel,
 } from "../model/required-items.ts";
 import {
-  createRubric,
-  type NewRubricInput,
+  RUBRIC_REVIEW_STATUSES,
+  RUBRIC_TARGET_TYPES,
   type Rubric,
+  type RubricItem,
   type RubricReviewStatus,
-  setRubricReviewStatus,
+  type RubricTargetType,
 } from "../model/rubrics.ts";
 import {
-  createSoapMappingVersion,
+  MAPPING_CATEGORIES,
   type MappingDefinition,
   type SoapMappingVersion,
-  versionsForRecordType,
 } from "../model/soap-mapping.ts";
 
 /**
- * `terraform/aws/bff` に Aurora 等の実データストアはまだ無いため、issue #10 の管理画面 UI を
- * dummy データで先行実装する。`knowledge-review/api/knowledge-review.ts` と同じ方針で、
- * module 内変数を DB の代わりに使う。ブラウザを再読み込みすると内容はリセットされる。
+ * 管理画面（issue #10。`docs/notes/2026-07-30-training-materials-db-schema-and-aws-infra.md`
+ * 参照）が使う BFF `/api/materials*` / `/api/rubrics*` / `/api/reference-knowledge` /
+ * `/api/soap-mapping-versions` / `/api/required-items` / `/api/quality-metrics`
+ * （Aurora Serverless v2 + RDS Data API）を呼ぶ。
  */
 
-let materials: Material[] = [
-  {
-    createdAt: "2026-07-20T09:00:00.000Z",
-    createdBy: "鈴木 reviewer",
-    difficultyId: "beginner",
-    id: "material-1",
-    learningThemeId: "documentation",
-    materialType: "comment_derived_note",
-    publicationStatus: "reviewing",
-    revisions: [
-      {
-        changedAt: "2026-07-20T09:00:00.000Z",
-        changedBy: "鈴木 reviewer",
-        fromStatus: null,
-        toStatus: "draft",
-      },
-      {
-        changedAt: "2026-07-21T09:00:00.000Z",
-        changedBy: "鈴木 reviewer",
-        fromStatus: "draft",
-        toStatus: "reviewing",
-      },
-    ],
-    specialtyId: "elderly-care",
-    title: "O から A への飛躍を防ぐ中間観察の書き方",
-  },
-  {
-    createdAt: "2026-07-05T09:00:00.000Z",
-    createdBy: "管理者（デモ）",
-    difficultyId: "intermediate",
-    id: "material-2",
-    learningThemeId: "assessment-basics",
-    materialType: "teaching_case",
-    publicationStatus: "published",
-    revisions: [
-      {
-        changedAt: "2026-07-05T09:00:00.000Z",
-        changedBy: "管理者（デモ）",
-        fromStatus: null,
-        toStatus: "draft",
-      },
-      {
-        changedAt: "2026-07-08T09:00:00.000Z",
-        changedBy: "管理者（デモ）",
-        fromStatus: "draft",
-        toStatus: "reviewing",
-      },
-      {
-        changedAt: "2026-07-10T09:00:00.000Z",
-        changedBy: "管理者（デモ）",
-        fromStatus: "reviewing",
-        toStatus: "published",
-      },
-    ],
-    specialtyId: "maternal-child",
-    title: "母子訪問での疲労蓄積アセスメント演習（例）",
-  },
-  {
-    createdAt: "2026-07-24T09:00:00.000Z",
-    createdBy: "田中 professional",
-    difficultyId: "advanced",
-    id: "material-3",
-    learningThemeId: "risk-detection",
-    materialType: "reference_summary",
-    publicationStatus: "draft",
-    revisions: [
-      {
-        changedAt: "2026-07-24T09:00:00.000Z",
-        changedBy: "田中 professional",
-        fromStatus: null,
-        toStatus: "draft",
-      },
-    ],
-    specialtyId: "mental-health",
-    title: "リスク早期発見のための参照知識まとめ（下書き）",
-  },
-  {
-    createdAt: "2026-06-01T09:00:00.000Z",
-    createdBy: "管理者（デモ）",
-    difficultyId: "beginner",
-    id: "material-4",
-    learningThemeId: "support-planning",
-    materialType: "teaching_case",
-    publicationStatus: "archived",
-    revisions: [
-      {
-        changedAt: "2026-06-01T09:00:00.000Z",
-        changedBy: "管理者（デモ）",
-        fromStatus: null,
-        toStatus: "draft",
-      },
-      {
-        changedAt: "2026-06-10T09:00:00.000Z",
-        changedBy: "管理者（デモ）",
-        fromStatus: "draft",
-        toStatus: "published",
-      },
-      {
-        changedAt: "2026-07-01T09:00:00.000Z",
-        changedBy: "管理者（デモ）",
-        fromStatus: "published",
-        toStatus: "archived",
-      },
-    ],
-    specialtyId: "public-health",
-    title: "旧版の支援方針演習（アーカイブ済み）",
-  },
-];
+const MATERIALS_ENDPOINT = "/api/materials";
+const RUBRICS_ENDPOINT = "/api/rubrics";
+const REFERENCE_KNOWLEDGE_ENDPOINT = "/api/reference-knowledge";
+const SOAP_MAPPING_VERSIONS_ENDPOINT = "/api/soap-mapping-versions";
+const REQUIRED_ITEMS_ENDPOINT = "/api/required-items";
+const QUALITY_METRICS_ENDPOINT = "/api/quality-metrics";
 
-let rubrics: Rubric[] = [
-  {
-    createdAt: "2026-07-18T09:00:00.000Z",
-    createdBy: "鈴木 reviewer",
-    id: "rubric-1",
-    items: [
-      {
-        criterionName: "根拠の明確さ",
-        description: "S/O が A を支えているか。",
-        id: "rubric-1-item-1",
-      },
-      {
-        criterionName: "追加確認事項の具体性",
-        description: "次回確認すべき事項が具体的か。",
-        id: "rubric-1-item-2",
-      },
-      {
-        criterionName: "支援方針の妥当性",
-        description: "A から P への論理が妥当か。",
-        id: "rubric-1-item-3",
-      },
-    ],
-    name: "支援方針アセスメントルーブリック",
-    reviewStatus: "expert_review_required",
-    targetType: "exercise_feedback",
-    versionNo: 1,
-  },
-  {
-    createdAt: "2026-06-20T09:00:00.000Z",
-    createdBy: "高橋 nurse",
-    id: "rubric-2",
-    items: [
-      {
-        criterionName: "S/O の区別",
-        description: "主観的情報と客観的情報を混在させていないか。",
-        id: "rubric-2-item-1",
-      },
-      {
-        criterionName: "曖昧表現の排除",
-        description: "「多め」「少し」等の曖昧表現が無いか。",
-        id: "rubric-2-item-2",
-      },
-    ],
-    name: "記録表現ルーブリック",
-    reviewStatus: "confirmed",
-    targetType: "material_review",
-    versionNo: 2,
-  },
-];
+type FetchFn = (
+  input: string | URL | Request,
+  init?: RequestInit,
+) => Promise<Response>;
 
-const referenceKnowledge: ReferenceKnowledge[] = [
-  {
-    externalKbRef: "law-kb:child-abuse-prevention",
-    id: "rk-1",
-    linkedMaterialIds: ["material-1"],
-    linkedRubricIds: ["rubric-1"],
-    sourceType: "law",
-    summary: "児童虐待を発見した場合の通告義務を定める条文。",
-    title: "児童虐待防止法 通告義務",
-  },
-  {
-    externalKbRef: "medical-care-law-kb:basic-law-textbook",
-    id: "rk-2",
-    linkedMaterialIds: [],
-    linkedRubricIds: ["rubric-2"],
-    sourceType: "medical_care_law",
-    summary: "保険診療における記録の要件を定める章。",
-    title: "保険診療基本法令 記録要件",
-  },
-  {
-    id: "rk-3",
-    linkedMaterialIds: ["material-1"],
-    linkedRubricIds: [],
-    sourceType: "internal_note",
-    summary: "記録表現の改善についての内部指導メモ。",
-    title: "内部指導メモ: 記録表現のコツ",
-  },
-];
-
-let soapMappingVersions: SoapMappingVersion[] = [
-  {
-    createdBy: "管理者（デモ）",
-    effectiveFrom: "2026-06-01T00:00:00.000Z",
-    id: "mapping-support-activity-1",
-    isCurrent: false,
-    mappingDefinition: {
-      A: "支援者のアセスメントを記載。",
-      O: "訪問時の客観的観察事項を記載。",
-      P: "次回訪問までの支援計画を記載。",
-      S: "本人・家族の発言を記載。",
-    },
-    recordType: "support_activity",
-    versionNo: 1,
-  },
-  {
-    createdBy: "管理者（デモ）",
-    effectiveFrom: "2026-07-15T00:00:00.000Z",
-    id: "mapping-support-activity-2",
-    isCurrent: true,
-    mappingDefinition: {
-      A: "支援者のアセスメントを記載。パートナー等の育児参加状況の確認有無を含める。",
-      O: "訪問時の客観的観察事項を記載。",
-      P: "次回訪問までの支援計画を記載。次回確認事項を明記する。",
-      S: "本人・家族の発言を記載。",
-    },
-    recordType: "support_activity",
-    versionNo: 2,
-  },
-  {
-    createdBy: "管理者（デモ）",
-    effectiveFrom: "2026-06-01T00:00:00.000Z",
-    id: "mapping-general-record-1",
-    isCurrent: true,
-    mappingDefinition: {
-      A: "アセスメント。",
-      O: "客観的情報。",
-      P: "支援計画。",
-      S: "主観的情報。",
-    },
-    recordType: "general_record",
-    versionNo: 1,
-  },
-  {
-    createdBy: "管理者（デモ）",
-    effectiveFrom: "2026-06-01T00:00:00.000Z",
-    id: "mapping-meeting-1",
-    isCurrent: true,
-    mappingDefinition: {
-      A: "会議での見解・論点整理。",
-      O: "会議で共有された事実情報。",
-      P: "決定した方針・次回までの対応。",
-      S: "参加者の発言・懸念。",
-    },
-    recordType: "meeting",
-    versionNo: 1,
-  },
-  {
-    createdBy: "管理者（デモ）",
-    effectiveFrom: "2026-06-01T00:00:00.000Z",
-    id: "mapping-summary-1",
-    isCurrent: true,
-    mappingDefinition: {
-      A: "期間全体のアセスメントの要約。",
-      O: "期間全体の客観的情報の要約。",
-      P: "今後の支援方針の要約。",
-      S: "期間全体の主観的情報の要約。",
-    },
-    recordType: "summary",
-    versionNo: 1,
-  },
-];
-
-let requiredItems: RequiredRecommendedItem[] = [
-  {
-    aggregationCategory: "基本情報",
-    id: "req-item-1",
-    itemName: "訪問日時",
-    recordType: "support_activity",
-    requirementLevel: "required",
-  },
-  {
-    aggregationCategory: "リスク評価",
-    id: "req-item-2",
-    itemName: "リスク兆候の有無",
-    recordType: "support_activity",
-    requirementLevel: "required",
-  },
-  {
-    aggregationCategory: "リスク評価",
-    id: "req-item-3",
-    itemName: "パートナー等の育児参加状況",
-    recordType: "support_activity",
-    requirementLevel: "recommended",
-    specialtyId: "maternal-child",
-  },
-  {
-    aggregationCategory: "支援計画",
-    id: "req-item-4",
-    itemName: "次回確認事項",
-    recordType: "support_activity",
-    requirementLevel: "required",
-  },
-  {
-    aggregationCategory: "基本情報",
-    id: "req-item-5",
-    itemName: "出席者",
-    recordType: "meeting",
-    requirementLevel: "required",
-  },
-];
-
-function delay<T>(value: T): Promise<T> {
-  return Promise.resolve(value);
-}
+// --- 教材 --------------------------------------------------------------
 
 export async function listMaterials(
   filters: MaterialFilters = {},
+  fetchFn: FetchFn = fetch,
 ): Promise<Material[]> {
-  return delay(filterMaterials(materials, filters));
+  const query = new URLSearchParams();
+  if (filters.materialType) {
+    query.set("materialType", filters.materialType);
+  }
+  if (filters.publicationStatus) {
+    query.set("publicationStatus", filters.publicationStatus);
+  }
+  const queryString = query.toString();
+
+  const response = await fetchFn(
+    queryString ? `${MATERIALS_ENDPOINT}?${queryString}` : MATERIALS_ENDPOINT,
+  );
+  const payload = await readJson(response);
+
+  if (!response.ok) {
+    throw new Error(trimmedText(payload.error) || `HTTP ${response.status}`);
+  }
+
+  return normalizeMaterials(payload.materials);
 }
 
 export async function changeMaterialStatus(
   id: string,
   nextStatus: PublicationStatus,
-  changedBy: string,
-): Promise<Material[]> {
-  materials = changeMaterialPublicationStatus(
-    materials,
-    id,
-    nextStatus,
-    changedBy,
+  fetchFn: FetchFn = fetch,
+): Promise<Material> {
+  const response = await fetchFn(
+    `${MATERIALS_ENDPOINT}/${encodeURIComponent(id)}/status`,
+    {
+      body: JSON.stringify({ status: nextStatus }),
+      headers: { "content-type": "application/json" },
+      method: "PATCH",
+    },
   );
-  return delay(materials);
+  const payload = await readJson(response);
+
+  if (!response.ok) {
+    throw new Error(trimmedText(payload.error) || `HTTP ${response.status}`);
+  }
+
+  const material = normalizeMaterial(payload);
+  if (!material) {
+    throw new Error("invalid response from /api/materials/:id/status");
+  }
+  return material;
 }
 
+export type NewMaterialInput = {
+  materialType: MaterialType;
+  title: string;
+  specialtyId?: string;
+  learningThemeId?: string;
+  difficultyId?: string;
+};
+
+/** 新規教材を status: draft で作る（issue #8 の教材候補承認や手動登録の受け口）。 */
 export async function addMaterial(
   input: NewMaterialInput,
-): Promise<Material[]> {
-  materials = createMaterial(materials, input);
-  return delay(materials);
+  fetchFn: FetchFn = fetch,
+): Promise<Material> {
+  const response = await fetchFn(MATERIALS_ENDPOINT, {
+    body: JSON.stringify(input),
+    headers: { "content-type": "application/json" },
+    method: "POST",
+  });
+  const payload = await readJson(response);
+
+  if (!response.ok) {
+    throw new Error(trimmedText(payload.error) || `HTTP ${response.status}`);
+  }
+
+  const material = normalizeMaterial(payload);
+  if (!material) {
+    throw new Error("invalid response from /api/materials");
+  }
+  return material;
 }
 
-export async function listRubrics(): Promise<Rubric[]> {
-  return delay(rubrics);
+// --- 評価ルーブリック ----------------------------------------------------
+
+export async function listRubrics(fetchFn: FetchFn = fetch): Promise<Rubric[]> {
+  const response = await fetchFn(RUBRICS_ENDPOINT);
+  const payload = await readJson(response);
+
+  if (!response.ok) {
+    throw new Error(trimmedText(payload.error) || `HTTP ${response.status}`);
+  }
+
+  return normalizeRubrics(payload.rubrics);
 }
 
 export async function setRubricStatus(
   id: string,
   nextStatus: RubricReviewStatus,
-): Promise<Rubric[]> {
-  rubrics = setRubricReviewStatus(rubrics, id, nextStatus);
-  return delay(rubrics);
+  fetchFn: FetchFn = fetch,
+): Promise<Rubric> {
+  const response = await fetchFn(
+    `${RUBRICS_ENDPOINT}/${encodeURIComponent(id)}/review-status`,
+    {
+      body: JSON.stringify({ reviewStatus: nextStatus }),
+      headers: { "content-type": "application/json" },
+      method: "PATCH",
+    },
+  );
+  const payload = await readJson(response);
+
+  if (!response.ok) {
+    throw new Error(trimmedText(payload.error) || `HTTP ${response.status}`);
+  }
+
+  const rubric = normalizeRubric(payload);
+  if (!rubric) {
+    throw new Error("invalid response from /api/rubrics/:id/review-status");
+  }
+  return rubric;
 }
 
-export async function addRubric(input: NewRubricInput): Promise<Rubric[]> {
-  rubrics = createRubric(rubrics, input);
-  return delay(rubrics);
+export type NewRubricInput = {
+  name: string;
+  targetType: RubricTargetType;
+};
+
+export async function addRubric(
+  input: NewRubricInput,
+  fetchFn: FetchFn = fetch,
+): Promise<Rubric> {
+  const response = await fetchFn(RUBRICS_ENDPOINT, {
+    body: JSON.stringify(input),
+    headers: { "content-type": "application/json" },
+    method: "POST",
+  });
+  const payload = await readJson(response);
+
+  if (!response.ok) {
+    throw new Error(trimmedText(payload.error) || `HTTP ${response.status}`);
+  }
+
+  const rubric = normalizeRubric(payload);
+  if (!rubric) {
+    throw new Error("invalid response from /api/rubrics");
+  }
+  return rubric;
 }
 
-export async function listReferenceKnowledge(): Promise<ReferenceKnowledge[]> {
-  return delay(referenceKnowledge);
+// --- 参照知識（read-only） ------------------------------------------------
+
+export async function listReferenceKnowledge(
+  fetchFn: FetchFn = fetch,
+): Promise<ReferenceKnowledge[]> {
+  const response = await fetchFn(REFERENCE_KNOWLEDGE_ENDPOINT);
+  const payload = await readJson(response);
+
+  if (!response.ok) {
+    throw new Error(trimmedText(payload.error) || `HTTP ${response.status}`);
+  }
+
+  return normalizeReferenceKnowledgeList(payload.referenceKnowledge);
 }
+
+// --- SOAP マッピング -----------------------------------------------------
 
 export async function listSoapMappingVersions(
   recordType: SoapRecordType,
+  fetchFn: FetchFn = fetch,
 ): Promise<SoapMappingVersion[]> {
-  return delay(versionsForRecordType(soapMappingVersions, recordType));
+  const response = await fetchFn(
+    `${SOAP_MAPPING_VERSIONS_ENDPOINT}?recordType=${encodeURIComponent(recordType)}`,
+  );
+  const payload = await readJson(response);
+
+  if (!response.ok) {
+    throw new Error(trimmedText(payload.error) || `HTTP ${response.status}`);
+  }
+
+  return normalizeMappingVersions(payload.versions);
 }
 
+/** 新規バージョンを作る。既存記録には遡って適用しない（issue #10 の Technical Approach）。 */
 export async function addSoapMappingVersion(
   recordType: SoapRecordType,
   mappingDefinition: MappingDefinition,
-  createdBy: string,
+  fetchFn: FetchFn = fetch,
 ): Promise<SoapMappingVersion[]> {
-  soapMappingVersions = createSoapMappingVersion(
-    soapMappingVersions,
-    recordType,
-    mappingDefinition,
-    createdBy,
-  );
-  return delay(versionsForRecordType(soapMappingVersions, recordType));
+  const response = await fetchFn(SOAP_MAPPING_VERSIONS_ENDPOINT, {
+    body: JSON.stringify({ mappingDefinition, recordType }),
+    headers: { "content-type": "application/json" },
+    method: "POST",
+  });
+  const payload = await readJson(response);
+
+  if (!response.ok) {
+    throw new Error(trimmedText(payload.error) || `HTTP ${response.status}`);
+  }
+
+  return normalizeMappingVersions(payload.versions);
 }
+
+// --- 必須・推奨項目 -------------------------------------------------------
 
 export async function listRequiredItems(
   filters: RequiredItemFilters = {},
+  fetchFn: FetchFn = fetch,
 ): Promise<RequiredRecommendedItem[]> {
-  return delay(filterRequiredItems(requiredItems, filters));
+  const query = new URLSearchParams();
+  if (filters.recordType) {
+    query.set("recordType", filters.recordType);
+  }
+  if (filters.specialtyId) {
+    query.set("specialtyId", filters.specialtyId);
+  }
+  const queryString = query.toString();
+
+  const response = await fetchFn(
+    queryString
+      ? `${REQUIRED_ITEMS_ENDPOINT}?${queryString}`
+      : REQUIRED_ITEMS_ENDPOINT,
+  );
+  const payload = await readJson(response);
+
+  if (!response.ok) {
+    throw new Error(trimmedText(payload.error) || `HTTP ${response.status}`);
+  }
+
+  return normalizeRequiredItems(payload.items);
 }
+
+export type NewRequiredItemInput = {
+  recordType: SoapRecordType;
+  specialtyId?: string;
+  itemName: string;
+  requirementLevel: RequirementLevel;
+  aggregationCategory: string;
+};
 
 export async function addRequiredItem(
   input: NewRequiredItemInput,
-): Promise<RequiredRecommendedItem[]> {
-  requiredItems = createRequiredItem(requiredItems, input);
-  return delay(requiredItems);
+  fetchFn: FetchFn = fetch,
+): Promise<RequiredRecommendedItem> {
+  const response = await fetchFn(REQUIRED_ITEMS_ENDPOINT, {
+    body: JSON.stringify(input),
+    headers: { "content-type": "application/json" },
+    method: "POST",
+  });
+  const payload = await readJson(response);
+
+  if (!response.ok) {
+    throw new Error(trimmedText(payload.error) || `HTTP ${response.status}`);
+  }
+
+  const item = normalizeRequiredItem(payload);
+  if (!item) {
+    throw new Error("invalid response from /api/required-items");
+  }
+  return item;
+}
+
+// --- 品質指標（read-only） ------------------------------------------------
+
+export async function listQualityMetrics(
+  fetchFn: FetchFn = fetch,
+): Promise<QualityMetricDefinition[]> {
+  const response = await fetchFn(QUALITY_METRICS_ENDPOINT);
+  const payload = await readJson(response);
+
+  if (!response.ok) {
+    throw new Error(trimmedText(payload.error) || `HTTP ${response.status}`);
+  }
+
+  return normalizeQualityMetrics(payload.metrics);
+}
+
+// --- helpers --------------------------------------------------------------
+
+async function readJson(response: Response): Promise<Record<string, unknown>> {
+  const payload: unknown = await response.json().catch(() => ({}));
+  return asRecord(payload);
+}
+
+function asRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
+function trimmedText(value: unknown): string {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function isOneOf<T extends string>(
+  options: readonly T[],
+  value: unknown,
+): value is T {
+  return (
+    typeof value === "string" && (options as readonly string[]).includes(value)
+  );
+}
+
+function normalizeMaterials(value: unknown): Material[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value
+    .map((entry) => normalizeMaterial(asRecord(entry)))
+    .filter((material): material is Material => material !== undefined);
+}
+
+function normalizeMaterial(
+  record: Record<string, unknown>,
+): Material | undefined {
+  const id = trimmedText(record.id);
+  const materialType = record.materialType;
+  const title = trimmedText(record.title);
+  const publicationStatus = record.publicationStatus;
+  const createdBy = trimmedText(record.createdBy);
+  const createdAt = trimmedText(record.createdAt);
+
+  if (
+    !id ||
+    !isOneOf(MATERIAL_TYPES, materialType) ||
+    !title ||
+    !isOneOf(PUBLICATION_STATUSES, publicationStatus) ||
+    !createdBy ||
+    !createdAt
+  ) {
+    return undefined;
+  }
+
+  return {
+    createdAt,
+    createdBy,
+    difficultyId: trimmedText(record.difficultyId) || undefined,
+    id,
+    learningThemeId: trimmedText(record.learningThemeId) || undefined,
+    materialType,
+    publicationStatus,
+    revisions: normalizeRevisions(record.revisions),
+    specialtyId: trimmedText(record.specialtyId) || undefined,
+    title,
+  };
+}
+
+function normalizeRevisions(value: unknown): MaterialRevision[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value
+    .map((entry) => normalizeRevision(asRecord(entry)))
+    .filter((revision): revision is MaterialRevision => revision !== undefined);
+}
+
+function normalizeRevision(
+  record: Record<string, unknown>,
+): MaterialRevision | undefined {
+  const rawFromStatus = record.fromStatus;
+  const toStatus = record.toStatus;
+  const changedBy = trimmedText(record.changedBy);
+  const changedAt = trimmedText(record.changedAt);
+
+  if (!isOneOf(PUBLICATION_STATUSES, toStatus) || !changedBy || !changedAt) {
+    return undefined;
+  }
+
+  return {
+    changedAt,
+    changedBy,
+    fromStatus: isOneOf(PUBLICATION_STATUSES, rawFromStatus)
+      ? rawFromStatus
+      : null,
+    toStatus,
+  };
+}
+
+function normalizeRubrics(value: unknown): Rubric[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value
+    .map((entry) => normalizeRubric(asRecord(entry)))
+    .filter((rubric): rubric is Rubric => rubric !== undefined);
+}
+
+function normalizeRubric(record: Record<string, unknown>): Rubric | undefined {
+  const id = trimmedText(record.id);
+  const name = trimmedText(record.name);
+  const targetType = record.targetType;
+  const reviewStatus = record.reviewStatus;
+  const versionNo = numberOrZero(record.versionNo);
+  const createdBy = trimmedText(record.createdBy);
+  const createdAt = trimmedText(record.createdAt);
+
+  if (
+    !id ||
+    !name ||
+    !isOneOf(RUBRIC_TARGET_TYPES, targetType) ||
+    !isOneOf(RUBRIC_REVIEW_STATUSES, reviewStatus) ||
+    versionNo <= 0 ||
+    !createdBy ||
+    !createdAt
+  ) {
+    return undefined;
+  }
+
+  return {
+    createdAt,
+    createdBy,
+    id,
+    items: normalizeRubricItems(record.items),
+    name,
+    reviewStatus,
+    targetType,
+    versionNo,
+  };
+}
+
+function normalizeRubricItems(value: unknown): RubricItem[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value
+    .map((entry) => normalizeRubricItem(asRecord(entry)))
+    .filter((item): item is RubricItem => item !== undefined);
+}
+
+function normalizeRubricItem(
+  record: Record<string, unknown>,
+): RubricItem | undefined {
+  const id = trimmedText(record.id);
+  const criterionName = trimmedText(record.criterionName);
+
+  if (!id || !criterionName) {
+    return undefined;
+  }
+
+  return {
+    criterionName,
+    description: trimmedText(record.description) || undefined,
+    id,
+  };
+}
+
+function normalizeReferenceKnowledgeList(value: unknown): ReferenceKnowledge[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value
+    .map((entry) => normalizeReferenceKnowledge(asRecord(entry)))
+    .filter((item): item is ReferenceKnowledge => item !== undefined);
+}
+
+function normalizeReferenceKnowledge(
+  record: Record<string, unknown>,
+): ReferenceKnowledge | undefined {
+  const id = trimmedText(record.id);
+  const title = trimmedText(record.title);
+  const summary = trimmedText(record.summary);
+  const sourceType = record.sourceType;
+
+  if (
+    !id ||
+    !title ||
+    !summary ||
+    !isOneOf(REFERENCE_KNOWLEDGE_SOURCE_TYPES, sourceType)
+  ) {
+    return undefined;
+  }
+
+  return {
+    externalKbRef: trimmedText(record.externalKbRef) || undefined,
+    id,
+    linkedMaterialIds: stringArray(record.linkedMaterialIds),
+    linkedRubricIds: stringArray(record.linkedRubricIds),
+    sourceType: sourceType as ReferenceKnowledgeSourceType,
+    summary,
+    title,
+  };
+}
+
+function stringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value.filter((entry): entry is string => typeof entry === "string");
+}
+
+function normalizeMappingVersions(value: unknown): SoapMappingVersion[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value
+    .map((entry) => normalizeMappingVersion(asRecord(entry)))
+    .filter((version): version is SoapMappingVersion => version !== undefined);
+}
+
+function normalizeMappingVersion(
+  record: Record<string, unknown>,
+): SoapMappingVersion | undefined {
+  const id = trimmedText(record.id);
+  const recordType = record.recordType;
+  const versionNo = numberOrZero(record.versionNo);
+  const mappingDefinition = normalizeMappingDefinition(
+    record.mappingDefinition,
+  );
+  const isCurrent = record.isCurrent === true;
+  const effectiveFrom = trimmedText(record.effectiveFrom);
+  const createdBy = trimmedText(record.createdBy);
+
+  if (
+    !id ||
+    !isSoapRecordType(recordType) ||
+    versionNo <= 0 ||
+    !mappingDefinition ||
+    !effectiveFrom ||
+    !createdBy
+  ) {
+    return undefined;
+  }
+
+  return {
+    createdBy,
+    effectiveFrom,
+    id,
+    isCurrent,
+    mappingDefinition,
+    recordType,
+    versionNo,
+  };
+}
+
+function normalizeMappingDefinition(
+  value: unknown,
+): MappingDefinition | undefined {
+  const record = asRecord(value);
+  const result: Partial<MappingDefinition> = {};
+  for (const category of MAPPING_CATEGORIES) {
+    const text = trimmedText(record[category]);
+    if (!text) {
+      return undefined;
+    }
+    result[category] = text;
+  }
+  return result as MappingDefinition;
+}
+
+function normalizeRequiredItems(value: unknown): RequiredRecommendedItem[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value
+    .map((entry) => normalizeRequiredItem(asRecord(entry)))
+    .filter((item): item is RequiredRecommendedItem => item !== undefined);
+}
+
+function normalizeRequiredItem(
+  record: Record<string, unknown>,
+): RequiredRecommendedItem | undefined {
+  const id = trimmedText(record.id);
+  const recordType = record.recordType;
+  const itemName = trimmedText(record.itemName);
+  const requirementLevel = record.requirementLevel;
+  const aggregationCategory = trimmedText(record.aggregationCategory);
+
+  if (
+    !id ||
+    !isSoapRecordType(recordType) ||
+    !itemName ||
+    !isOneOf(REQUIREMENT_LEVELS, requirementLevel) ||
+    !aggregationCategory
+  ) {
+    return undefined;
+  }
+
+  return {
+    aggregationCategory,
+    id,
+    itemName,
+    recordType,
+    requirementLevel,
+    specialtyId: trimmedText(record.specialtyId) || undefined,
+  };
+}
+
+function normalizeQualityMetrics(value: unknown): QualityMetricDefinition[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value
+    .map((entry) => normalizeQualityMetric(asRecord(entry)))
+    .filter(
+      (metric): metric is QualityMetricDefinition => metric !== undefined,
+    );
+}
+
+function normalizeQualityMetric(
+  record: Record<string, unknown>,
+): QualityMetricDefinition | undefined {
+  const metricKey = trimmedText(record.metricKey);
+  const displayName = trimmedText(record.displayName);
+  const calculationDescription = trimmedText(record.calculationDescription);
+  const targetEntity = trimmedText(record.targetEntity);
+
+  if (!metricKey || !displayName || !calculationDescription || !targetEntity) {
+    return undefined;
+  }
+
+  return { calculationDescription, displayName, metricKey, targetEntity };
+}
+
+function numberOrZero(value: unknown): number {
+  return typeof value === "number" && Number.isFinite(value) ? value : 0;
 }

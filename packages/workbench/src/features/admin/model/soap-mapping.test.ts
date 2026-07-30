@@ -1,7 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
 import {
-  createSoapMappingVersion,
   currentVersionForRecordType,
   type SoapMappingVersion,
   versionsForRecordType,
@@ -41,49 +40,5 @@ describe("versionsForRecordType / currentVersionForRecordType", () => {
     expect(
       currentVersionForRecordType(BASE_VERSIONS, "support_activity")?.id,
     ).toBe("mapping-1");
-  });
-});
-
-describe("createSoapMappingVersion", () => {
-  test("同じ記録種別の既存バージョンの isCurrent を落とし、新規を isCurrent にする", () => {
-    const updated = createSoapMappingVersion(
-      BASE_VERSIONS,
-      "support_activity",
-      MAPPING_DEFINITION,
-      "admin-b",
-    );
-
-    const forSupportActivity = versionsForRecordType(
-      updated,
-      "support_activity",
-    );
-    expect(forSupportActivity).toHaveLength(2);
-    expect(forSupportActivity[0]?.isCurrent).toBe(false);
-    expect(forSupportActivity[1]?.isCurrent).toBe(true);
-    expect(forSupportActivity[1]?.versionNo).toBe(2);
-  });
-
-  test("他の記録種別のバージョンには影響しない", () => {
-    const updated = createSoapMappingVersion(
-      BASE_VERSIONS,
-      "support_activity",
-      MAPPING_DEFINITION,
-      "admin-b",
-    );
-
-    expect(currentVersionForRecordType(updated, "meeting")?.id).toBe(
-      "mapping-2",
-    );
-  });
-
-  test("既存バージョンが無い記録種別では version 1 から始まる", () => {
-    const updated = createSoapMappingVersion(
-      BASE_VERSIONS,
-      "summary",
-      MAPPING_DEFINITION,
-      "admin-b",
-    );
-
-    expect(currentVersionForRecordType(updated, "summary")?.versionNo).toBe(1);
   });
 });

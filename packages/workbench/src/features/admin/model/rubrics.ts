@@ -1,5 +1,3 @@
-import { createId } from "./create-id.ts";
-
 /** issue #10 の Acceptance Criteria が定義するルーブリックの確認状態。 */
 export const RUBRIC_REVIEW_STATUSES = [
   "expert_review_required",
@@ -36,9 +34,13 @@ export function rubricTargetTypeLabel(targetType: RubricTargetType): string {
 export type RubricItem = {
   id: string;
   criterionName: string;
-  description: string;
+  description?: string;
 };
 
+/**
+ * 評価ルーブリック。BFF `/api/rubrics`（Aurora Serverless v2 + RDS Data API）から取得する
+ * （`docs/notes/2026-07-30-training-materials-db-schema-and-aws-infra.md` 参照）。
+ */
 export type Rubric = {
   id: string;
   name: string;
@@ -49,42 +51,3 @@ export type Rubric = {
   createdBy: string;
   createdAt: string;
 };
-
-/**
- * 有識者確認前 ⇄ 確認済みの遷移。「未確定を確認済みとして扱わない」ことが issue #10 の
- * Acceptance Criteria の主眼だが、dummy データの demo では入力ミスの取り消しも試せるよう
- * 双方向の遷移を許す（本番では確認済みへの一方向遷移＋承認フローに絞る想定。issue #10 の
- * Open Question「ルーブリック確定時の承認フロー」）。
- */
-export function setRubricReviewStatus(
-  rubrics: readonly Rubric[],
-  id: string,
-  nextStatus: RubricReviewStatus,
-): Rubric[] {
-  return rubrics.map((rubric) =>
-    rubric.id === id ? { ...rubric, reviewStatus: nextStatus } : rubric,
-  );
-}
-
-export type NewRubricInput = {
-  name: string;
-  targetType: RubricTargetType;
-  createdBy: string;
-};
-
-export function createRubric(
-  rubrics: readonly Rubric[],
-  input: NewRubricInput,
-): Rubric[] {
-  const created: Rubric = {
-    createdAt: new Date().toISOString(),
-    createdBy: input.createdBy,
-    id: createId("rubric"),
-    items: [],
-    name: input.name,
-    reviewStatus: "expert_review_required",
-    targetType: input.targetType,
-    versionNo: 1,
-  };
-  return [...rubrics, created];
-}

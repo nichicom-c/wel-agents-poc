@@ -13,14 +13,20 @@ import {
   type KnowledgeBaseDetailProvider,
 } from "../application/handle-knowledge-base-detail-request.ts";
 import { handleMaterialCandidateRequest } from "../application/handle-material-candidate-request.ts";
+import { handleMaterialRequest } from "../application/handle-material-request.ts";
 import { handleProfessionalCommentRequest } from "../application/handle-professional-comment-request.ts";
+import { handleQualityMetricsRequest } from "../application/handle-quality-metrics-request.ts";
+import { handleReferenceKnowledgeRequest } from "../application/handle-reference-knowledge-request.ts";
 import { handleBffRequest } from "../application/handle-request.ts";
+import { handleRequiredItemRequest } from "../application/handle-required-item-request.ts";
+import { handleRubricRequest } from "../application/handle-rubric-request.ts";
 import {
   handleSessionsRequest,
   type ListSessions,
 } from "../application/handle-sessions-request.ts";
 import { handleSoapDraftRequest } from "../application/handle-soap-draft-request.ts";
 import { handleSoapGapsRequest } from "../application/handle-soap-gaps-request.ts";
+import { handleSoapMappingRequest } from "../application/handle-soap-mapping-request.ts";
 import { handleSoapRecordRequest } from "../application/handle-soap-record-request.ts";
 import { handleVoiceRecordingRequest } from "../application/handle-voice-recording-request.ts";
 import {
@@ -55,9 +61,29 @@ import {
   listMaterialCandidates,
 } from "../infra/material-candidate-store.ts";
 import {
+  changeMaterialStatus,
+  createMaterial,
+  listMaterials,
+} from "../infra/material-store.ts";
+import {
   createProfessionalComment,
   listCommentsForVersion,
 } from "../infra/professional-comment-store.ts";
+import { listQualityMetrics } from "../infra/quality-metrics-store.ts";
+import { listReferenceKnowledge } from "../infra/reference-knowledge-store.ts";
+import {
+  createRequiredItem,
+  listRequiredItems,
+} from "../infra/required-item-store.ts";
+import {
+  createRubric,
+  listRubrics,
+  setRubricReviewStatus,
+} from "../infra/rubric-store.ts";
+import {
+  createSoapMappingVersion,
+  listSoapMappingVersions,
+} from "../infra/soap-mapping-store.ts";
 import {
   createSoapRecordVersion,
   listSoapRecords,
@@ -319,6 +345,82 @@ export async function handleLambdaEvent(
     );
   }
 
+  if (path === "/api/materials" || path.startsWith("/api/materials/")) {
+    return handleMaterialRequest(
+      {
+        body: event.body,
+        isBase64Encoded: event.isBase64Encoded,
+        method,
+        path,
+        query: event.queryStringParameters ?? undefined,
+      },
+      materialOptions(config, event, deps),
+    );
+  }
+
+  if (path === "/api/rubrics" || path.startsWith("/api/rubrics/")) {
+    return handleRubricRequest(
+      {
+        body: event.body,
+        isBase64Encoded: event.isBase64Encoded,
+        method,
+        path,
+        query: event.queryStringParameters ?? undefined,
+      },
+      rubricOptions(config, event, deps),
+    );
+  }
+
+  if (path === "/api/reference-knowledge") {
+    return handleReferenceKnowledgeRequest(
+      {
+        body: event.body,
+        isBase64Encoded: event.isBase64Encoded,
+        method,
+        path,
+      },
+      referenceKnowledgeOptions(config, event, deps),
+    );
+  }
+
+  if (path === "/api/soap-mapping-versions") {
+    return handleSoapMappingRequest(
+      {
+        body: event.body,
+        isBase64Encoded: event.isBase64Encoded,
+        method,
+        path,
+        query: event.queryStringParameters ?? undefined,
+      },
+      soapMappingOptions(config, event, deps),
+    );
+  }
+
+  if (path === "/api/required-items") {
+    return handleRequiredItemRequest(
+      {
+        body: event.body,
+        isBase64Encoded: event.isBase64Encoded,
+        method,
+        path,
+        query: event.queryStringParameters ?? undefined,
+      },
+      requiredItemOptions(config, event, deps),
+    );
+  }
+
+  if (path === "/api/quality-metrics") {
+    return handleQualityMetricsRequest(
+      {
+        body: event.body,
+        isBase64Encoded: event.isBase64Encoded,
+        method,
+        path,
+      },
+      qualityMetricsOptions(config, event, deps),
+    );
+  }
+
   if (
     path === "/api/voice-recordings" ||
     path.startsWith("/api/voice-recordings/")
@@ -456,6 +558,168 @@ function materialCandidateOptions(
       createMaterialCandidateFromComments(storeConfig, input),
     decideStatus: (input) => decideMaterialCandidateStatus(storeConfig, input),
     listCandidates: (filters) => listMaterialCandidates(storeConfig, filters),
+    logError:
+      deps.logError ?? ((message, detail) => console.error(message, detail)),
+    trainingDataConfigured: Boolean(
+      config.trainingDataClusterArn &&
+        config.trainingDataDatabaseName &&
+        config.trainingDataSecretArn,
+    ),
+  };
+}
+
+/** 教材 handler が使う options を組み立てる。3つとも未設定なら handler 側が 503 を返す。 */
+function materialOptions(
+  config: LambdaConfig,
+  event: LambdaEvent,
+  deps: LambdaHandlerDeps,
+): Parameters<typeof handleMaterialRequest>[1] {
+  const storeConfig = {
+    clusterArn: config.trainingDataClusterArn ?? "",
+    database: config.trainingDataDatabaseName ?? "",
+    region: config.region,
+    secretArn: config.trainingDataSecretArn ?? "",
+  };
+
+  return {
+    authContext: authContextForEvent(event, config),
+    changeStatus: (input) => changeMaterialStatus(storeConfig, input),
+    createMaterial: (input) => createMaterial(storeConfig, input),
+    listMaterials: (filters) => listMaterials(storeConfig, filters),
+    logError:
+      deps.logError ?? ((message, detail) => console.error(message, detail)),
+    trainingDataConfigured: Boolean(
+      config.trainingDataClusterArn &&
+        config.trainingDataDatabaseName &&
+        config.trainingDataSecretArn,
+    ),
+  };
+}
+
+/** ルーブリック handler が使う options を組み立てる。3つとも未設定なら handler 側が 503 を返す。 */
+function rubricOptions(
+  config: LambdaConfig,
+  event: LambdaEvent,
+  deps: LambdaHandlerDeps,
+): Parameters<typeof handleRubricRequest>[1] {
+  const storeConfig = {
+    clusterArn: config.trainingDataClusterArn ?? "",
+    database: config.trainingDataDatabaseName ?? "",
+    region: config.region,
+    secretArn: config.trainingDataSecretArn ?? "",
+  };
+
+  return {
+    authContext: authContextForEvent(event, config),
+    createRubric: (input) => createRubric(storeConfig, input),
+    listRubrics: () => listRubrics(storeConfig),
+    logError:
+      deps.logError ?? ((message, detail) => console.error(message, detail)),
+    setReviewStatus: (input) => setRubricReviewStatus(storeConfig, input),
+    trainingDataConfigured: Boolean(
+      config.trainingDataClusterArn &&
+        config.trainingDataDatabaseName &&
+        config.trainingDataSecretArn,
+    ),
+  };
+}
+
+/** 参照知識 handler が使う options を組み立てる。3つとも未設定なら handler 側が 503 を返す。 */
+function referenceKnowledgeOptions(
+  config: LambdaConfig,
+  event: LambdaEvent,
+  deps: LambdaHandlerDeps,
+): Parameters<typeof handleReferenceKnowledgeRequest>[1] {
+  const storeConfig = {
+    clusterArn: config.trainingDataClusterArn ?? "",
+    database: config.trainingDataDatabaseName ?? "",
+    region: config.region,
+    secretArn: config.trainingDataSecretArn ?? "",
+  };
+
+  return {
+    authContext: authContextForEvent(event, config),
+    listReferenceKnowledge: () => listReferenceKnowledge(storeConfig),
+    logError:
+      deps.logError ?? ((message, detail) => console.error(message, detail)),
+    trainingDataConfigured: Boolean(
+      config.trainingDataClusterArn &&
+        config.trainingDataDatabaseName &&
+        config.trainingDataSecretArn,
+    ),
+  };
+}
+
+/** SOAP マッピング handler が使う options を組み立てる。3つとも未設定なら handler 側が 503 を返す。 */
+function soapMappingOptions(
+  config: LambdaConfig,
+  event: LambdaEvent,
+  deps: LambdaHandlerDeps,
+): Parameters<typeof handleSoapMappingRequest>[1] {
+  const storeConfig = {
+    clusterArn: config.trainingDataClusterArn ?? "",
+    database: config.trainingDataDatabaseName ?? "",
+    region: config.region,
+    secretArn: config.trainingDataSecretArn ?? "",
+  };
+
+  return {
+    authContext: authContextForEvent(event, config),
+    createVersion: (input) => createSoapMappingVersion(storeConfig, input),
+    listVersions: (input) => listSoapMappingVersions(storeConfig, input),
+    logError:
+      deps.logError ?? ((message, detail) => console.error(message, detail)),
+    trainingDataConfigured: Boolean(
+      config.trainingDataClusterArn &&
+        config.trainingDataDatabaseName &&
+        config.trainingDataSecretArn,
+    ),
+  };
+}
+
+/** 必須・推奨項目 handler が使う options を組み立てる。3つとも未設定なら handler 側が 503 を返す。 */
+function requiredItemOptions(
+  config: LambdaConfig,
+  event: LambdaEvent,
+  deps: LambdaHandlerDeps,
+): Parameters<typeof handleRequiredItemRequest>[1] {
+  const storeConfig = {
+    clusterArn: config.trainingDataClusterArn ?? "",
+    database: config.trainingDataDatabaseName ?? "",
+    region: config.region,
+    secretArn: config.trainingDataSecretArn ?? "",
+  };
+
+  return {
+    authContext: authContextForEvent(event, config),
+    createItem: (input) => createRequiredItem(storeConfig, input),
+    listItems: (filters) => listRequiredItems(storeConfig, filters),
+    logError:
+      deps.logError ?? ((message, detail) => console.error(message, detail)),
+    trainingDataConfigured: Boolean(
+      config.trainingDataClusterArn &&
+        config.trainingDataDatabaseName &&
+        config.trainingDataSecretArn,
+    ),
+  };
+}
+
+/** 品質指標 handler が使う options を組み立てる。3つとも未設定なら handler 側が 503 を返す。 */
+function qualityMetricsOptions(
+  config: LambdaConfig,
+  event: LambdaEvent,
+  deps: LambdaHandlerDeps,
+): Parameters<typeof handleQualityMetricsRequest>[1] {
+  const storeConfig = {
+    clusterArn: config.trainingDataClusterArn ?? "",
+    database: config.trainingDataDatabaseName ?? "",
+    region: config.region,
+    secretArn: config.trainingDataSecretArn ?? "",
+  };
+
+  return {
+    authContext: authContextForEvent(event, config),
+    listMetrics: () => listQualityMetrics(storeConfig),
     logError:
       deps.logError ?? ((message, detail) => console.error(message, detail)),
     trainingDataConfigured: Boolean(

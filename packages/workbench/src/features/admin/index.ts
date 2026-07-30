@@ -1,3 +1,8 @@
+export type {
+  NewMaterialInput,
+  NewRequiredItemInput,
+  NewRubricInput,
+} from "./api/admin.ts";
 export {
   addMaterial,
   addRequiredItem,
@@ -5,6 +10,7 @@ export {
   addSoapMappingVersion,
   changeMaterialStatus,
   listMaterials,
+  listQualityMetrics,
   listReferenceKnowledge,
   listRequiredItems,
   listRubrics,
@@ -16,7 +22,6 @@ export type {
   MaterialFilters,
   MaterialRevision,
   MaterialType,
-  NewMaterialInput,
   PublicationStatus,
 } from "./model/materials.ts";
 export {
@@ -25,22 +30,13 @@ export {
   PUBLICATION_STATUSES,
   publicationStatusLabel,
 } from "./model/materials.ts";
-export type {
-  QualityMetricDefinition,
-  QualityMetricKey,
-} from "./model/quality-metrics.ts";
-export { QUALITY_METRIC_DEFINITIONS } from "./model/quality-metrics.ts";
+export type { QualityMetricDefinition } from "./model/quality-metrics.ts";
 export type {
   ReferenceKnowledge,
   ReferenceKnowledgeSourceType,
 } from "./model/reference-knowledge.ts";
-export {
-  referenceKnowledgeLinkedToMaterial,
-  referenceKnowledgeLinkedToRubric,
-  referenceKnowledgeSourceTypeLabel,
-} from "./model/reference-knowledge.ts";
+export { referenceKnowledgeSourceTypeLabel } from "./model/reference-knowledge.ts";
 export type {
-  NewRequiredItemInput,
   RequiredItemFilters,
   RequiredRecommendedItem,
   RequirementLevel,
@@ -56,7 +52,6 @@ export {
   canViewAdmin,
 } from "./model/roles.ts";
 export type {
-  NewRubricInput,
   Rubric,
   RubricItem,
   RubricReviewStatus,

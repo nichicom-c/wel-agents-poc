@@ -21,7 +21,8 @@ export function referenceKnowledgeSourceTypeLabel(
 
 /**
  * `externalKbRef` は既存の vector Knowledge Base（law / medical_care_law）上のドキュメントへの
- * 参照であり、内容をこのテーブルへ複製しない（`docs/notes/2026-07-30-...` の設計方針）。
+ * 参照であり、内容をこのテーブルへ複製しない（`docs/notes/2026-07-30-...` の設計方針）。BFF
+ * `/api/reference-knowledge` から取得する（作成/更新 UI はまだ無い。issue #10 の Out of Scope）。
  */
 export type ReferenceKnowledge = {
   id: string;
@@ -32,17 +33,3 @@ export type ReferenceKnowledge = {
   linkedMaterialIds: string[];
   linkedRubricIds: string[];
 };
-
-export function referenceKnowledgeLinkedToMaterial(
-  items: readonly ReferenceKnowledge[],
-  materialId: string,
-): ReferenceKnowledge[] {
-  return items.filter((item) => item.linkedMaterialIds.includes(materialId));
-}
-
-export function referenceKnowledgeLinkedToRubric(
-  items: readonly ReferenceKnowledge[],
-  rubricId: string,
-): ReferenceKnowledge[] {
-  return items.filter((item) => item.linkedRubricIds.includes(rubricId));
-}

@@ -35,7 +35,27 @@ export function buildWorkbenchViteConfig(
       changeOrigin: true,
       target: config.bffUrl,
     },
+    "/api/materials": {
+      changeOrigin: true,
+      target: config.bffUrl,
+    },
     "/api/professional-comments": {
+      changeOrigin: true,
+      target: config.bffUrl,
+    },
+    "/api/quality-metrics": {
+      changeOrigin: true,
+      target: config.bffUrl,
+    },
+    "/api/reference-knowledge": {
+      changeOrigin: true,
+      target: config.bffUrl,
+    },
+    "/api/required-items": {
+      changeOrigin: true,
+      target: config.bffUrl,
+    },
+    "/api/rubrics": {
       changeOrigin: true,
       target: config.bffUrl,
     },
@@ -44,6 +64,10 @@ export function buildWorkbenchViteConfig(
       target: config.bffUrl,
     },
     "/api/soap-gaps": {
+      changeOrigin: true,
+      target: config.bffUrl,
+    },
+    "/api/soap-mapping-versions": {
       changeOrigin: true,
       target: config.bffUrl,
     },
