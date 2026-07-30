@@ -1,10 +1,12 @@
 import type { RDSDataClient } from "@aws-sdk/client-rds-data";
 
-import type {
-  MaterialCandidate,
-  MaterialCandidateFilters,
-  MaterialCandidateStatus,
-  MaterialCandidateStatusEvent,
+import {
+  type MaterialCandidate,
+  MaterialCandidateAlreadyPromotedError,
+  type MaterialCandidateFilters,
+  MaterialCandidateNotApprovedError,
+  type MaterialCandidateStatus,
+  type MaterialCandidateStatusEvent,
 } from "../contracts/material-candidates.ts";
 import type { ProfessionalComment } from "../contracts/professional-comments.ts";
 import type { SoapRecordType } from "../contracts/soap-records.ts";
@@ -52,6 +54,7 @@ type CandidateRow = {
   learning_theme_id: string | null;
   difficulty_id: string | null;
   rejection_reason_code: string | null;
+  material_id: string | null;
   created_by: string;
   created_at: string;
   comments: RawEmbeddedComment[] | string;
@@ -60,8 +63,8 @@ type CandidateRow = {
 
 const CANDIDATE_SELECT = `
   select mc.id, mc.title, mc.summary, mc.status, mc.specialty_id, mc.record_type,
-         mc.learning_theme_id, mc.difficulty_id, mc.rejection_reason_code, mc.created_by,
-         mc.created_at,
+         mc.learning_theme_id, mc.difficulty_id, mc.rejection_reason_code, mc.material_id,
+         mc.created_by, mc.created_at,
          coalesce((
            select json_agg(json_build_object(
              'id', pc.id,
@@ -116,6 +119,7 @@ function mapCandidateRow(row: CandidateRow): MaterialCandidate {
     difficultyId: row.difficulty_id ?? undefined,
     id: row.id,
     learningThemeId: row.learning_theme_id ?? undefined,
+    materialId: row.material_id ?? undefined,
     recordType: row.record_type ?? undefined,
     rejectionReasonCode: row.rejection_reason_code ?? undefined,
     specialtyId: row.specialty_id ?? undefined,
@@ -369,6 +373,133 @@ export async function decideMaterialCandidateStatus(
         stringParam("changedByRole", input.changedByRole),
         nullableStringParam("reasonText", input.reasonText),
       ],
+      transactionId,
+    );
+
+    const updated = await fetchCandidateById(
+      rdsClient,
+      config,
+      input.id,
+      transactionId,
+    );
+
+    await commitTransaction(rdsClient, config, transactionId);
+
+    return updated;
+  } catch (error) {
+    await rollbackTransaction(rdsClient, config, transactionId);
+    throw error;
+  }
+}
+
+export type PromoteMaterialCandidateInput = {
+  id: string;
+  changedBy: string;
+  changedByDisplayName?: string;
+};
+
+/**
+ * 承認済みの教材候補を issue #10 の `materials`（教材種別: `comment_derived_note`、
+ * status: draft）に変換し、`material_candidates.material_id` で紐づける
+ * （`materials` にはコメント欄が無いため `summary` / `record_type` は引き継がない）。
+ */
+export async function promoteMaterialCandidateToMaterial(
+  config: TrainingDataStoreConfig,
+  input: PromoteMaterialCandidateInput,
+  deps: TrainingDataStoreDeps = {},
+): Promise<MaterialCandidate> {
+  const rdsClient = resolveClient(config, deps);
+  const transactionId = await beginTransaction(rdsClient, config);
+
+  try {
+    await upsertAppUser(
+      rdsClient,
+      config,
+      { displayName: input.changedByDisplayName, id: input.changedBy },
+      transactionId,
+    );
+
+    const currentRows = parseRows<{
+      status: MaterialCandidateStatus;
+      title: string;
+      specialty_id: string | null;
+      learning_theme_id: string | null;
+      difficulty_id: string | null;
+      material_id: string | null;
+    }>(
+      await execute(
+        rdsClient,
+        config,
+        `select status, title, specialty_id, learning_theme_id, difficulty_id, material_id
+         from material_candidates where id = :id::uuid`,
+        [stringParam("id", input.id)],
+        transactionId,
+      ),
+    );
+    const current = currentRows[0];
+    if (!current) {
+      throw new Error(`material candidate not found: ${input.id}`);
+    }
+    if (current.material_id) {
+      throw new MaterialCandidateAlreadyPromotedError(
+        `material candidate already promoted to material: ${current.material_id}`,
+      );
+    }
+    if (current.status !== "approved") {
+      throw new MaterialCandidateNotApprovedError(
+        `material candidate is not approved: ${input.id}`,
+      );
+    }
+
+    const materialRows = parseRows<{ id: string }>(
+      await execute(
+        rdsClient,
+        config,
+        `insert into materials
+           (material_type, title, publication_status, specialty_id, learning_theme_id,
+            difficulty_id, created_by)
+         values
+           ('comment_derived_note'::material_type, :title, 'draft'::publication_status,
+            :specialtyId, :learningThemeId, :difficultyId, :createdBy::uuid)
+         returning id`,
+        [
+          stringParam("title", current.title),
+          nullableStringParam("specialtyId", current.specialty_id ?? undefined),
+          nullableStringParam(
+            "learningThemeId",
+            current.learning_theme_id ?? undefined,
+          ),
+          nullableStringParam(
+            "difficultyId",
+            current.difficulty_id ?? undefined,
+          ),
+          stringParam("createdBy", input.changedBy),
+        ],
+        transactionId,
+      ),
+    );
+    const materialRow = materialRows[0];
+    if (!materialRow) {
+      throw new Error("failed to create material");
+    }
+
+    await execute(
+      rdsClient,
+      config,
+      `insert into material_revisions (material_id, from_status, to_status, changed_by)
+       values (:materialId::uuid, null::publication_status, 'draft'::publication_status, :changedBy::uuid)`,
+      [
+        stringParam("materialId", materialRow.id),
+        stringParam("changedBy", input.changedBy),
+      ],
+      transactionId,
+    );
+
+    await execute(
+      rdsClient,
+      config,
+      `update material_candidates set material_id = :materialId::uuid where id = :id::uuid`,
+      [stringParam("id", input.id), stringParam("materialId", materialRow.id)],
       transactionId,
     );
 

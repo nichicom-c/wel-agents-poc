@@ -24,6 +24,7 @@ import {
   materialCandidateStatusLabel,
   type ProfessionalComment,
   postComment,
+  promoteCandidateToMaterial,
   REJECTION_REASON_CODES,
   type RejectionReasonCode,
   rejectionReasonLabel,
@@ -143,6 +144,7 @@ function CandidateTab({ authorName, canDecide }: CandidateTabProps) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [reasonCode, setReasonCode] = useState<RejectionReasonCode | "">("");
   const [reasonText, setReasonText] = useState("");
+  const [promoteError, setPromoteError] = useState("");
 
   useEffect(() => {
     let cancelled = false;
@@ -180,6 +182,18 @@ function CandidateTab({ authorName, canDecide }: CandidateTabProps) {
     setReasonCode("");
     setReasonText("");
     await refresh();
+  }
+
+  async function handlePromote(id: string) {
+    setPromoteError("");
+    try {
+      await promoteCandidateToMaterial(id);
+      await refresh();
+    } catch (caught) {
+      setPromoteError(
+        caught instanceof Error ? caught.message : String(caught),
+      );
+    }
   }
 
   return (
@@ -386,6 +400,37 @@ function CandidateTab({ authorName, canDecide }: CandidateTabProps) {
                     却下理由:{" "}
                     {rejectionReasonLabel(candidate.rejectionReasonCode)}
                   </p>
+                ) : null}
+
+                {candidate.status === "approved" ? (
+                  <div className="knowledge-review-decision-form">
+                    <h5>教材化</h5>
+                    {candidate.materialId ? (
+                      <p className="workbench-main-description">
+                        教材化済み（教材ID: {candidate.materialId}）。Admin の
+                        「教材」タブから確認できます。
+                      </p>
+                    ) : canDecide ? (
+                      <>
+                        <p className="workbench-main-description">
+                          issue #10 の教材（status: draft）として登録します。
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => void handlePromote(candidate.id)}
+                        >
+                          教材にする
+                        </button>
+                        {promoteError ? (
+                          <p className="soap-draft-error">{promoteError}</p>
+                        ) : null}
+                      </>
+                    ) : (
+                      <p className="workbench-main-description">
+                        教材化にはレビュー承認者または管理者の権限が必要です。
+                      </p>
+                    )}
+                  </div>
                 ) : null}
 
                 {canDecide ? (

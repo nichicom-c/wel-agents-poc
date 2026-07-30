@@ -148,6 +148,30 @@ export async function createCandidateFromComments(
   return candidate;
 }
 
+/** 承認済みの教材候補を issue #10 の教材（`materials`、status: draft）に変換する。 */
+export async function promoteCandidateToMaterial(
+  id: string,
+  fetchFn: FetchFn = fetch,
+): Promise<MaterialCandidate> {
+  const response = await fetchFn(
+    `${MATERIAL_CANDIDATES_ENDPOINT}/${encodeURIComponent(id)}/promote-to-material`,
+    { method: "POST" },
+  );
+  const payload = await readJson(response);
+
+  if (!response.ok) {
+    throw new Error(trimmedText(payload.error) || `HTTP ${response.status}`);
+  }
+
+  const candidate = normalizeCandidate(payload);
+  if (!candidate) {
+    throw new Error(
+      "invalid response from /api/material-candidates/:id/promote-to-material",
+    );
+  }
+  return candidate;
+}
+
 export async function listCommentsForVersion(
   targetRecordVersionId: string,
   fetchFn: FetchFn = fetch,
@@ -287,6 +311,7 @@ function normalizeCandidate(
     difficultyId: trimmedText(record.difficultyId) || undefined,
     id,
     learningThemeId: trimmedText(record.learningThemeId) || undefined,
+    materialId: trimmedText(record.materialId) || undefined,
     recordType: isSoapRecordType(rawRecordType) ? rawRecordType : undefined,
     rejectionReasonCode: isRejectionReasonCode(rawRejectionReasonCode)
       ? rawRejectionReasonCode

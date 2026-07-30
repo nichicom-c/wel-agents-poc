@@ -1,9 +1,14 @@
 import { describe, expect, test } from "bun:test";
 
 import {
+  MaterialCandidateAlreadyPromotedError,
+  MaterialCandidateNotApprovedError,
+} from "../contracts/material-candidates.ts";
+import {
   createMaterialCandidateFromComments,
   decideMaterialCandidateStatus,
   listMaterialCandidates,
+  promoteMaterialCandidateToMaterial,
 } from "./material-candidate-store.ts";
 
 const CONFIG = {
@@ -99,6 +104,26 @@ class FakeRdsDataClient {
     }
     if (sql.includes("select status from material_candidates")) {
       return { formattedRecords: JSON.stringify([{ status: "candidate" }]) };
+    }
+    if (sql.includes("select status, title, specialty_id")) {
+      return {
+        formattedRecords: JSON.stringify([
+          {
+            difficulty_id: "intermediate",
+            learning_theme_id: "support-planning",
+            material_id: null,
+            specialty_id: "maternal-child",
+            status: "approved",
+            title: "title text",
+          },
+        ]),
+      };
+    }
+    if (sql.includes("insert into materials")) {
+      return { formattedRecords: JSON.stringify([{ id: "material-new" }]) };
+    }
+    if (sql.includes("insert into material_revisions")) {
+      return { formattedRecords: "[]" };
     }
     if (sql.includes("update material_candidates")) {
       return { formattedRecords: "[]" };
@@ -285,5 +310,136 @@ describe("decideMaterialCandidateStatus", () => {
         { client: notFoundClient as never },
       ),
     ).rejects.toThrow("material candidate not found");
+  });
+});
+
+describe("promoteMaterialCandidateToMaterial", () => {
+  test("承認済みの候補から教材を作り、material_id で紐づけて更新後の候補を返す", async () => {
+    class PromotedClient extends FakeRdsDataClient {
+      override async send(command: {
+        constructor: { name: string };
+        input?: Record<string, unknown>;
+      }): Promise<unknown> {
+        const sql =
+          typeof command.input?.sql === "string"
+            ? command.input.sql
+            : undefined;
+        if (
+          sql?.includes("from material_candidates mc") &&
+          sql.includes("where mc.id")
+        ) {
+          return {
+            formattedRecords: JSON.stringify([
+              { ...CANDIDATE_ROW, material_id: "material-new" },
+            ]),
+          };
+        }
+        return super.send(command);
+      }
+    }
+    const client = new PromotedClient();
+
+    const result = await promoteMaterialCandidateToMaterial(
+      CONFIG,
+      { changedBy: "11111111-1111-1111-1111-111111111111", id: "candidate-1" },
+      { client: client as never },
+    );
+
+    expect(result.materialId).toBe("material-new");
+    expect(
+      client.calls.some((call) => call.sql?.includes("insert into materials")),
+    ).toBe(true);
+    expect(
+      client.calls.some((call) =>
+        call.sql?.includes("insert into material_revisions"),
+      ),
+    ).toBe(true);
+    expect(
+      client.calls.some((call) =>
+        call.sql?.includes("update material_candidates set material_id"),
+      ),
+    ).toBe(true);
+  });
+
+  test("承認済みでない候補は MaterialCandidateNotApprovedError を投げる", async () => {
+    class CandidateOnlyClient extends FakeRdsDataClient {
+      override async send(command: {
+        constructor: { name: string };
+        input?: Record<string, unknown>;
+      }): Promise<unknown> {
+        const sql =
+          typeof command.input?.sql === "string"
+            ? command.input.sql
+            : undefined;
+        if (sql?.includes("select status, title, specialty_id")) {
+          return {
+            formattedRecords: JSON.stringify([
+              {
+                difficulty_id: null,
+                learning_theme_id: null,
+                material_id: null,
+                specialty_id: null,
+                status: "candidate",
+                title: "title text",
+              },
+            ]),
+          };
+        }
+        return super.send(command);
+      }
+    }
+    const client = new CandidateOnlyClient();
+
+    await expect(
+      promoteMaterialCandidateToMaterial(
+        CONFIG,
+        {
+          changedBy: "11111111-1111-1111-1111-111111111111",
+          id: "candidate-1",
+        },
+        { client: client as never },
+      ),
+    ).rejects.toBeInstanceOf(MaterialCandidateNotApprovedError);
+  });
+
+  test("すでに material_id が設定済みの候補は MaterialCandidateAlreadyPromotedError を投げる", async () => {
+    class AlreadyPromotedClient extends FakeRdsDataClient {
+      override async send(command: {
+        constructor: { name: string };
+        input?: Record<string, unknown>;
+      }): Promise<unknown> {
+        const sql =
+          typeof command.input?.sql === "string"
+            ? command.input.sql
+            : undefined;
+        if (sql?.includes("select status, title, specialty_id")) {
+          return {
+            formattedRecords: JSON.stringify([
+              {
+                difficulty_id: null,
+                learning_theme_id: null,
+                material_id: "material-existing",
+                specialty_id: null,
+                status: "approved",
+                title: "title text",
+              },
+            ]),
+          };
+        }
+        return super.send(command);
+      }
+    }
+    const client = new AlreadyPromotedClient();
+
+    await expect(
+      promoteMaterialCandidateToMaterial(
+        CONFIG,
+        {
+          changedBy: "11111111-1111-1111-1111-111111111111",
+          id: "candidate-1",
+        },
+        { client: client as never },
+      ),
+    ).rejects.toBeInstanceOf(MaterialCandidateAlreadyPromotedError);
   });
 });

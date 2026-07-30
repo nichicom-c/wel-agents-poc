@@ -98,6 +98,8 @@ export type MaterialCandidate = {
   createdBy: string;
   createdAt: string;
   statusHistory: MaterialCandidateStatusEvent[];
+  /** `materials.id`。教材化済み（issue #10 の教材へ変換済み）の場合だけ設定される。 */
+  materialId?: string;
 };
 
 export type MaterialCandidateFilters = {

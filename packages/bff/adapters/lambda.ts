@@ -59,6 +59,7 @@ import {
   createMaterialCandidateFromComments,
   decideMaterialCandidateStatus,
   listMaterialCandidates,
+  promoteMaterialCandidateToMaterial,
 } from "../infra/material-candidate-store.ts";
 import {
   changeMaterialStatus,
@@ -560,6 +561,8 @@ function materialCandidateOptions(
     listCandidates: (filters) => listMaterialCandidates(storeConfig, filters),
     logError:
       deps.logError ?? ((message, detail) => console.error(message, detail)),
+    promoteToMaterial: (input) =>
+      promoteMaterialCandidateToMaterial(storeConfig, input),
     trainingDataConfigured: Boolean(
       config.trainingDataClusterArn &&
         config.trainingDataDatabaseName &&

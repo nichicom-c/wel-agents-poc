@@ -50,6 +50,8 @@ export type MaterialCandidate = {
   /** 教材候補化の元になった専門職コメント（1件以上、複数コメントを束ねられる）。 */
   comments: ProfessionalComment[];
   statusHistory: MaterialCandidateStatusEvent[];
+  /** `materials.id`。教材化済み（issue #10 の `materials` へ変換済み）の場合だけ設定される。 */
+  materialId?: string;
 };
 
 export type MaterialCandidateFilters = {
@@ -59,3 +61,16 @@ export type MaterialCandidateFilters = {
   difficultyId?: string;
   status?: MaterialCandidateStatus;
 };
+
+/**
+ * `POST .../promote-to-material` で `status: approved` になっていない候補を教材化しようとした
+ * 場合。infra と application の両方から instanceof で判定できるよう contracts に置く。
+ */
+export class MaterialCandidateNotApprovedError extends Error {
+  override name = "MaterialCandidateNotApprovedError";
+}
+
+/** すでに `materialId` が設定済みの候補をもう一度教材化しようとした場合。 */
+export class MaterialCandidateAlreadyPromotedError extends Error {
+  override name = "MaterialCandidateAlreadyPromotedError";
+}

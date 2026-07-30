@@ -11,6 +11,7 @@ export {
   listSoapRecords,
   listVersionsForRecord,
   postComment,
+  promoteCandidateToMaterial,
 } from "./api/knowledge-review.ts";
 export type {
   MaterialCandidate,

@@ -1,6 +1,10 @@
 import { describe, expect, test } from "bun:test";
 
 import {
+  MaterialCandidateAlreadyPromotedError,
+  MaterialCandidateNotApprovedError,
+} from "../contracts/material-candidates.ts";
+import {
   type HandleMaterialCandidateOptions,
   handleMaterialCandidateRequest,
 } from "./handle-material-candidate-request.ts";
@@ -30,6 +34,10 @@ function baseOptions(
     createCandidate: async () => SAMPLE_CANDIDATE,
     decideStatus: async () => ({ ...SAMPLE_CANDIDATE, status: "approved" }),
     listCandidates: async () => [],
+    promoteToMaterial: async () => ({
+      ...SAMPLE_CANDIDATE,
+      materialId: "material-1",
+    }),
     trainingDataConfigured: true,
     ...overrides,
   };
@@ -284,6 +292,77 @@ describe("handleMaterialCandidateRequest", () => {
         },
         baseOptions({
           decideStatus: async () => {
+            throw new Error("boom");
+          },
+        }),
+      );
+      expect(response.statusCode).toBe(502);
+    });
+  });
+
+  describe("POST /api/material-candidates/:id/promote-to-material", () => {
+    test("authContext から changedBy を使って教材化する", async () => {
+      let capturedInput: unknown;
+      const response = await handleMaterialCandidateRequest(
+        {
+          method: "POST",
+          path: "/api/material-candidates/candidate-1/promote-to-material",
+        },
+        baseOptions({
+          promoteToMaterial: async (input) => {
+            capturedInput = input;
+            return { ...SAMPLE_CANDIDATE, materialId: "material-1" };
+          },
+        }),
+      );
+
+      expect(response.statusCode).toBe(200);
+      expect(capturedInput).toEqual({
+        changedBy: AUTH_CONTEXT.userId,
+        changedByDisplayName: AUTH_CONTEXT.displayName,
+        id: "candidate-1",
+      });
+      expect(JSON.parse(response.body).materialId).toBe("material-1");
+    });
+
+    test("MaterialCandidateNotApprovedError は 400 を返す", async () => {
+      const response = await handleMaterialCandidateRequest(
+        {
+          method: "POST",
+          path: "/api/material-candidates/candidate-1/promote-to-material",
+        },
+        baseOptions({
+          promoteToMaterial: async () => {
+            throw new MaterialCandidateNotApprovedError("not approved");
+          },
+        }),
+      );
+      expect(response.statusCode).toBe(400);
+    });
+
+    test("MaterialCandidateAlreadyPromotedError は 400 を返す", async () => {
+      const response = await handleMaterialCandidateRequest(
+        {
+          method: "POST",
+          path: "/api/material-candidates/candidate-1/promote-to-material",
+        },
+        baseOptions({
+          promoteToMaterial: async () => {
+            throw new MaterialCandidateAlreadyPromotedError("already promoted");
+          },
+        }),
+      );
+      expect(response.statusCode).toBe(400);
+    });
+
+    test("promoteToMaterial が想定外の例外を投げたら 502 を返す", async () => {
+      const response = await handleMaterialCandidateRequest(
+        {
+          method: "POST",
+          path: "/api/material-candidates/candidate-1/promote-to-material",
+        },
+        baseOptions({
+          promoteToMaterial: async () => {
             throw new Error("boom");
           },
         }),

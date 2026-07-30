@@ -3,7 +3,9 @@ import { BFF_JSON_HEADERS } from "../contracts/http.ts";
 import {
   isMaterialCandidateStatus,
   type MaterialCandidate,
+  MaterialCandidateAlreadyPromotedError,
   type MaterialCandidateFilters,
+  MaterialCandidateNotApprovedError,
   type MaterialCandidateStatus,
 } from "../contracts/material-candidates.ts";
 import {
@@ -14,6 +16,8 @@ import type { AuthenticatedUserContext } from "../domain/auth.ts";
 
 const COLLECTION_PATH = "/api/material-candidates";
 const STATUS_PATH_PATTERN = /^\/api\/material-candidates\/([^/]+)\/status$/;
+const PROMOTE_PATH_PATTERN =
+  /^\/api\/material-candidates\/([^/]+)\/promote-to-material$/;
 
 /** BFF core の依存。adapter ごとに RDS Data API 呼び出しの実装を注入する。 */
 export type HandleMaterialCandidateOptions = {
@@ -43,6 +47,11 @@ export type HandleMaterialCandidateOptions = {
     reasonCode?: string;
     reasonText?: string;
   }) => Promise<MaterialCandidate>;
+  promoteToMaterial: (input: {
+    id: string;
+    changedBy: string;
+    changedByDisplayName?: string;
+  }) => Promise<MaterialCandidate>;
   /** 想定外 error の記録先。省略時は握りつぶして構造化 response のみ返す。 */
   logError?: (message: string, detail: Record<string, unknown>) => void;
   /** Training Data Store（Aurora）が設定済みかどうか。未設定なら 503 を返す。 */
@@ -55,7 +64,8 @@ export type HandleMaterialCandidateOptions = {
  * `GET /api/material-candidates` は分野・記録種別・学習テーマ・難易度・状態で検索できる一覧。
  * `POST /api/material-candidates` は選択した専門職コメントを束ねて新しい教材候補（status:
  * candidate）を作る。`PATCH /api/material-candidates/{id}/status` は承認/却下/要修正の
- * 状態遷移を記録する（承認 gate）。
+ * 状態遷移を記録する（承認 gate）。`POST /api/material-candidates/{id}/promote-to-material`
+ * は承認済みの候補を issue #10 の `materials` に変換する。
  */
 export async function handleMaterialCandidateRequest(
   request: BffHttpRequest,
@@ -101,9 +111,20 @@ export async function handleMaterialCandidateRequest(
       );
     }
 
+    const promoteCandidateId = promoteCandidateIdFromPath(request.path);
+    if (promoteCandidateId && request.method === "POST") {
+      return await handlePromote(promoteCandidateId, authContext, options);
+    }
+
     return response(404, { error: "not found" });
   } catch (error) {
     if (error instanceof BadRequestError) {
+      return response(400, { error: error.message });
+    }
+    if (
+      error instanceof MaterialCandidateNotApprovedError ||
+      error instanceof MaterialCandidateAlreadyPromotedError
+    ) {
       return response(400, { error: error.message });
     }
 
@@ -213,6 +234,20 @@ async function handleDecideStatus(
   return response(200, candidate);
 }
 
+async function handlePromote(
+  candidateId: string,
+  authContext: AuthenticatedUserContext,
+  options: HandleMaterialCandidateOptions,
+): Promise<BffHttpResponse> {
+  const candidate = await options.promoteToMaterial({
+    changedBy: authContext.userId,
+    changedByDisplayName: authContext.displayName,
+    id: candidateId,
+  });
+
+  return response(200, candidate);
+}
+
 function filtersFromQuery(
   query: Record<string, string | undefined> | undefined,
 ): MaterialCandidateFilters {
@@ -237,11 +272,21 @@ function commentIdsFromBody(value: unknown): string[] {
 }
 
 function isMaterialCandidatePath(path: string): boolean {
-  return path === COLLECTION_PATH || STATUS_PATH_PATTERN.test(path);
+  return (
+    path === COLLECTION_PATH ||
+    STATUS_PATH_PATTERN.test(path) ||
+    PROMOTE_PATH_PATTERN.test(path)
+  );
 }
 
 function statusCandidateIdFromPath(path: string): string | undefined {
   const match = STATUS_PATH_PATTERN.exec(path);
+  const candidateId = match?.[1];
+  return candidateId ? decodeURIComponent(candidateId) : undefined;
+}
+
+function promoteCandidateIdFromPath(path: string): string | undefined {
+  const match = PROMOTE_PATH_PATTERN.exec(path);
   const candidateId = match?.[1];
   return candidateId ? decodeURIComponent(candidateId) : undefined;
 }

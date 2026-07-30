@@ -40,6 +40,7 @@ import {
   createMaterialCandidateFromComments,
   decideMaterialCandidateStatus,
   listMaterialCandidates,
+  promoteMaterialCandidateToMaterial,
 } from "../infra/material-candidate-store.ts";
 import {
   changeMaterialStatus,
@@ -449,6 +450,8 @@ export async function handleBffDevRequest(
         listCandidates: (filters) =>
           listMaterialCandidates(storeConfig, filters),
         logError: (message, detail) => console.error(message, detail),
+        promoteToMaterial: (input) =>
+          promoteMaterialCandidateToMaterial(storeConfig, input),
         trainingDataConfigured: Boolean(
           config.trainingDataClusterArn &&
             config.trainingDataDatabaseName &&
