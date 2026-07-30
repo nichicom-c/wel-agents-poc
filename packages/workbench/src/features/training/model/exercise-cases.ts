@@ -1,8 +1,7 @@
 /**
- * issue #9 の Technical Approach に定義された演習ケースの構造。実装では issue #10 の
- * `materials`（`material_type: "teaching_case"`）の拡張テーブルとして持つ設計だが
- * （`docs/notes/2026-07-30-...` 参照）、`admin` feature と同様 dummy データ段階では
- * このモジュールに閉じた独立データとして持つ。
+ * issue #9 の Technical Approach に定義された演習ケースの構造。issue #10 の `materials`
+ * （`material_type: "teaching_case"`）の1:1拡張として BFF `/api/exercise-cases`
+ * （Aurora Serverless v2 + RDS Data API）から取得する。
  */
 export type ExerciseFollowupQuestion = {
   id: string;
@@ -35,26 +34,26 @@ export type ExerciseModelAnswer = {
   answerType: ModelAnswerType;
   content: string;
   /** 単一正解ではなく複数の妥当な判断パターンのうち、この解答が許容される理由。 */
-  acceptableNote: string;
+  acceptableNote?: string;
 };
 
 export type ExerciseCase = {
   id: string;
   title: string;
-  specialtyId: string;
-  difficultyId: string;
-  learningThemeId: string;
+  specialtyId?: string;
+  difficultyId?: string;
+  learningThemeId?: string;
   /** 想定業務場面。 */
-  expectedWorkScene: string;
+  expectedWorkScene?: string;
   /** 必要な制度知識。 */
-  requiredInstitutionalKnowledge: string;
+  requiredInstitutionalKnowledge?: string;
   /** 初期提示情報。 */
   initialPresentation: string;
   /** 制約条件。 */
-  constraints: string;
+  constraintsText?: string;
   followupQuestions: ExerciseFollowupQuestion[];
   modelAnswers: ExerciseModelAnswer[];
-  /** 評価観点。issue #10 の rubric と連携する想定だが、dummy データ段階では文字列配列で持つ。 */
+  /** issue #10 のルーブリック（`exercise_case_rubrics` 経由）から集めた評価観点。 */
   evaluationCriteria: string[];
 };
 
@@ -63,21 +62,6 @@ export type ExerciseCaseFilters = {
   difficultyId?: string;
   learningThemeId?: string;
 };
-
-export function filterExerciseCases(
-  cases: readonly ExerciseCase[],
-  filters: ExerciseCaseFilters,
-): ExerciseCase[] {
-  return cases.filter(
-    (exerciseCase) =>
-      (!filters.specialtyId ||
-        exerciseCase.specialtyId === filters.specialtyId) &&
-      (!filters.difficultyId ||
-        exerciseCase.difficultyId === filters.difficultyId) &&
-      (!filters.learningThemeId ||
-        exerciseCase.learningThemeId === filters.learningThemeId),
-  );
-}
 
 export function modelAnswersOfType(
   exerciseCase: ExerciseCase,

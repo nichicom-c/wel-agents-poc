@@ -1,4 +1,5 @@
-import { createId } from "./create-id.ts";
+import type { ExerciseCase } from "./exercise-cases.ts";
+import type { ExerciseFeedback } from "./exercise-feedback.ts";
 
 export const EXERCISE_ATTEMPT_STATUSES = [
   "in_progress",
@@ -29,9 +30,15 @@ export type ExerciseAttemptAnswers = {
   supportPlanText: string;
 };
 
+/**
+ * 演習の受講記録。BFF `/api/exercise-attempts`（Aurora Serverless v2 + RDS Data API）から
+ * 取得する。`exerciseCase` / `feedback` は一覧取得時に埋め込まれるため、詳細表示に追加
+ * fetch は不要。
+ */
 export type ExerciseAttempt = {
   id: string;
-  exerciseCaseId: string;
+  exerciseCase: ExerciseCase;
+  traineeId: string;
   traineeName: string;
   status: ExerciseAttemptStatus;
   answers: ExerciseAttemptAnswers;
@@ -39,80 +46,5 @@ export type ExerciseAttempt = {
   revealedFollowupQuestionIds: string[];
   startedAt: string;
   submittedAt?: string;
+  feedback?: ExerciseFeedback;
 };
-
-export type NewExerciseAttemptInput = {
-  exerciseCaseId: string;
-  traineeName: string;
-};
-
-export function startExerciseAttempt(
-  attempts: readonly ExerciseAttempt[],
-  input: NewExerciseAttemptInput,
-): ExerciseAttempt[] {
-  const created: ExerciseAttempt = {
-    answers: {
-      additionalConfirmationText: "",
-      assessmentText: "",
-      soapText: "",
-      supportPlanText: "",
-    },
-    exerciseCaseId: input.exerciseCaseId,
-    id: createId("attempt"),
-    revealedFollowupQuestionIds: [],
-    startedAt: new Date().toISOString(),
-    status: "in_progress",
-    traineeName: input.traineeName,
-  };
-  return [...attempts, created];
-}
-
-export function revealFollowupQuestion(
-  attempts: readonly ExerciseAttempt[],
-  attemptId: string,
-  questionId: string,
-): ExerciseAttempt[] {
-  return attempts.map((attempt) =>
-    attempt.id === attemptId
-      ? {
-          ...attempt,
-          revealedFollowupQuestionIds:
-            attempt.revealedFollowupQuestionIds.includes(questionId)
-              ? attempt.revealedFollowupQuestionIds
-              : [...attempt.revealedFollowupQuestionIds, questionId],
-        }
-      : attempt,
-  );
-}
-
-export function withDraftAnswers(
-  attempts: readonly ExerciseAttempt[],
-  attemptId: string,
-  answers: ExerciseAttemptAnswers,
-): ExerciseAttempt[] {
-  return attempts.map((attempt) =>
-    attempt.id === attemptId ? { ...attempt, answers } : attempt,
-  );
-}
-
-export function submitExerciseAttempt(
-  attempts: readonly ExerciseAttempt[],
-  attemptId: string,
-): ExerciseAttempt[] {
-  return attempts.map((attempt) =>
-    attempt.id === attemptId
-      ? {
-          ...attempt,
-          status: "submitted",
-          submittedAt: new Date().toISOString(),
-        }
-      : attempt,
-  );
-}
-
-export function attemptsForTrainee(
-  attempts: readonly ExerciseAttempt[],
-  traineeName: string,
-): ExerciseAttempt[] {
-  return attempts.filter((attempt) => attempt.traineeName === traineeName);
-}

@@ -8,6 +8,9 @@
 
 import { GetCallerIdentityCommand, STSClient } from "@aws-sdk/client-sts";
 import { handleDevInfoRequest } from "../application/handle-dev-info-request.ts";
+import { handleExerciseAttemptRequest } from "../application/handle-exercise-attempt-request.ts";
+import { handleExerciseCaseRequest } from "../application/handle-exercise-case-request.ts";
+import { handleInstructorCommentRequest } from "../application/handle-instructor-comment-request.ts";
 import {
   handleKnowledgeBaseDetailRequest,
   type KnowledgeBaseDetailProvider,
@@ -49,6 +52,21 @@ import {
   type CallerIdentity,
   type DevInfoConfig,
 } from "../infra/dev-info.ts";
+import {
+  attachFeedback,
+  getAttemptById,
+  listAttemptsForTrainee,
+  listInstructorQueue,
+  markAttemptSubmitted,
+  revealFollowup,
+  saveDraftAnswers,
+  startAttempt,
+} from "../infra/exercise-attempt-store.ts";
+import {
+  getExerciseCaseById,
+  listExerciseCases,
+} from "../infra/exercise-case-store.ts";
+import { postInstructorComment } from "../infra/exercise-instructor-comment-store.ts";
 import { makeKnowledgeBaseDetailProvider } from "../infra/knowledge-base-detail.ts";
 import {
   configFromEnv,
@@ -264,6 +282,50 @@ export async function handleLambdaEvent(
           ((message, detail) => console.error(message, detail)),
         qualifier: config.qualifier,
       },
+    );
+  }
+
+  if (
+    path === "/api/exercise-cases" ||
+    path.startsWith("/api/exercise-cases/")
+  ) {
+    return handleExerciseCaseRequest(
+      {
+        body: event.body,
+        isBase64Encoded: event.isBase64Encoded,
+        method,
+        path,
+        query: event.queryStringParameters ?? undefined,
+      },
+      exerciseCaseOptions(config, event, deps),
+    );
+  }
+
+  if (
+    path === "/api/exercise-attempts" ||
+    path.startsWith("/api/exercise-attempts/")
+  ) {
+    return handleExerciseAttemptRequest(
+      {
+        body: event.body,
+        isBase64Encoded: event.isBase64Encoded,
+        method,
+        path,
+        query: event.queryStringParameters ?? undefined,
+      },
+      exerciseAttemptOptions(config, event, deps),
+    );
+  }
+
+  if (path === "/api/instructor-comments") {
+    return handleInstructorCommentRequest(
+      {
+        body: event.body,
+        isBase64Encoded: event.isBase64Encoded,
+        method,
+        path,
+      },
+      instructorCommentOptions(config, event, deps),
     );
   }
 
@@ -725,6 +787,95 @@ function qualityMetricsOptions(
     listMetrics: () => listQualityMetrics(storeConfig),
     logError:
       deps.logError ?? ((message, detail) => console.error(message, detail)),
+    trainingDataConfigured: Boolean(
+      config.trainingDataClusterArn &&
+        config.trainingDataDatabaseName &&
+        config.trainingDataSecretArn,
+    ),
+  };
+}
+
+/** 演習ケース handler が使う options を組み立てる。3つとも未設定なら handler 側が 503 を返す。 */
+function exerciseCaseOptions(
+  config: LambdaConfig,
+  event: LambdaEvent,
+  deps: LambdaHandlerDeps,
+): Parameters<typeof handleExerciseCaseRequest>[1] {
+  const storeConfig = {
+    clusterArn: config.trainingDataClusterArn ?? "",
+    database: config.trainingDataDatabaseName ?? "",
+    region: config.region,
+    secretArn: config.trainingDataSecretArn ?? "",
+  };
+
+  return {
+    authContext: authContextForEvent(event, config),
+    getCaseById: (id) => getExerciseCaseById(storeConfig, id),
+    listCases: (filters) => listExerciseCases(storeConfig, filters),
+    logError:
+      deps.logError ?? ((message, detail) => console.error(message, detail)),
+    trainingDataConfigured: Boolean(
+      config.trainingDataClusterArn &&
+        config.trainingDataDatabaseName &&
+        config.trainingDataSecretArn,
+    ),
+  };
+}
+
+/** 演習の受講記録 handler が使う options を組み立てる。3つとも未設定なら handler 側が 503 を返す。 */
+function exerciseAttemptOptions(
+  config: LambdaConfig,
+  event: LambdaEvent,
+  deps: LambdaHandlerDeps,
+): Parameters<typeof handleExerciseAttemptRequest>[1] {
+  const storeConfig = {
+    clusterArn: config.trainingDataClusterArn ?? "",
+    database: config.trainingDataDatabaseName ?? "",
+    region: config.region,
+    secretArn: config.trainingDataSecretArn ?? "",
+  };
+
+  return {
+    attachFeedback: (input) => attachFeedback(storeConfig, input),
+    authContext: authContextForEvent(event, config),
+    getAttemptById: (id) => getAttemptById(storeConfig, id),
+    invokeRuntime: (runtimeSessionId, payload) =>
+      invokeAgentCoreRuntime(config, runtimeSessionId, payload, deps),
+    listAttemptsForTrainee: (traineeId) =>
+      listAttemptsForTrainee(storeConfig, traineeId),
+    listInstructorQueue: () => listInstructorQueue(storeConfig),
+    logError:
+      deps.logError ?? ((message, detail) => console.error(message, detail)),
+    markAttemptSubmitted: (input) => markAttemptSubmitted(storeConfig, input),
+    revealFollowup: (input) => revealFollowup(storeConfig, input),
+    saveDraftAnswers: (input) => saveDraftAnswers(storeConfig, input),
+    startAttempt: (input) => startAttempt(storeConfig, input),
+    trainingDataConfigured: Boolean(
+      config.trainingDataClusterArn &&
+        config.trainingDataDatabaseName &&
+        config.trainingDataSecretArn,
+    ),
+  };
+}
+
+/** 指導者コメント handler が使う options を組み立てる。3つとも未設定なら handler 側が 503 を返す。 */
+function instructorCommentOptions(
+  config: LambdaConfig,
+  event: LambdaEvent,
+  deps: LambdaHandlerDeps,
+): Parameters<typeof handleInstructorCommentRequest>[1] {
+  const storeConfig = {
+    clusterArn: config.trainingDataClusterArn ?? "",
+    database: config.trainingDataDatabaseName ?? "",
+    region: config.region,
+    secretArn: config.trainingDataSecretArn ?? "",
+  };
+
+  return {
+    authContext: authContextForEvent(event, config),
+    logError:
+      deps.logError ?? ((message, detail) => console.error(message, detail)),
+    postComment: (input) => postInstructorComment(storeConfig, input),
     trainingDataConfigured: Boolean(
       config.trainingDataClusterArn &&
         config.trainingDataDatabaseName &&

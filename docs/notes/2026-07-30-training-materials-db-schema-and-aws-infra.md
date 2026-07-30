@@ -17,7 +17,7 @@ issue #8（専門職コメントからのノウハウ・教材候補蓄積）、
 - **前提（SOAP 正式記録・編集履歴）**: 実装済み。`POST /api/soap-records` / `GET /api/soap-records` / `GET /api/soap-records/{recordId}/versions`（`packages/bff/infra/soap-record-store.ts`）。SOAP Studio の「正式記録として保存」ボタンから呼ばれる。
 - **issue #8（専門職コメント・教材候補）**: 実装済み。`POST /api/professional-comments` + `GET /api/professional-comments`、`GET/POST /api/material-candidates` + `PATCH /api/material-candidates/{id}/status`。加えて、本メモの提案時点では未設計だった **`POST /api/material-candidates/{id}/promote-to-material`** を追加した — 承認済み (`status: approved`) の教材候補を issue #10 の `materials` 行（`material_type: comment_derived_note`、`publication_status: draft`）に変換し、当初から schema にあった `material_candidates.material_id` 列（提案時点では「承認 gate を通過したらリンクする想定」とコメントしていた列）を実際に書き込む。自動連携ではなく Knowledge Review 画面から手動でトリガーする設計。
 - **issue #10（教材・ルーブリック・SOAP マッピング・必須推奨項目・品質指標）**: 実装済み。`GET/POST /api/materials` + `PATCH /api/materials/{id}/status`、`GET/POST /api/rubrics` + `PATCH /api/rubrics/{id}/review-status`、`GET /api/soap-mapping-versions` + `POST /api/soap-mapping-versions`、`GET/POST /api/required-items`、`GET /api/quality-metrics`。`GET /api/reference-knowledge` も実装したが read-only のまま（`reference_knowledge` テーブルへの作成 UI・シードデータは無く、実データは空）。
-- **issue #9（新人保健師向け演習）**: **未着手**。Workbench の Training 画面（`packages/workbench/src/features/training/`）は dummy データのままで、本メモの `exercise_*` テーブル群は未実装。
+- **issue #9（新人保健師向け演習）**: 実装済み。`GET /api/exercise-cases` + `GET /api/exercise-cases/{id}`、`POST /api/exercise-attempts` + `GET /api/exercise-attempts?scope=mine|instructor-queue` + `PATCH /api/exercise-attempts/{id}/reveal-followup` + `PATCH /api/exercise-attempts/{id}/draft-answers` + `POST /api/exercise-attempts/{id}/submit`、`POST /api/instructor-comments`。本メモではフィードバック生成を明記していなかったが、実装では提出時に `packages/agentcore` へ新設した `exercise_feedback_agent`（soap_draft/soap_gaps と同型の一回限り AgentCore Runtime invoke、structured output）を呼び、情報収集/根拠/アセスメント/支援方針/記録表現の5観点フィードバックを Bedrock で生成して `exercise_feedback` に保存する（テンプレート／ルールベースではない）。`exercise_cases` は作成 UI を持たないため、`migrations/0003_seed_exercise_cases.sql` で3件を seed する（`reference_knowledge` と同様の扱い）。
 
 以下は提案から変わった/未実装のままの点。
 
@@ -639,7 +639,7 @@ issue #10 自身が「初期は設定・seed から始め、必要なものだ�
 1. ✅ **前提整備**: `soap_records` / `soap_record_versions`（正式記録・編集履歴の永続化）、および SOAP Studio への「正式記録として保存」アクション追加（前節「新規: SOAP Studio → 正式記録保存 → Knowledge Review」）。これがないと issue #8 のコメントが「対象記録」を持てない。実装済み（`app_users` のロールミラーは前述のとおり未実装）。
 2. ✅ **issue #10 の最小構成**: `materials` / `rubrics` / `reference_knowledge` / `soap_mapping_versions` / `required_recommended_items` / 3マスタ（specialty/learning_theme/difficulty）。issue #10 自身が「設定と seed から始める」と明言しており、他2 issue の土台になる。実装済み（`reference_knowledge` は read-only）。
 3. ✅ **issue #8**: `professional_comments` / `material_candidates` とその周辺。実装済み（`promote-to-material` を追加）。
-4. ⬜ **issue #9**: `exercise_cases` 以下。issue #8/#10 の土台の上に乗るため最後にする。未着手（Training 画面は dummy データのまま）。
+4. ✅ **issue #9**: `exercise_cases` 以下。issue #8/#10 の土台の上に乗るため最後に実装。実装済み（フィードバック生成は `exercise_feedback_agent` による実際の Bedrock 呼び出し。テーブル seed は `0003_seed_exercise_cases.sql`）。
 
 ## 未決定事項（この提案で選ばなかった代替案）
 

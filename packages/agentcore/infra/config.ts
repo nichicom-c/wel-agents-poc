@@ -70,6 +70,11 @@ export type Config = {
    * `soapDraftModelId` と同様、応答時間短縮のために別（より高速な）model ID を指定できる。
    */
   readonly soapGapsModelId?: string;
+  /**
+   * 演習フィードバック生成（issue #9）専用の Bedrock model ID（任意）。未設定なら `modelId`
+   * を使う。`soapDraftModelId` と同様の方針。
+   */
+  readonly exerciseFeedbackModelId?: string;
 };
 
 /** trim 後に非空の値だけを返す（空文字・空白のみは未設定扱い）。 */
@@ -127,6 +132,7 @@ export function configFromEnv(env: EnvSource = process.env): Config {
     },
     soapDraftModelId: nonEmpty(env.SOAP_DRAFT_MODEL_ID),
     soapGapsModelId: nonEmpty(env.SOAP_GAPS_MODEL_ID),
+    exerciseFeedbackModelId: nonEmpty(env.EXERCISE_FEEDBACK_MODEL_ID),
   };
 }
 

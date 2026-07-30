@@ -13,13 +13,9 @@ import {
   type ExerciseCase,
   type ExerciseCaseFilters,
   type ExerciseFeedback,
-  type ExerciseInstructorComment,
   exerciseAttemptStatusLabel,
-  getExerciseCaseById,
-  getFeedbackForAttempt,
   listAttemptsForTrainee,
   listExerciseCases,
-  listInstructorComments,
   listInstructorQueue,
   modelAnswersOfType,
   modelAnswerTypeLabel,
@@ -40,28 +36,18 @@ const EMPTY_ANSWERS: ExerciseAttemptAnswers = {
   supportPlanText: "",
 };
 
-/** dummy データ段階では認証が無いため、role をそのまま実行者名の代わりに使う。 */
-const DUMMY_AUTHOR_NAMES: Record<TrainingDemoRole, string> = {
-  admin: "管理者（デモ）",
-  guest: "未選択",
-  instructor: "指導者（デモ）",
-  nurse: "専門職（デモ）",
-  reviewer: "レビュー承認者（デモ）",
-  trainee: "新人保健師（デモ）",
-};
-
 type TraineeTab = "exercise" | "history";
+type LoadStatus = "idle" | "loading" | "error";
 
 export function TrainingView() {
   const [role, setRole] = useState<TrainingDemoRole>("trainee");
   const canView = canViewTraining(role);
-  const actorName = DUMMY_AUTHOR_NAMES[role];
 
   return (
     <>
       <h2>Training</h2>
       <p className="workbench-main-description">
-        新人保健師向け演習（issue #9・dummy データ）
+        新人保健師向け演習（issue #9）
       </p>
 
       <fieldset className="knowledge-review-role-select">
@@ -84,15 +70,15 @@ export function TrainingView() {
           この画面を利用する権限がありません。ロールを「新人保健師」「指導者」「管理者」に切り替えてください。
         </p>
       ) : canAttemptExercise(role) ? (
-        <TraineeView traineeName={actorName} />
+        <TraineeView />
       ) : (
-        <InstructorView instructorName={actorName} />
+        <InstructorView />
       )}
     </>
   );
 }
 
-function TraineeView({ traineeName }: { traineeName: string }) {
+function TraineeView() {
   const [activeTab, setActiveTab] = useState<TraineeTab>("exercise");
 
   return (
@@ -118,63 +104,80 @@ function TraineeView({ traineeName }: { traineeName: string }) {
         </button>
       </div>
 
-      {activeTab === "exercise" ? (
-        <ExerciseTab traineeName={traineeName} />
-      ) : (
-        <HistoryTab traineeName={traineeName} />
-      )}
+      {activeTab === "exercise" ? <ExerciseTab /> : <HistoryTab />}
     </>
   );
 }
 
-function ExerciseTab({ traineeName }: { traineeName: string }) {
+function ExerciseTab() {
   const [filters, setFilters] = useState<ExerciseCaseFilters>({});
   const [cases, setCases] = useState<ExerciseCase[] | null>(null);
+  const [casesStatus, setCasesStatus] = useState<LoadStatus>("idle");
+  const [casesError, setCasesError] = useState("");
   const [selectedCaseId, setSelectedCaseId] = useState<string | null>(null);
   const [attempt, setAttempt] = useState<ExerciseAttempt | null>(null);
-  const [feedback, setFeedback] = useState<ExerciseFeedback | null>(null);
   const [answers, setAnswers] = useState<ExerciseAttemptAnswers>(EMPTY_ANSWERS);
+  const [actionError, setActionError] = useState("");
 
   useEffect(() => {
     let cancelled = false;
-    listExerciseCases(filters).then((result) => {
-      if (!cancelled) {
+    setCasesStatus("loading");
+    listExerciseCases(filters)
+      .then((result) => {
+        if (cancelled) {
+          return;
+        }
         setCases(result);
-      }
-    });
+        setCasesStatus("idle");
+      })
+      .catch((caught: unknown) => {
+        if (cancelled) {
+          return;
+        }
+        setCasesStatus("error");
+        setCasesError(
+          caught instanceof Error ? caught.message : String(caught),
+        );
+      });
     return () => {
       cancelled = true;
     };
   }, [filters]);
 
-  const selectedCase = selectedCaseId
-    ? getExerciseCaseById(selectedCaseId)
-    : undefined;
-
   async function handleSelectCase(exerciseCase: ExerciseCase) {
+    setActionError("");
     setSelectedCaseId(exerciseCase.id);
-    setFeedback(null);
     setAnswers(EMPTY_ANSWERS);
-    const created = await startAttempt(exerciseCase.id, traineeName);
-    setAttempt(created);
+    try {
+      const created = await startAttempt(exerciseCase.id);
+      setAttempt(created);
+    } catch (caught) {
+      setActionError(caught instanceof Error ? caught.message : String(caught));
+    }
   }
 
   async function handleReveal(questionId: string) {
     if (!attempt) {
       return;
     }
-    const updated = await revealFollowup(attempt.id, questionId);
-    setAttempt(updated.find((item) => item.id === attempt.id) ?? attempt);
+    try {
+      setAttempt(await revealFollowup(attempt.id, questionId));
+    } catch (caught) {
+      setActionError(caught instanceof Error ? caught.message : String(caught));
+    }
   }
 
   async function handleSubmit() {
     if (!attempt) {
       return;
     }
-    await saveDraftAnswers(attempt.id, answers);
-    const result = await submitAttemptAndGenerateFeedback(attempt.id);
-    setAttempt(result.attempt);
-    setFeedback(result.feedback);
+    setActionError("");
+    try {
+      await saveDraftAnswers(attempt.id, answers);
+      setAttempt(await submitAttemptAndGenerateFeedback(attempt.id));
+    } catch (caught) {
+      setActionError(caught instanceof Error ? caught.message : String(caught));
+    }
   }
 
   const canSubmit =
@@ -246,6 +249,17 @@ function ExerciseTab({ traineeName }: { traineeName: string }) {
         </label>
       </fieldset>
 
+      {casesStatus === "error" ? (
+        <p className="soap-draft-error">
+          演習ケースの取得に失敗しました: {casesError}
+        </p>
+      ) : null}
+      {casesStatus === "idle" && (cases ?? []).length === 0 ? (
+        <p className="workbench-main-description">
+          公開済みの演習ケースはまだありません。
+        </p>
+      ) : null}
+
       <ul className="knowledge-review-candidate-list">
         {(cases ?? []).map((exerciseCase) => (
           <li key={exerciseCase.id} className="knowledge-review-candidate">
@@ -253,12 +267,20 @@ function ExerciseTab({ traineeName }: { traineeName: string }) {
               <h4>{exerciseCase.title}</h4>
             </div>
             <div className="knowledge-review-tag-row">
-              <span>{tagLabel(SPECIALTIES, exerciseCase.specialtyId)}</span>
               <span>
-                {tagLabel(DIFFICULTY_LEVELS, exerciseCase.difficultyId)}
+                {exerciseCase.specialtyId
+                  ? tagLabel(SPECIALTIES, exerciseCase.specialtyId)
+                  : "未設定"}
               </span>
               <span>
-                {tagLabel(LEARNING_THEMES, exerciseCase.learningThemeId)}
+                {exerciseCase.difficultyId
+                  ? tagLabel(DIFFICULTY_LEVELS, exerciseCase.difficultyId)
+                  : "未設定"}
+              </span>
+              <span>
+                {exerciseCase.learningThemeId
+                  ? tagLabel(LEARNING_THEMES, exerciseCase.learningThemeId)
+                  : "未設定"}
               </span>
             </div>
             <div className="soap-draft-candidate-actions">
@@ -275,18 +297,22 @@ function ExerciseTab({ traineeName }: { traineeName: string }) {
         ))}
       </ul>
 
-      {selectedCase && attempt ? (
+      {actionError ? <p className="soap-draft-error">{actionError}</p> : null}
+
+      {attempt ? (
         <div className="knowledge-review-record-version">
           <h4>初期提示情報</h4>
-          <p className="soap-draft-text">{selectedCase.initialPresentation}</p>
+          <p className="soap-draft-text">
+            {attempt.exerciseCase.initialPresentation}
+          </p>
           <p className="workbench-main-description">
-            想定業務場面: {selectedCase.expectedWorkScene} / 制約条件:{" "}
-            {selectedCase.constraints}
+            想定業務場面: {attempt.exerciseCase.expectedWorkScene ?? "未設定"} /
+            制約条件: {attempt.exerciseCase.constraintsText ?? "未設定"}
           </p>
 
           <h4>追加質問</h4>
           <ul className="knowledge-review-comment-list">
-            {selectedCase.followupQuestions.map((question) => (
+            {attempt.exerciseCase.followupQuestions.map((question) => (
               <li key={question.id} className="knowledge-review-comment">
                 <p className="soap-draft-text">{question.questionText}</p>
                 {attempt.revealedFollowupQuestionIds.includes(question.id) ? (
@@ -374,8 +400,11 @@ function ExerciseTab({ traineeName }: { traineeName: string }) {
             )}
           </div>
 
-          {feedback ? (
-            <FeedbackPanel exerciseCase={selectedCase} feedback={feedback} />
+          {attempt.feedback ? (
+            <FeedbackPanel
+              exerciseCase={attempt.exerciseCase}
+              feedback={attempt.feedback}
+            />
           ) : null}
         </div>
       ) : null}
@@ -421,42 +450,57 @@ function FeedbackPanel({
   );
 }
 
-function HistoryTab({ traineeName }: { traineeName: string }) {
+function HistoryTab() {
   const [attempts, setAttempts] = useState<ExerciseAttempt[] | null>(null);
+  const [status, setStatus] = useState<LoadStatus>("idle");
+  const [error, setError] = useState("");
 
   useEffect(() => {
     let cancelled = false;
-    listAttemptsForTrainee(traineeName).then((result) => {
-      if (!cancelled) {
+    setStatus("loading");
+    listAttemptsForTrainee()
+      .then((result) => {
+        if (cancelled) {
+          return;
+        }
         setAttempts(result);
-      }
-    });
+        setStatus("idle");
+      })
+      .catch((caught: unknown) => {
+        if (cancelled) {
+          return;
+        }
+        setStatus("error");
+        setError(caught instanceof Error ? caught.message : String(caught));
+      });
     return () => {
       cancelled = true;
     };
-  }, [traineeName]);
+  }, []);
 
   const themeCounts = new Map<string, number>();
   for (const attempt of attempts ?? []) {
-    const exerciseCase = getExerciseCaseById(attempt.exerciseCaseId);
-    if (!exerciseCase) {
+    const themeId = attempt.exerciseCase.learningThemeId;
+    if (!themeId) {
       continue;
     }
-    themeCounts.set(
-      exerciseCase.learningThemeId,
-      (themeCounts.get(exerciseCase.learningThemeId) ?? 0) + 1,
-    );
+    themeCounts.set(themeId, (themeCounts.get(themeId) ?? 0) + 1);
   }
 
   return (
     <section aria-label="学習履歴">
+      {status === "error" ? (
+        <p className="soap-draft-error">
+          回答履歴の取得に失敗しました: {error}
+        </p>
+      ) : null}
+
       <h4>回答履歴</h4>
       <ul className="knowledge-review-status-history">
         {(attempts ?? []).map((attempt) => (
           <li key={attempt.id}>
-            {getExerciseCaseById(attempt.exerciseCaseId)?.title ??
-              attempt.exerciseCaseId}{" "}
-            — {exerciseAttemptStatusLabel(attempt.status)}
+            {attempt.exerciseCase.title} —{" "}
+            {exerciseAttemptStatusLabel(attempt.status)}
             {attempt.submittedAt ? ` — ${attempt.submittedAt}` : ""}
           </li>
         ))}
@@ -478,21 +522,34 @@ function HistoryTab({ traineeName }: { traineeName: string }) {
   );
 }
 
-function InstructorView({ instructorName }: { instructorName: string }) {
+function InstructorView() {
   const [attempts, setAttempts] = useState<ExerciseAttempt[] | null>(null);
+  const [status, setStatus] = useState<LoadStatus>("idle");
+  const [error, setError] = useState("");
   const [selectedAttemptId, setSelectedAttemptId] = useState<string | null>(
     null,
   );
-  const [comments, setComments] = useState<ExerciseInstructorComment[]>([]);
   const [commentBody, setCommentBody] = useState("");
+  const [commentError, setCommentError] = useState("");
 
   useEffect(() => {
     let cancelled = false;
-    listInstructorQueue().then((result) => {
-      if (!cancelled) {
+    setStatus("loading");
+    listInstructorQueue()
+      .then((result) => {
+        if (cancelled) {
+          return;
+        }
         setAttempts(result);
-      }
-    });
+        setStatus("idle");
+      })
+      .catch((caught: unknown) => {
+        if (cancelled) {
+          return;
+        }
+        setStatus("error");
+        setError(caught instanceof Error ? caught.message : String(caught));
+      });
     return () => {
       cancelled = true;
     };
@@ -501,47 +558,47 @@ function InstructorView({ instructorName }: { instructorName: string }) {
   const selectedAttempt = (attempts ?? []).find(
     (a) => a.id === selectedAttemptId,
   );
-  const selectedCase = selectedAttempt
-    ? getExerciseCaseById(selectedAttempt.exerciseCaseId)
-    : undefined;
-  const feedback = selectedAttempt
-    ? getFeedbackForAttempt(selectedAttempt.id)
-    : undefined;
 
-  async function handleSelect(attemptId: string) {
+  function handleSelect(attemptId: string) {
     setSelectedAttemptId(attemptId);
     setCommentBody("");
-    const targetFeedback = getFeedbackForAttempt(attemptId);
-    setComments(
-      targetFeedback ? await listInstructorComments(targetFeedback.id) : [],
-    );
+    setCommentError("");
   }
 
   async function handleAddComment() {
+    const feedback = selectedAttempt?.feedback;
     if (!feedback || !commentBody.trim()) {
       return;
     }
-    const updated = await postInstructorComment(
-      feedback.id,
-      instructorName,
-      commentBody.trim(),
-    );
-    setComments(
-      updated.filter((comment) => comment.feedbackId === feedback.id),
-    );
-    setCommentBody("");
+    try {
+      const updated = await postInstructorComment(
+        feedback.id,
+        commentBody.trim(),
+      );
+      setAttempts(
+        (attempts ?? []).map((a) => (a.id === updated.id ? updated : a)),
+      );
+      setCommentBody("");
+    } catch (caught) {
+      setCommentError(
+        caught instanceof Error ? caught.message : String(caught),
+      );
+    }
   }
 
   return (
     <section aria-label="指導者ビュー">
+      {status === "error" ? (
+        <p className="soap-draft-error">
+          提出済み一覧の取得に失敗しました: {error}
+        </p>
+      ) : null}
+
       <ul className="knowledge-review-candidate-list">
         {(attempts ?? []).map((attempt) => (
           <li key={attempt.id} className="knowledge-review-candidate">
             <div className="knowledge-review-candidate-header">
-              <h4>
-                {getExerciseCaseById(attempt.exerciseCaseId)?.title ??
-                  attempt.exerciseCaseId}
-              </h4>
+              <h4>{attempt.exerciseCase.title}</h4>
               <span className="knowledge-review-status-badge">
                 {exerciseAttemptStatusLabel(attempt.status)}
               </span>
@@ -550,10 +607,7 @@ function InstructorView({ instructorName }: { instructorName: string }) {
               受講者: {attempt.traineeName}
             </p>
             <div className="soap-draft-candidate-actions">
-              <button
-                type="button"
-                onClick={() => void handleSelect(attempt.id)}
-              >
+              <button type="button" onClick={() => handleSelect(attempt.id)}>
                 {selectedAttemptId === attempt.id ? "選択中" : "確認する"}
               </button>
             </div>
@@ -561,7 +615,7 @@ function InstructorView({ instructorName }: { instructorName: string }) {
         ))}
       </ul>
 
-      {selectedAttempt && selectedCase ? (
+      {selectedAttempt ? (
         <div className="knowledge-review-record-version">
           <h4>回答内容</h4>
           <p className="soap-draft-text">
@@ -577,35 +631,47 @@ function InstructorView({ instructorName }: { instructorName: string }) {
             支援方針: {selectedAttempt.answers.supportPlanText}
           </p>
 
-          {feedback ? (
-            <FeedbackPanel exerciseCase={selectedCase} feedback={feedback} />
-          ) : null}
-
-          <div className="knowledge-review-comment-form">
-            <h5>指導者コメント</h5>
-            <ul className="knowledge-review-comment-list">
-              {comments.map((comment) => (
-                <li key={comment.id} className="knowledge-review-comment">
-                  <div className="knowledge-review-comment-header">
-                    <span>{comment.instructorName}</span>
-                  </div>
-                  <p className="soap-draft-text">{comment.body}</p>
-                </li>
-              ))}
-            </ul>
-            <textarea
-              placeholder="補足コメントを入力してください"
-              value={commentBody}
-              onChange={(event) => setCommentBody(event.target.value)}
+          {selectedAttempt.feedback ? (
+            <FeedbackPanel
+              exerciseCase={selectedAttempt.exerciseCase}
+              feedback={selectedAttempt.feedback}
             />
-            <button
-              type="button"
-              disabled={!commentBody.trim()}
-              onClick={() => void handleAddComment()}
-            >
-              追加
-            </button>
-          </div>
+          ) : (
+            <p className="workbench-main-description">
+              フィードバックはまだ生成されていません。
+            </p>
+          )}
+
+          {selectedAttempt.feedback ? (
+            <div className="knowledge-review-comment-form">
+              <h5>指導者コメント</h5>
+              <ul className="knowledge-review-comment-list">
+                {selectedAttempt.feedback.instructorComments.map((comment) => (
+                  <li key={comment.id} className="knowledge-review-comment">
+                    <div className="knowledge-review-comment-header">
+                      <span>{comment.instructorName}</span>
+                    </div>
+                    <p className="soap-draft-text">{comment.body}</p>
+                  </li>
+                ))}
+              </ul>
+              <textarea
+                placeholder="補足コメントを入力してください"
+                value={commentBody}
+                onChange={(event) => setCommentBody(event.target.value)}
+              />
+              {commentError ? (
+                <p className="soap-draft-error">{commentError}</p>
+              ) : null}
+              <button
+                type="button"
+                disabled={!commentBody.trim()}
+                onClick={() => void handleAddComment()}
+              >
+                追加
+              </button>
+            </div>
+          ) : null}
         </div>
       ) : null}
     </section>

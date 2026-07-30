@@ -7,6 +7,9 @@
  */
 
 import { handleDevInfoRequest } from "../application/handle-dev-info-request.ts";
+import { handleExerciseAttemptRequest } from "../application/handle-exercise-attempt-request.ts";
+import { handleExerciseCaseRequest } from "../application/handle-exercise-case-request.ts";
+import { handleInstructorCommentRequest } from "../application/handle-instructor-comment-request.ts";
 import {
   handleKnowledgeBaseDetailRequest,
   type KnowledgeBaseDetailProvider,
@@ -35,6 +38,21 @@ import type { RuntimePayload } from "../contracts/runtime.ts";
 import { authContextFromJwtClaims } from "../domain/auth.ts";
 import { listAgentCoreSessions } from "../infra/agentcore-sessions-client.ts";
 import { buildDevInfo } from "../infra/dev-info.ts";
+import {
+  attachFeedback,
+  getAttemptById,
+  listAttemptsForTrainee,
+  listInstructorQueue,
+  markAttemptSubmitted,
+  revealFollowup,
+  saveDraftAnswers,
+  startAttempt,
+} from "../infra/exercise-attempt-store.ts";
+import {
+  getExerciseCaseById,
+  listExerciseCases,
+} from "../infra/exercise-case-store.ts";
+import { postInstructorComment } from "../infra/exercise-instructor-comment-store.ts";
 import { makeKnowledgeBaseDetailProvider } from "../infra/knowledge-base-detail.ts";
 import {
   createMaterialCandidateFromComments,
@@ -179,11 +197,15 @@ export function resolveBffDevConfig(
   };
 }
 
+/** Bun 既定の HTTP idleTimeout（10秒）は AgentCore への LLM 生成 forward に足りないため延ばす。 */
+const IDLE_TIMEOUT_SECONDS = 60;
+
 /** `BffDevConfig` に従って local BFF dev server を起動する。 */
 export function startBffDevServer(config = resolveBffDevConfig()) {
   const server = Bun.serve({
     fetch: (request) => handleBffDevRequest(request, config),
     hostname: config.host,
+    idleTimeout: IDLE_TIMEOUT_SECONDS,
     port: config.port,
   });
 
@@ -332,6 +354,113 @@ export async function handleBffDevRequest(
         invokeRuntime: (_runtimeSessionId, payload) =>
           invokeLocalRuntime(config, payload, fetchFn),
         logError: (message, detail) => console.error(message, detail),
+      },
+    );
+
+    return responseFromBff(bffResponse);
+  }
+
+  if (
+    url.pathname === "/api/exercise-cases" ||
+    url.pathname.startsWith("/api/exercise-cases/")
+  ) {
+    const storeConfig = {
+      clusterArn: config.trainingDataClusterArn ?? "",
+      database: config.trainingDataDatabaseName ?? "",
+      region: config.region,
+      secretArn: config.trainingDataSecretArn ?? "",
+    };
+
+    const bffResponse = await handleExerciseCaseRequest(
+      {
+        body,
+        method: request.method,
+        path: url.pathname,
+        query: queryFromUrl(url),
+      },
+      {
+        authContext: authContextForConfig(config),
+        getCaseById: (id) => getExerciseCaseById(storeConfig, id),
+        listCases: (filters) => listExerciseCases(storeConfig, filters),
+        logError: (message, detail) => console.error(message, detail),
+        trainingDataConfigured: Boolean(
+          config.trainingDataClusterArn &&
+            config.trainingDataDatabaseName &&
+            config.trainingDataSecretArn,
+        ),
+      },
+    );
+
+    return responseFromBff(bffResponse);
+  }
+
+  if (
+    url.pathname === "/api/exercise-attempts" ||
+    url.pathname.startsWith("/api/exercise-attempts/")
+  ) {
+    const storeConfig = {
+      clusterArn: config.trainingDataClusterArn ?? "",
+      database: config.trainingDataDatabaseName ?? "",
+      region: config.region,
+      secretArn: config.trainingDataSecretArn ?? "",
+    };
+
+    const bffResponse = await handleExerciseAttemptRequest(
+      {
+        body,
+        method: request.method,
+        path: url.pathname,
+        query: queryFromUrl(url),
+      },
+      {
+        attachFeedback: (input) => attachFeedback(storeConfig, input),
+        authContext: authContextForConfig(config),
+        getAttemptById: (id) => getAttemptById(storeConfig, id),
+        invokeRuntime: (_runtimeSessionId, payload) =>
+          invokeLocalRuntime(config, payload, fetchFn),
+        listAttemptsForTrainee: (traineeId) =>
+          listAttemptsForTrainee(storeConfig, traineeId),
+        listInstructorQueue: () => listInstructorQueue(storeConfig),
+        logError: (message, detail) => console.error(message, detail),
+        markAttemptSubmitted: (input) =>
+          markAttemptSubmitted(storeConfig, input),
+        revealFollowup: (input) => revealFollowup(storeConfig, input),
+        saveDraftAnswers: (input) => saveDraftAnswers(storeConfig, input),
+        startAttempt: (input) => startAttempt(storeConfig, input),
+        trainingDataConfigured: Boolean(
+          config.trainingDataClusterArn &&
+            config.trainingDataDatabaseName &&
+            config.trainingDataSecretArn,
+        ),
+      },
+    );
+
+    return responseFromBff(bffResponse);
+  }
+
+  if (url.pathname === "/api/instructor-comments") {
+    const storeConfig = {
+      clusterArn: config.trainingDataClusterArn ?? "",
+      database: config.trainingDataDatabaseName ?? "",
+      region: config.region,
+      secretArn: config.trainingDataSecretArn ?? "",
+    };
+
+    const bffResponse = await handleInstructorCommentRequest(
+      {
+        body,
+        method: request.method,
+        path: url.pathname,
+      },
+      {
+        authContext: authContextForConfig(config),
+        logError: (message, detail) => console.error(message, detail),
+        postComment: (input) => postInstructorComment(storeConfig, input),
+        trainingDataConfigured: Boolean(
+          config.trainingDataClusterArn &&
+            config.trainingDataDatabaseName &&
+            config.trainingDataSecretArn,
+        ),
       },
     );
 

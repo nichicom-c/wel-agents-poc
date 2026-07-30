@@ -11,6 +11,7 @@
  */
 
 import type { RuntimeRequest, RuntimeResponse } from "../contracts/runtime.ts";
+import { isExerciseFeedbackRequest } from "../domain/exercise-feedback.ts";
 import {
   composeMessage,
   getActorId,
@@ -21,6 +22,10 @@ import { isSoapDraftRequest } from "../domain/soap-draft.ts";
 import { isSoapGapsRequest } from "../domain/soap-gaps.ts";
 import { type Config, configFromEnv, missingConfig } from "../infra/config.ts";
 import { ConversationMemory, type MemoryStore } from "../infra/memory.ts";
+import {
+  buildExerciseFeedbackResponse,
+  type ExerciseFeedbackDeps,
+} from "./build-exercise-feedback-response.ts";
 import {
   buildSoapDraftResponse,
   type SoapDraftDeps,
@@ -45,7 +50,8 @@ export type RuntimeDeps = {
   /** best-effort 失敗時の警告出力（省略時は console.warn）。 */
   warn?: (message: string) => void;
 } & SoapDraftDeps &
-  SoapGapsDeps;
+  SoapGapsDeps &
+  ExerciseFeedbackDeps;
 
 /** 必須設定が欠けているときに返すエラー応答。 */
 export function configError(missing: string[]): RuntimeResponse {
@@ -72,7 +78,9 @@ function defaultSupervisorRunner(config: Config): SupervisorRunner {
  *
  * `payload.type === "soap_draft"` のときは chat（supervisor）を経由せず
  * {@link buildSoapDraftResponse} に、`payload.type === "soap_gaps"` のときは
- * {@link buildSoapGapsResponse} に委譲する。それ以外（省略含む）は従来どおり chat として扱う。
+ * {@link buildSoapGapsResponse} に、`payload.type === "exercise_feedback"` のときは
+ * {@link buildExerciseFeedbackResponse} に委譲する。それ以外（省略含む）は従来どおり chat
+ * として扱う。
  *
  * chat の流れ: 設定解決 → 必須チェック → 直近履歴取得（best-effort）→ supervisor 実行 →
  * 今回ターンの保存（best-effort）→ 応答整形。
@@ -86,6 +94,9 @@ export async function buildResponse(
   }
   if (isSoapGapsRequest(payload)) {
     return buildSoapGapsResponse(payload, deps);
+  }
+  if (isExerciseFeedbackRequest(payload)) {
+    return buildExerciseFeedbackResponse(payload, deps);
   }
 
   const config = deps.config ?? configFromEnv();

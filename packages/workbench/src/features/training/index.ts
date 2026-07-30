@@ -1,13 +1,9 @@
 export {
-  getExerciseCaseById,
-  getFeedbackForAttempt,
   listAttemptsForTrainee,
   listExerciseCases,
-  listInstructorComments,
   listInstructorQueue,
   postInstructorComment,
   revealFollowup,
-  type SubmitAttemptResult,
   saveDraftAnswers,
   startAttempt,
   submitAttemptAndGenerateFeedback,
@@ -16,7 +12,6 @@ export type {
   ExerciseAttempt,
   ExerciseAttemptAnswers,
   ExerciseAttemptStatus,
-  NewExerciseAttemptInput,
 } from "./model/exercise-attempts.ts";
 export {
   EXERCISE_ATTEMPT_STATUSES,
