@@ -1,7 +1,11 @@
+export type {
+  DecideMaterialCandidateStatusOptions,
+  NewMaterialCandidateInput,
+  NewProfessionalCommentInput,
+} from "./api/knowledge-review.ts";
 export {
   createCandidateFromComments,
   decideCandidateStatus,
-  getCommentById,
   listCommentsForVersion,
   listMaterialCandidates,
   listSoapRecords,
@@ -9,16 +13,13 @@ export {
   postComment,
 } from "./api/knowledge-review.ts";
 export type {
-  DecideMaterialCandidateStatusOptions,
   MaterialCandidate,
   MaterialCandidateFilters,
   MaterialCandidateStatus,
   MaterialCandidateStatusEvent,
-  NewMaterialCandidateInput,
   RejectionReasonCode,
 } from "./model/material-candidates.ts";
 export {
-  filterMaterialCandidates,
   MATERIAL_CANDIDATE_STATUSES,
   materialCandidateStatusLabel,
   REJECTION_REASON_CODES,
@@ -26,7 +27,6 @@ export {
 } from "./model/material-candidates.ts";
 export type {
   CommentType,
-  NewProfessionalCommentInput,
   ProfessionalComment,
 } from "./model/professional-comments.ts";
 export {

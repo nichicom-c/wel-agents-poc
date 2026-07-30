@@ -12,6 +12,8 @@ import {
   handleKnowledgeBaseDetailRequest,
   type KnowledgeBaseDetailProvider,
 } from "../application/handle-knowledge-base-detail-request.ts";
+import { handleMaterialCandidateRequest } from "../application/handle-material-candidate-request.ts";
+import { handleProfessionalCommentRequest } from "../application/handle-professional-comment-request.ts";
 import { handleBffRequest } from "../application/handle-request.ts";
 import {
   handleSessionsRequest,
@@ -47,6 +49,15 @@ import {
   type EnvSource,
   type LambdaConfig,
 } from "../infra/lambda-config.ts";
+import {
+  createMaterialCandidateFromComments,
+  decideMaterialCandidateStatus,
+  listMaterialCandidates,
+} from "../infra/material-candidate-store.ts";
+import {
+  createProfessionalComment,
+  listCommentsForVersion,
+} from "../infra/professional-comment-store.ts";
 import {
   createSoapRecordVersion,
   listSoapRecords,
@@ -279,6 +290,35 @@ export async function handleLambdaEvent(
     );
   }
 
+  if (path === "/api/professional-comments") {
+    return handleProfessionalCommentRequest(
+      {
+        body: event.body,
+        isBase64Encoded: event.isBase64Encoded,
+        method,
+        path,
+        query: event.queryStringParameters ?? undefined,
+      },
+      professionalCommentOptions(config, event, deps),
+    );
+  }
+
+  if (
+    path === "/api/material-candidates" ||
+    path.startsWith("/api/material-candidates/")
+  ) {
+    return handleMaterialCandidateRequest(
+      {
+        body: event.body,
+        isBase64Encoded: event.isBase64Encoded,
+        method,
+        path,
+        query: event.queryStringParameters ?? undefined,
+      },
+      materialCandidateOptions(config, event, deps),
+    );
+  }
+
   if (
     path === "/api/voice-recordings" ||
     path.startsWith("/api/voice-recordings/")
@@ -359,6 +399,63 @@ function soapRecordOptions(
     createRecordVersion: (input) => createSoapRecordVersion(storeConfig, input),
     listRecords: () => listSoapRecords(storeConfig),
     listVersions: (input) => listSoapRecordVersions(storeConfig, input),
+    logError:
+      deps.logError ?? ((message, detail) => console.error(message, detail)),
+    trainingDataConfigured: Boolean(
+      config.trainingDataClusterArn &&
+        config.trainingDataDatabaseName &&
+        config.trainingDataSecretArn,
+    ),
+  };
+}
+
+/** 専門職コメント handler が使う options を組み立てる。3つとも未設定なら handler 側が 503 を返す。 */
+function professionalCommentOptions(
+  config: LambdaConfig,
+  event: LambdaEvent,
+  deps: LambdaHandlerDeps,
+): Parameters<typeof handleProfessionalCommentRequest>[1] {
+  const storeConfig = {
+    clusterArn: config.trainingDataClusterArn ?? "",
+    database: config.trainingDataDatabaseName ?? "",
+    region: config.region,
+    secretArn: config.trainingDataSecretArn ?? "",
+  };
+
+  return {
+    authContext: authContextForEvent(event, config),
+    createComment: (input) => createProfessionalComment(storeConfig, input),
+    listCommentsForVersion: (input) =>
+      listCommentsForVersion(storeConfig, input),
+    logError:
+      deps.logError ?? ((message, detail) => console.error(message, detail)),
+    trainingDataConfigured: Boolean(
+      config.trainingDataClusterArn &&
+        config.trainingDataDatabaseName &&
+        config.trainingDataSecretArn,
+    ),
+  };
+}
+
+/** 教材候補 handler が使う options を組み立てる。3つとも未設定なら handler 側が 503 を返す。 */
+function materialCandidateOptions(
+  config: LambdaConfig,
+  event: LambdaEvent,
+  deps: LambdaHandlerDeps,
+): Parameters<typeof handleMaterialCandidateRequest>[1] {
+  const storeConfig = {
+    clusterArn: config.trainingDataClusterArn ?? "",
+    database: config.trainingDataDatabaseName ?? "",
+    region: config.region,
+    secretArn: config.trainingDataSecretArn ?? "",
+  };
+
+  return {
+    authContext: authContextForEvent(event, config),
+    createCandidate: (input) =>
+      createMaterialCandidateFromComments(storeConfig, input),
+    decideStatus: (input) => decideMaterialCandidateStatus(storeConfig, input),
+    listCandidates: (filters) => listMaterialCandidates(storeConfig, filters),
     logError:
       deps.logError ?? ((message, detail) => console.error(message, detail)),
     trainingDataConfigured: Boolean(

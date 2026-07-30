@@ -31,6 +31,14 @@ export function buildWorkbenchViteConfig(
   config = resolveWorkbenchDevConfig(),
 ): UserConfig {
   const proxy = {
+    "/api/material-candidates": {
+      changeOrigin: true,
+      target: config.bffUrl,
+    },
+    "/api/professional-comments": {
+      changeOrigin: true,
+      target: config.bffUrl,
+    },
     "/api/soap-draft": {
       changeOrigin: true,
       target: config.bffUrl,

@@ -1,5 +1,5 @@
 import type { SoapRecordType } from "../../soap-draft/index.ts";
-import { createId } from "./create-id.ts";
+import type { ProfessionalComment } from "./professional-comments.ts";
 
 /** issue #8 の Acceptance Criteria が定義する教材候補の状態。 */
 export const MATERIAL_CANDIDATE_STATUSES = [
@@ -11,6 +11,15 @@ export const MATERIAL_CANDIDATE_STATUSES = [
 
 export type MaterialCandidateStatus =
   (typeof MATERIAL_CANDIDATE_STATUSES)[number];
+
+export function isMaterialCandidateStatus(
+  value: unknown,
+): value is MaterialCandidateStatus {
+  return (
+    typeof value === "string" &&
+    (MATERIAL_CANDIDATE_STATUSES as readonly string[]).includes(value)
+  );
+}
 
 const STATUS_LABELS: Record<MaterialCandidateStatus, string> = {
   candidate: "候補",
@@ -39,6 +48,15 @@ export const REJECTION_REASON_CODES = [
 
 export type RejectionReasonCode = (typeof REJECTION_REASON_CODES)[number];
 
+export function isRejectionReasonCode(
+  value: unknown,
+): value is RejectionReasonCode {
+  return (
+    typeof value === "string" &&
+    (REJECTION_REASON_CODES as readonly string[]).includes(value)
+  );
+}
+
 const REJECTION_REASON_LABELS: Record<RejectionReasonCode, string> = {
   insufficient_generality: "汎用性が低い",
   personal_identifiable_info: "個人が特定できる情報を含む",
@@ -55,22 +73,27 @@ export type MaterialCandidateStatusEvent = {
   fromStatus: MaterialCandidateStatus | null;
   toStatus: MaterialCandidateStatus;
   changedBy: string;
-  reasonCode?: RejectionReasonCode;
+  changedByRole: string;
   reasonText?: string;
   changedAt: string;
 };
 
+/**
+ * 教材候補。BFF `/api/material-candidates`（Aurora Serverless v2 + RDS Data API）から取得する
+ * （`docs/notes/2026-07-30-training-materials-db-schema-and-aws-infra.md` 参照）。紐づく専門職
+ * コメントと状態履歴は一覧取得時に埋め込まれるため、「詳細」展開に追加 fetch は不要。
+ */
 export type MaterialCandidate = {
   id: string;
   title: string;
   summary: string;
   status: MaterialCandidateStatus;
-  specialtyId: string;
-  recordType: SoapRecordType;
-  learningThemeId: string;
-  difficultyId: string;
+  specialtyId?: string;
+  recordType?: SoapRecordType;
+  learningThemeId?: string;
+  difficultyId?: string;
   /** 教材候補化の元になった専門職コメント（1件以上、複数コメントを束ねられる）。 */
-  commentIds: string[];
+  comments: ProfessionalComment[];
   rejectionReasonCode?: RejectionReasonCode;
   createdBy: string;
   createdAt: string;
@@ -84,98 +107,3 @@ export type MaterialCandidateFilters = {
   difficultyId?: string;
   status?: MaterialCandidateStatus;
 };
-
-/** 分野・記録種別・学習テーマ・難易度・状態で検索する（issue #8 の Acceptance Criteria）。 */
-export function filterMaterialCandidates(
-  candidates: readonly MaterialCandidate[],
-  filters: MaterialCandidateFilters,
-): MaterialCandidate[] {
-  return candidates.filter(
-    (candidate) =>
-      (!filters.specialtyId || candidate.specialtyId === filters.specialtyId) &&
-      (!filters.recordType || candidate.recordType === filters.recordType) &&
-      (!filters.learningThemeId ||
-        candidate.learningThemeId === filters.learningThemeId) &&
-      (!filters.difficultyId ||
-        candidate.difficultyId === filters.difficultyId) &&
-      (!filters.status || candidate.status === filters.status),
-  );
-}
-
-export type DecideMaterialCandidateStatusOptions = {
-  reasonCode?: RejectionReasonCode;
-  reasonText?: string;
-};
-
-/** 承認/却下/要修正の状態遷移を記録し、`statusHistory` に承認 gate の経緯を積む。 */
-export function decideMaterialCandidateStatus(
-  candidates: readonly MaterialCandidate[],
-  id: string,
-  nextStatus: MaterialCandidateStatus,
-  changedBy: string,
-  options: DecideMaterialCandidateStatusOptions = {},
-): MaterialCandidate[] {
-  return candidates.map((candidate) => {
-    if (candidate.id !== id) {
-      return candidate;
-    }
-    const event: MaterialCandidateStatusEvent = {
-      changedAt: new Date().toISOString(),
-      changedBy,
-      fromStatus: candidate.status,
-      reasonCode: options.reasonCode,
-      reasonText: options.reasonText,
-      toStatus: nextStatus,
-    };
-    return {
-      ...candidate,
-      rejectionReasonCode:
-        nextStatus === "rejected"
-          ? options.reasonCode
-          : candidate.rejectionReasonCode,
-      status: nextStatus,
-      statusHistory: [...candidate.statusHistory, event],
-    };
-  });
-}
-
-export type NewMaterialCandidateInput = {
-  title: string;
-  summary: string;
-  specialtyId: string;
-  recordType: SoapRecordType;
-  learningThemeId: string;
-  difficultyId: string;
-  commentIds: string[];
-  createdBy: string;
-};
-
-/** 選択した専門職コメントを束ねて新しい教材候補（status: candidate）を作る。 */
-export function createMaterialCandidateFromComments(
-  candidates: readonly MaterialCandidate[],
-  input: NewMaterialCandidateInput,
-): MaterialCandidate[] {
-  const createdAt = new Date().toISOString();
-  const created: MaterialCandidate = {
-    commentIds: input.commentIds,
-    createdAt,
-    createdBy: input.createdBy,
-    difficultyId: input.difficultyId,
-    id: createId("candidate"),
-    learningThemeId: input.learningThemeId,
-    recordType: input.recordType,
-    specialtyId: input.specialtyId,
-    status: "candidate",
-    statusHistory: [
-      {
-        changedAt: createdAt,
-        changedBy: input.createdBy,
-        fromStatus: null,
-        toStatus: "candidate",
-      },
-    ],
-    summary: input.summary,
-    title: input.title,
-  };
-  return [...candidates, created];
-}

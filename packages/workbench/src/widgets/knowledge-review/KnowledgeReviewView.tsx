@@ -10,7 +10,6 @@ import {
   createCandidateFromComments,
   DIFFICULTY_LEVELS,
   decideCandidateStatus,
-  getCommentById,
   KNOWLEDGE_REVIEW_ROLES,
   type KnowledgeReviewRole,
   knowledgeReviewRoleLabel,
@@ -50,8 +49,11 @@ const CATEGORY_LABELS: Record<SoapCategory, string> = {
   UNCLASSIFIED: "該当なし",
 };
 
-/** dummy データ段階では認証が無いため、role をそのまま投稿者名の代わりに使う。 */
-const DUMMY_AUTHOR_NAMES: Record<KnowledgeReviewRole, string> = {
+/**
+ * 承認者ロールの範囲は issue #8 の Open Question のため、実際の RBAC ではなくこの demo 用
+ * role をそのまま `authorRoleAtPost` / `changedByRole`（自由記述）として DB に記録する。
+ */
+const DEMO_ROLE_LABELS: Record<KnowledgeReviewRole, string> = {
   admin: "管理者（デモ）",
   guest: "未選択",
   nurse: "専門職（デモ）",
@@ -65,14 +67,13 @@ export function KnowledgeReviewView() {
   const canView = canViewKnowledgeReview(role);
   const canPost = canPostComment(role);
   const canDecide = canDecideCandidateStatus(role);
-  const authorName = DUMMY_AUTHOR_NAMES[role];
+  const authorName = DEMO_ROLE_LABELS[role];
 
   return (
     <>
       <h2>Knowledge Review</h2>
       <p className="workbench-main-description">
-        専門職コメントからノウハウと教材候補を蓄積する作業画面（issue #8・dummy
-        データ）
+        専門職コメントからノウハウと教材候補を蓄積する作業画面（issue #8）
       </p>
 
       <fieldset className="knowledge-review-role-select">
@@ -313,12 +314,26 @@ function CandidateTab({ authorName, canDecide }: CandidateTabProps) {
             </div>
             <p className="soap-draft-text">{candidate.summary}</p>
             <div className="knowledge-review-tag-row">
-              <span>{tagLabel(SPECIALTIES, candidate.specialtyId)}</span>
-              <span>{soapRecordTypeLabel(candidate.recordType)}</span>
               <span>
-                {tagLabel(LEARNING_THEMES, candidate.learningThemeId)}
+                {candidate.specialtyId
+                  ? tagLabel(SPECIALTIES, candidate.specialtyId)
+                  : "未設定"}
               </span>
-              <span>{tagLabel(DIFFICULTY_LEVELS, candidate.difficultyId)}</span>
+              <span>
+                {candidate.recordType
+                  ? soapRecordTypeLabel(candidate.recordType)
+                  : "未設定"}
+              </span>
+              <span>
+                {candidate.learningThemeId
+                  ? tagLabel(LEARNING_THEMES, candidate.learningThemeId)
+                  : "未設定"}
+              </span>
+              <span>
+                {candidate.difficultyId
+                  ? tagLabel(DIFFICULTY_LEVELS, candidate.difficultyId)
+                  : "未設定"}
+              </span>
             </div>
             <div className="soap-draft-candidate-actions">
               <button
@@ -337,37 +352,21 @@ function CandidateTab({ authorName, canDecide }: CandidateTabProps) {
             {selectedId === candidate.id ? (
               <div className="knowledge-review-candidate-detail">
                 <h5>紐づく専門職コメント</h5>
-                {candidate.commentIds.length === 0 ? (
+                {candidate.comments.length === 0 ? (
                   <p className="workbench-main-description">
                     紐づくコメントはありません。
                   </p>
                 ) : (
                   <ul className="knowledge-review-comment-list">
-                    {candidate.commentIds.map((commentId) => {
-                      const comment = getCommentById(commentId);
-                      return (
-                        <li
-                          key={commentId}
-                          className="knowledge-review-comment"
-                        >
-                          {comment ? (
-                            <>
-                              <div className="knowledge-review-comment-header">
-                                <span>
-                                  {commentTypeLabel(comment.commentType)}
-                                </span>
-                                <span>{comment.authorName}</span>
-                              </div>
-                              <p className="soap-draft-text">{comment.body}</p>
-                            </>
-                          ) : (
-                            <p className="workbench-main-description">
-                              コメントが見つかりません（id: {commentId}）。
-                            </p>
-                          )}
-                        </li>
-                      );
-                    })}
+                    {candidate.comments.map((comment) => (
+                      <li key={comment.id} className="knowledge-review-comment">
+                        <div className="knowledge-review-comment-header">
+                          <span>{commentTypeLabel(comment.commentType)}</span>
+                          <span>{comment.authorName}</span>
+                        </div>
+                        <p className="soap-draft-text">{comment.body}</p>
+                      </li>
+                    ))}
                   </ul>
                 )}
 
@@ -376,7 +375,7 @@ function CandidateTab({ authorName, canDecide }: CandidateTabProps) {
                   {candidate.statusHistory.map((event) => (
                     <li key={`${event.toStatus}:${event.changedAt}`}>
                       {materialCandidateStatusLabel(event.toStatus)} —{" "}
-                      {event.changedBy}
+                      {event.changedByRole}
                       {event.reasonText ? `（${event.reasonText}）` : ""}
                     </li>
                   ))}
@@ -572,8 +571,7 @@ function RecordTab({ authorName, canPost }: RecordTabProps) {
       return;
     }
     await postComment({
-      authorName,
-      authorRole: authorName,
+      authorRoleAtPost: authorName,
       body: newCommentBody.trim(),
       commentType: newCommentType,
       targetRecordId: selectedRecordId,
@@ -603,7 +601,7 @@ function RecordTab({ authorName, canPost }: RecordTabProps) {
     }
     await createCandidateFromComments({
       commentIds: selectedCommentIds,
-      createdBy: authorName,
+      createdByRole: authorName,
       difficultyId: createDifficultyId,
       learningThemeId: createLearningThemeId,
       recordType: record.recordType,

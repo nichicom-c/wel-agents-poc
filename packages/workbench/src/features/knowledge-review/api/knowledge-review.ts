@@ -1,18 +1,19 @@
-import { isSoapRecordType, SOAP_CATEGORIES } from "../../soap-draft/index.ts";
 import {
-  createMaterialCandidateFromComments,
-  type DecideMaterialCandidateStatusOptions,
-  decideMaterialCandidateStatus,
-  filterMaterialCandidates,
+  isSoapRecordType,
+  SOAP_CATEGORIES,
+  type SoapRecordType,
+} from "../../soap-draft/index.ts";
+import {
+  isMaterialCandidateStatus,
+  isRejectionReasonCode,
   type MaterialCandidate,
   type MaterialCandidateFilters,
   type MaterialCandidateStatus,
-  type NewMaterialCandidateInput,
+  type MaterialCandidateStatusEvent,
 } from "../model/material-candidates.ts";
 import {
-  createComment,
-  filterCommentsByVersion,
-  type NewProfessionalCommentInput,
+  type CommentType,
+  isCommentType,
   type ProfessionalComment,
 } from "../model/professional-comments.ts";
 import type {
@@ -22,210 +23,177 @@ import type {
 } from "../model/soap-records.ts";
 
 /**
- * BFF `/api/material-candidates` 等（`docs/notes/2026-07-30-training-materials-db-schema-and-aws-infra.md`
- * の AWS インフラ提案を参照）はまだ存在しないため、issue #8 の UI を dummy データで先行実装する。
- * module 内の変数を DB の代わりに使い、関数の入出力（Promise を返す非同期関数）だけは将来の
- * 実 API 呼び出しに置き換えやすい形にしておく。ブラウザを再読み込みすると内容はリセットされる。
- *
- * ただし SOAP 正式記録・編集履歴（`soap_records` / `soap_record_versions`）だけは、SOAP Studio の
- * 「正式記録として保存」から BFF `/api/soap-records*`（Aurora Serverless v2 + RDS Data API）を
- * 実際に呼ぶようになったため、この2つだけ dummy データではなく下の `listSoapRecords` /
- * `listVersionsForRecord` で実 API を呼ぶ（コメント・教材候補は引き続き dummy）。そのため、下の
- * `DUMMY_COMMENTS` が参照する `targetRecordId` / `targetRecordVersionId`（"record-1" 等）は
- * 実際の記録には対応しない、issue #8 の UI 単体確認用の値のまま残る。
+ * BFF `/api/material-candidates` / `/api/professional-comments` / `/api/soap-records*`
+ * （Aurora Serverless v2 + RDS Data API、issue #8。
+ * `docs/notes/2026-07-30-training-materials-db-schema-and-aws-infra.md` 参照）を呼ぶ。
  */
 
-const DUMMY_COMMENTS: ProfessionalComment[] = [
-  createComment({
-    authorName: "鈴木 reviewer",
-    authorRole: "reviewer",
-    body:
-      "パートナーの育児参加状況を確認する視点は良い。次回訪問前に確認項目リストへ入れておくと" +
-      "他のケースでも再利用できる。",
-    commentType: "review",
-    soapCategory: "P",
-    targetRecordId: "record-1",
-    targetRecordVersionId: "record-1-v2",
-  }),
-  createComment({
-    authorName: "鈴木 reviewer",
-    authorRole: "reviewer",
-    body:
-      "v1 では『疲労蓄積のリスク』止まりだったが、v2 でパートナーの育児参加という具体的な" +
-      "追加確認事項が入ったことで支援方針が一段具体化した。この「A の後にもう一段掘る」思考経路は" +
-      "新人向けの教材になりそう。",
-    commentType: "case_study",
-    soapCategory: "A",
-    targetRecordId: "record-1",
-    targetRecordVersionId: "record-1-v2",
-  }),
-  createComment({
-    authorName: "高橋 nurse",
-    authorRole: "nurse",
-    body:
-      "屋外歩行時のふらつきという O の記載から、社会的孤立という A に飛ぶ論理を、次回は" +
-      "「外出頻度の変化」のような中間の O も併記すると根拠が伝わりやすい。",
-    commentType: "instruction_note",
-    soapCategory: "A",
-    targetRecordId: "record-2",
-    targetRecordVersionId: "record-2-v1",
-  }),
-];
-
-let candidates: MaterialCandidate[] = [
-  {
-    commentIds: [DUMMY_COMMENTS[1]?.id ?? ""],
-    createdAt: "2026-07-19T10:00:00.000Z",
-    createdBy: "鈴木 reviewer",
-    difficultyId: "intermediate",
-    id: "candidate-1",
-    learningThemeId: "support-planning",
-    recordType: "support_activity",
-    specialtyId: "maternal-child",
-    status: "candidate",
-    statusHistory: [
-      {
-        changedAt: "2026-07-19T10:00:00.000Z",
-        changedBy: "鈴木 reviewer",
-        fromStatus: null,
-        toStatus: "candidate",
-      },
-    ],
-    summary:
-      "アセスメントで一段掘り下げて追加確認事項を具体化し、支援方針を精緻化する思考経路の例。",
-    title: "「疲労蓄積」から一段掘り下げるアセスメントの型",
-  },
-  {
-    commentIds: [DUMMY_COMMENTS[2]?.id ?? ""],
-    createdAt: "2026-07-19T10:30:00.000Z",
-    createdBy: "高橋 nurse",
-    difficultyId: "beginner",
-    id: "candidate-2",
-    learningThemeId: "documentation",
-    recordType: "general_record",
-    specialtyId: "elderly-care",
-    status: "approved",
-    statusHistory: [
-      {
-        changedAt: "2026-07-19T10:30:00.000Z",
-        changedBy: "高橋 nurse",
-        fromStatus: null,
-        toStatus: "candidate",
-      },
-      {
-        changedAt: "2026-07-20T09:00:00.000Z",
-        changedBy: "鈴木 reviewer",
-        fromStatus: "candidate",
-        toStatus: "approved",
-      },
-    ],
-    summary:
-      "O と A の間に中間の観察事項を挟むことで根拠を伝わりやすくする記録表現の例。",
-    title: "O から A への飛躍を防ぐ中間観察の書き方",
-  },
-  {
-    commentIds: [],
-    createdAt: "2026-07-15T09:00:00.000Z",
-    createdBy: "田中 professional",
-    difficultyId: "beginner",
-    id: "candidate-3",
-    learningThemeId: "assessment-basics",
-    recordType: "meeting",
-    specialtyId: "public-health",
-    status: "rejected",
-    rejectionReasonCode: "personal_identifiable_info",
-    statusHistory: [
-      {
-        changedAt: "2026-07-15T09:00:00.000Z",
-        changedBy: "田中 professional",
-        fromStatus: null,
-        toStatus: "candidate",
-      },
-      {
-        changedAt: "2026-07-16T09:00:00.000Z",
-        changedBy: "鈴木 reviewer",
-        fromStatus: "candidate",
-        reasonCode: "personal_identifiable_info",
-        reasonText:
-          "会議メモに世帯名がそのまま残っていたため。匿名化して再提出を検討。",
-        toStatus: "rejected",
-      },
-    ],
-    summary: "会議記録から抽出した支援方針決定の経緯（要匿名化）。",
-    title: "多職種会議での方針転換プロセス",
-  },
-  {
-    commentIds: [],
-    createdAt: "2026-07-22T13:00:00.000Z",
-    createdBy: "佐藤 professional",
-    difficultyId: "advanced",
-    id: "candidate-4",
-    learningThemeId: "risk-detection",
-    recordType: "summary",
-    specialtyId: "mental-health",
-    status: "needs_revision",
-    statusHistory: [
-      {
-        changedAt: "2026-07-22T13:00:00.000Z",
-        changedBy: "佐藤 professional",
-        fromStatus: null,
-        toStatus: "candidate",
-      },
-      {
-        changedAt: "2026-07-23T09:00:00.000Z",
-        changedBy: "鈴木 reviewer",
-        fromStatus: "candidate",
-        reasonText:
-          "サマリー1件だけでは判断根拠が弱いため、類似ケースをもう1件追加してほしい。",
-        toStatus: "needs_revision",
-      },
-    ],
-    summary: "リスクの早期発見に繋がったサマリー記録の抜粋。",
-    title: "サマリーからのリスク兆候の読み取り",
-  },
-];
-
-let comments: ProfessionalComment[] = [...DUMMY_COMMENTS];
-
-function delay<T>(value: T): Promise<T> {
-  return Promise.resolve(value);
-}
-
-export async function listMaterialCandidates(
-  filters: MaterialCandidateFilters = {},
-): Promise<MaterialCandidate[]> {
-  return delay(filterMaterialCandidates(candidates, filters));
-}
-
-export async function decideCandidateStatus(
-  id: string,
-  nextStatus: MaterialCandidateStatus,
-  changedBy: string,
-  options: DecideMaterialCandidateStatusOptions = {},
-): Promise<MaterialCandidate[]> {
-  candidates = decideMaterialCandidateStatus(
-    candidates,
-    id,
-    nextStatus,
-    changedBy,
-    options,
-  );
-  return delay(candidates);
-}
-
-export async function createCandidateFromComments(
-  input: NewMaterialCandidateInput,
-): Promise<MaterialCandidate[]> {
-  candidates = createMaterialCandidateFromComments(candidates, input);
-  return delay(candidates);
-}
-
+const MATERIAL_CANDIDATES_ENDPOINT = "/api/material-candidates";
+const PROFESSIONAL_COMMENTS_ENDPOINT = "/api/professional-comments";
 const SOAP_RECORDS_ENDPOINT = "/api/soap-records";
 
 type FetchFn = (
   input: string | URL | Request,
   init?: RequestInit,
 ) => Promise<Response>;
+
+export async function listMaterialCandidates(
+  filters: MaterialCandidateFilters = {},
+  fetchFn: FetchFn = fetch,
+): Promise<MaterialCandidate[]> {
+  const query = new URLSearchParams();
+  if (filters.specialtyId) {
+    query.set("specialtyId", filters.specialtyId);
+  }
+  if (filters.recordType) {
+    query.set("recordType", filters.recordType);
+  }
+  if (filters.learningThemeId) {
+    query.set("learningThemeId", filters.learningThemeId);
+  }
+  if (filters.difficultyId) {
+    query.set("difficultyId", filters.difficultyId);
+  }
+  if (filters.status) {
+    query.set("status", filters.status);
+  }
+  const queryString = query.toString();
+
+  const response = await fetchFn(
+    queryString
+      ? `${MATERIAL_CANDIDATES_ENDPOINT}?${queryString}`
+      : MATERIAL_CANDIDATES_ENDPOINT,
+  );
+  const payload = await readJson(response);
+
+  if (!response.ok) {
+    throw new Error(trimmedText(payload.error) || `HTTP ${response.status}`);
+  }
+
+  return normalizeCandidates(payload.candidates);
+}
+
+export type DecideMaterialCandidateStatusOptions = {
+  reasonCode?: string;
+  reasonText?: string;
+};
+
+/** 承認/却下/要修正の状態遷移を BFF に記録する（承認 gate）。 */
+export async function decideCandidateStatus(
+  id: string,
+  nextStatus: MaterialCandidateStatus,
+  changedByRole: string,
+  options: DecideMaterialCandidateStatusOptions = {},
+  fetchFn: FetchFn = fetch,
+): Promise<MaterialCandidate> {
+  const response = await fetchFn(
+    `${MATERIAL_CANDIDATES_ENDPOINT}/${encodeURIComponent(id)}/status`,
+    {
+      body: JSON.stringify({
+        changedByRole,
+        reasonCode: options.reasonCode,
+        reasonText: options.reasonText,
+        status: nextStatus,
+      }),
+      headers: { "content-type": "application/json" },
+      method: "PATCH",
+    },
+  );
+  const payload = await readJson(response);
+
+  if (!response.ok) {
+    throw new Error(trimmedText(payload.error) || `HTTP ${response.status}`);
+  }
+
+  const candidate = normalizeCandidate(payload);
+  if (!candidate) {
+    throw new Error(
+      "invalid response from /api/material-candidates/:id/status",
+    );
+  }
+  return candidate;
+}
+
+export type NewMaterialCandidateInput = {
+  title: string;
+  summary: string;
+  specialtyId?: string;
+  recordType?: SoapRecordType;
+  learningThemeId?: string;
+  difficultyId?: string;
+  commentIds: string[];
+  createdByRole: string;
+};
+
+/** 選択した専門職コメントを束ねて新しい教材候補（status: candidate）を作る。 */
+export async function createCandidateFromComments(
+  input: NewMaterialCandidateInput,
+  fetchFn: FetchFn = fetch,
+): Promise<MaterialCandidate> {
+  const response = await fetchFn(MATERIAL_CANDIDATES_ENDPOINT, {
+    body: JSON.stringify(input),
+    headers: { "content-type": "application/json" },
+    method: "POST",
+  });
+  const payload = await readJson(response);
+
+  if (!response.ok) {
+    throw new Error(trimmedText(payload.error) || `HTTP ${response.status}`);
+  }
+
+  const candidate = normalizeCandidate(payload);
+  if (!candidate) {
+    throw new Error("invalid response from /api/material-candidates");
+  }
+  return candidate;
+}
+
+export async function listCommentsForVersion(
+  targetRecordVersionId: string,
+  fetchFn: FetchFn = fetch,
+): Promise<ProfessionalComment[]> {
+  const response = await fetchFn(
+    `${PROFESSIONAL_COMMENTS_ENDPOINT}?targetRecordVersionId=${encodeURIComponent(targetRecordVersionId)}`,
+  );
+  const payload = await readJson(response);
+
+  if (!response.ok) {
+    throw new Error(trimmedText(payload.error) || `HTTP ${response.status}`);
+  }
+
+  return normalizeComments(payload.comments);
+}
+
+export type NewProfessionalCommentInput = {
+  targetRecordId: string;
+  targetRecordVersionId: string;
+  soapCategory?: SoapRecordVersionItem["category"];
+  commentType: CommentType;
+  body: string;
+  authorRoleAtPost: string;
+};
+
+export async function postComment(
+  input: NewProfessionalCommentInput,
+  fetchFn: FetchFn = fetch,
+): Promise<ProfessionalComment> {
+  const response = await fetchFn(PROFESSIONAL_COMMENTS_ENDPOINT, {
+    body: JSON.stringify(input),
+    headers: { "content-type": "application/json" },
+    method: "POST",
+  });
+  const payload = await readJson(response);
+
+  if (!response.ok) {
+    throw new Error(trimmedText(payload.error) || `HTTP ${response.status}`);
+  }
+
+  const comment = normalizeComment(payload);
+  if (!comment) {
+    throw new Error("invalid response from /api/professional-comments");
+  }
+  return comment;
+}
 
 /** BFF `/api/soap-records` を呼び、SOAP Studio が保存した正式記録の一覧を取得する。 */
 export async function listSoapRecords(
@@ -275,6 +243,152 @@ function trimmedText(value: unknown): string {
 
 function numberOrZero(value: unknown): number {
   return typeof value === "number" && Number.isFinite(value) ? value : 0;
+}
+
+function normalizeCandidates(value: unknown): MaterialCandidate[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value
+    .map((entry) => normalizeCandidate(asRecord(entry)))
+    .filter(
+      (candidate): candidate is MaterialCandidate => candidate !== undefined,
+    );
+}
+
+function normalizeCandidate(
+  record: Record<string, unknown>,
+): MaterialCandidate | undefined {
+  const id = trimmedText(record.id);
+  const title = trimmedText(record.title);
+  const summary = trimmedText(record.summary);
+  const status = record.status;
+  const createdBy = trimmedText(record.createdBy);
+  const createdAt = trimmedText(record.createdAt);
+
+  if (
+    !id ||
+    !title ||
+    !summary ||
+    !isMaterialCandidateStatus(status) ||
+    !createdBy ||
+    !createdAt
+  ) {
+    return undefined;
+  }
+
+  const rawRecordType = record.recordType;
+  const rawRejectionReasonCode = record.rejectionReasonCode;
+
+  return {
+    comments: normalizeComments(record.comments),
+    createdAt,
+    createdBy,
+    difficultyId: trimmedText(record.difficultyId) || undefined,
+    id,
+    learningThemeId: trimmedText(record.learningThemeId) || undefined,
+    recordType: isSoapRecordType(rawRecordType) ? rawRecordType : undefined,
+    rejectionReasonCode: isRejectionReasonCode(rawRejectionReasonCode)
+      ? rawRejectionReasonCode
+      : undefined,
+    specialtyId: trimmedText(record.specialtyId) || undefined,
+    status,
+    statusHistory: normalizeStatusHistory(record.statusHistory),
+    summary,
+    title,
+  };
+}
+
+function normalizeStatusHistory(
+  value: unknown,
+): MaterialCandidateStatusEvent[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value
+    .map((entry) => normalizeStatusEvent(asRecord(entry)))
+    .filter(
+      (event): event is MaterialCandidateStatusEvent => event !== undefined,
+    );
+}
+
+function normalizeStatusEvent(
+  record: Record<string, unknown>,
+): MaterialCandidateStatusEvent | undefined {
+  const rawFromStatus = record.fromStatus;
+  const toStatus = record.toStatus;
+  const changedBy = trimmedText(record.changedBy);
+  const changedByRole = trimmedText(record.changedByRole);
+  const changedAt = trimmedText(record.changedAt);
+
+  if (!isMaterialCandidateStatus(toStatus) || !changedBy || !changedAt) {
+    return undefined;
+  }
+
+  return {
+    changedAt,
+    changedBy,
+    changedByRole,
+    fromStatus: isMaterialCandidateStatus(rawFromStatus) ? rawFromStatus : null,
+    reasonText: trimmedText(record.reasonText) || undefined,
+    toStatus,
+  };
+}
+
+function normalizeComments(value: unknown): ProfessionalComment[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value
+    .map((entry) => normalizeComment(asRecord(entry)))
+    .filter((comment): comment is ProfessionalComment => comment !== undefined);
+}
+
+function normalizeComment(
+  record: Record<string, unknown>,
+): ProfessionalComment | undefined {
+  const id = trimmedText(record.id);
+  const targetRecordId = trimmedText(record.targetRecordId);
+  const targetRecordVersionId = trimmedText(record.targetRecordVersionId);
+  const commentType = record.commentType;
+  const body = trimmedText(record.body);
+  const authorId = trimmedText(record.authorId);
+  const authorName = trimmedText(record.authorName);
+  const authorRoleAtPost = trimmedText(record.authorRoleAtPost);
+  const createdAt = trimmedText(record.createdAt);
+
+  if (
+    !id ||
+    !targetRecordId ||
+    !targetRecordVersionId ||
+    !isCommentType(commentType) ||
+    !body ||
+    !authorId ||
+    !authorName ||
+    !authorRoleAtPost ||
+    !createdAt
+  ) {
+    return undefined;
+  }
+
+  const rawSoapCategory = record.soapCategory;
+
+  return {
+    authorId,
+    authorName,
+    authorRoleAtPost,
+    body,
+    commentType,
+    createdAt,
+    id,
+    soapCategory:
+      typeof rawSoapCategory === "string" &&
+      (SOAP_CATEGORIES as readonly string[]).includes(rawSoapCategory)
+        ? (rawSoapCategory as SoapRecordVersionItem["category"])
+        : undefined,
+    targetRecordId,
+    targetRecordVersionId,
+  };
 }
 
 function normalizeRecordSummaries(value: unknown): SoapRecordSummary[] {
@@ -369,22 +483,4 @@ function normalizeItem(
   }
 
   return { category: category as SoapRecordVersionItem["category"], text };
-}
-
-export async function listCommentsForVersion(
-  targetRecordVersionId: string,
-): Promise<ProfessionalComment[]> {
-  return delay(filterCommentsByVersion(comments, targetRecordVersionId));
-}
-
-export async function postComment(
-  input: NewProfessionalCommentInput,
-): Promise<ProfessionalComment> {
-  const created = createComment(input);
-  comments = [...comments, created];
-  return delay(created);
-}
-
-export function getCommentById(id: string): ProfessionalComment | undefined {
-  return comments.find((comment) => comment.id === id);
 }

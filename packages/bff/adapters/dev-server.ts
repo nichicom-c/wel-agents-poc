@@ -11,6 +11,8 @@ import {
   handleKnowledgeBaseDetailRequest,
   type KnowledgeBaseDetailProvider,
 } from "../application/handle-knowledge-base-detail-request.ts";
+import { handleMaterialCandidateRequest } from "../application/handle-material-candidate-request.ts";
+import { handleProfessionalCommentRequest } from "../application/handle-professional-comment-request.ts";
 import { handleBffRequest } from "../application/handle-request.ts";
 import {
   handleSessionsRequest,
@@ -28,6 +30,15 @@ import { authContextFromJwtClaims } from "../domain/auth.ts";
 import { listAgentCoreSessions } from "../infra/agentcore-sessions-client.ts";
 import { buildDevInfo } from "../infra/dev-info.ts";
 import { makeKnowledgeBaseDetailProvider } from "../infra/knowledge-base-detail.ts";
+import {
+  createMaterialCandidateFromComments,
+  decideMaterialCandidateStatus,
+  listMaterialCandidates,
+} from "../infra/material-candidate-store.ts";
+import {
+  createProfessionalComment,
+  listCommentsForVersion,
+} from "../infra/professional-comment-store.ts";
 import {
   createSoapRecordVersion,
   listSoapRecords,
@@ -341,6 +352,76 @@ export async function handleBffDevRequest(
           createSoapRecordVersion(storeConfig, input),
         listRecords: () => listSoapRecords(storeConfig),
         listVersions: (input) => listSoapRecordVersions(storeConfig, input),
+        logError: (message, detail) => console.error(message, detail),
+        trainingDataConfigured: Boolean(
+          config.trainingDataClusterArn &&
+            config.trainingDataDatabaseName &&
+            config.trainingDataSecretArn,
+        ),
+      },
+    );
+
+    return responseFromBff(bffResponse);
+  }
+
+  if (url.pathname === "/api/professional-comments") {
+    const storeConfig = {
+      clusterArn: config.trainingDataClusterArn ?? "",
+      database: config.trainingDataDatabaseName ?? "",
+      region: config.region,
+      secretArn: config.trainingDataSecretArn ?? "",
+    };
+
+    const bffResponse = await handleProfessionalCommentRequest(
+      {
+        body,
+        method: request.method,
+        path: url.pathname,
+        query: queryFromUrl(url),
+      },
+      {
+        authContext: authContextForConfig(config),
+        createComment: (input) => createProfessionalComment(storeConfig, input),
+        listCommentsForVersion: (input) =>
+          listCommentsForVersion(storeConfig, input),
+        logError: (message, detail) => console.error(message, detail),
+        trainingDataConfigured: Boolean(
+          config.trainingDataClusterArn &&
+            config.trainingDataDatabaseName &&
+            config.trainingDataSecretArn,
+        ),
+      },
+    );
+
+    return responseFromBff(bffResponse);
+  }
+
+  if (
+    url.pathname === "/api/material-candidates" ||
+    url.pathname.startsWith("/api/material-candidates/")
+  ) {
+    const storeConfig = {
+      clusterArn: config.trainingDataClusterArn ?? "",
+      database: config.trainingDataDatabaseName ?? "",
+      region: config.region,
+      secretArn: config.trainingDataSecretArn ?? "",
+    };
+
+    const bffResponse = await handleMaterialCandidateRequest(
+      {
+        body,
+        method: request.method,
+        path: url.pathname,
+        query: queryFromUrl(url),
+      },
+      {
+        authContext: authContextForConfig(config),
+        createCandidate: (input) =>
+          createMaterialCandidateFromComments(storeConfig, input),
+        decideStatus: (input) =>
+          decideMaterialCandidateStatus(storeConfig, input),
+        listCandidates: (filters) =>
+          listMaterialCandidates(storeConfig, filters),
         logError: (message, detail) => console.error(message, detail),
         trainingDataConfigured: Boolean(
           config.trainingDataClusterArn &&

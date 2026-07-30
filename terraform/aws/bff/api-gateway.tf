@@ -123,6 +123,51 @@ resource "aws_apigatewayv2_route" "soap_records_versions" {
   target               = "integrations/${aws_apigatewayv2_integration.lambda.id}"
 }
 
+resource "aws_apigatewayv2_route" "professional_comments_create" {
+  api_id               = aws_apigatewayv2_api.this.id
+  authorization_scopes = var.jwt_authorization_scopes
+  authorization_type   = "JWT"
+  authorizer_id        = aws_apigatewayv2_authorizer.jwt.id
+  route_key            = "POST /api/professional-comments"
+  target               = "integrations/${aws_apigatewayv2_integration.lambda.id}"
+}
+
+resource "aws_apigatewayv2_route" "professional_comments_list" {
+  api_id               = aws_apigatewayv2_api.this.id
+  authorization_scopes = var.jwt_authorization_scopes
+  authorization_type   = "JWT"
+  authorizer_id        = aws_apigatewayv2_authorizer.jwt.id
+  route_key            = "GET /api/professional-comments"
+  target               = "integrations/${aws_apigatewayv2_integration.lambda.id}"
+}
+
+resource "aws_apigatewayv2_route" "material_candidates_list" {
+  api_id               = aws_apigatewayv2_api.this.id
+  authorization_scopes = var.jwt_authorization_scopes
+  authorization_type   = "JWT"
+  authorizer_id        = aws_apigatewayv2_authorizer.jwt.id
+  route_key            = "GET /api/material-candidates"
+  target               = "integrations/${aws_apigatewayv2_integration.lambda.id}"
+}
+
+resource "aws_apigatewayv2_route" "material_candidates_create" {
+  api_id               = aws_apigatewayv2_api.this.id
+  authorization_scopes = var.jwt_authorization_scopes
+  authorization_type   = "JWT"
+  authorizer_id        = aws_apigatewayv2_authorizer.jwt.id
+  route_key            = "POST /api/material-candidates"
+  target               = "integrations/${aws_apigatewayv2_integration.lambda.id}"
+}
+
+resource "aws_apigatewayv2_route" "material_candidates_status" {
+  api_id               = aws_apigatewayv2_api.this.id
+  authorization_scopes = var.jwt_authorization_scopes
+  authorization_type   = "JWT"
+  authorizer_id        = aws_apigatewayv2_authorizer.jwt.id
+  route_key            = "PATCH /api/material-candidates/{candidateId}/status"
+  target               = "integrations/${aws_apigatewayv2_integration.lambda.id}"
+}
+
 resource "aws_apigatewayv2_route" "voice_recordings_create" {
   api_id               = aws_apigatewayv2_api.this.id
   authorization_scopes = var.jwt_authorization_scopes
