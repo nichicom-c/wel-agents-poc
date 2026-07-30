@@ -5,7 +5,11 @@ export type {
 } from "./api/soap-draft.ts";
 export { postSoapDraft } from "./api/soap-draft.ts";
 export type { SoapRecordType } from "./model/record-type.ts";
-export { SOAP_RECORD_TYPES, soapRecordTypeLabel } from "./model/record-type.ts";
+export {
+  isSoapRecordType,
+  SOAP_RECORD_TYPES,
+  soapRecordTypeLabel,
+} from "./model/record-type.ts";
 export type { ReflectionSelections } from "./model/reflection-selections.ts";
 export {
   buildReflectionSelections,

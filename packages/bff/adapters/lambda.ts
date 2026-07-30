@@ -19,6 +19,7 @@ import {
 } from "../application/handle-sessions-request.ts";
 import { handleSoapDraftRequest } from "../application/handle-soap-draft-request.ts";
 import { handleSoapGapsRequest } from "../application/handle-soap-gaps-request.ts";
+import { handleSoapRecordRequest } from "../application/handle-soap-record-request.ts";
 import { handleVoiceRecordingRequest } from "../application/handle-voice-recording-request.ts";
 import {
   type CreateWebSocketUrl,
@@ -46,6 +47,11 @@ import {
   type EnvSource,
   type LambdaConfig,
 } from "../infra/lambda-config.ts";
+import {
+  createSoapRecordVersion,
+  listSoapRecords,
+  listSoapRecordVersions,
+} from "../infra/soap-record-store.ts";
 import {
   getTranscriptionJobStatus,
   saveEditedTranscript,
@@ -261,6 +267,18 @@ export async function handleLambdaEvent(
     );
   }
 
+  if (path === "/api/soap-records" || path.startsWith("/api/soap-records/")) {
+    return handleSoapRecordRequest(
+      {
+        body: event.body,
+        isBase64Encoded: event.isBase64Encoded,
+        method,
+        path,
+      },
+      soapRecordOptions(config, event, deps),
+    );
+  }
+
   if (
     path === "/api/voice-recordings" ||
     path.startsWith("/api/voice-recordings/")
@@ -320,6 +338,34 @@ function voiceRecordingOptions(
       deps.logError ?? ((message, detail) => console.error(message, detail)),
     saveEditedTranscript: (input) => saveEditedTranscript(storeConfig, input),
     voiceCaptureBucket: config.voiceCaptureBucket,
+  };
+}
+
+/** SOAP 正式記録 handler が使う options を組み立てる。3つとも未設定なら handler 側が 503 を返す。 */
+function soapRecordOptions(
+  config: LambdaConfig,
+  event: LambdaEvent,
+  deps: LambdaHandlerDeps,
+): Parameters<typeof handleSoapRecordRequest>[1] {
+  const storeConfig = {
+    clusterArn: config.trainingDataClusterArn ?? "",
+    database: config.trainingDataDatabaseName ?? "",
+    region: config.region,
+    secretArn: config.trainingDataSecretArn ?? "",
+  };
+
+  return {
+    authContext: authContextForEvent(event, config),
+    createRecordVersion: (input) => createSoapRecordVersion(storeConfig, input),
+    listRecords: () => listSoapRecords(storeConfig),
+    listVersions: (input) => listSoapRecordVersions(storeConfig, input),
+    logError:
+      deps.logError ?? ((message, detail) => console.error(message, detail)),
+    trainingDataConfigured: Boolean(
+      config.trainingDataClusterArn &&
+        config.trainingDataDatabaseName &&
+        config.trainingDataSecretArn,
+    ),
   };
 }
 

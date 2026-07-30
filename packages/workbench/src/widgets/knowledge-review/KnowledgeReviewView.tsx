@@ -467,8 +467,12 @@ type RecordTabProps = {
 
 function RecordTab({ authorName, canPost }: RecordTabProps) {
   const [records, setRecords] = useState<SoapRecordSummary[] | null>(null);
+  const [recordsStatus, setRecordsStatus] = useState<LoadStatus>("idle");
+  const [recordsError, setRecordsError] = useState("");
   const [selectedRecordId, setSelectedRecordId] = useState<string | null>(null);
   const [versions, setVersions] = useState<SoapRecordVersion[] | null>(null);
+  const [versionsStatus, setVersionsStatus] = useState<LoadStatus>("idle");
+  const [versionsError, setVersionsError] = useState("");
   const [selectedVersionId, setSelectedVersionId] = useState<string | null>(
     null,
   );
@@ -492,11 +496,24 @@ function RecordTab({ authorName, canPost }: RecordTabProps) {
 
   useEffect(() => {
     let cancelled = false;
-    listSoapRecords().then((result) => {
-      if (!cancelled) {
+    setRecordsStatus("loading");
+    listSoapRecords()
+      .then((result) => {
+        if (cancelled) {
+          return;
+        }
         setRecords(result);
-      }
-    });
+        setRecordsStatus("idle");
+      })
+      .catch((caught: unknown) => {
+        if (cancelled) {
+          return;
+        }
+        setRecordsStatus("error");
+        setRecordsError(
+          caught instanceof Error ? caught.message : String(caught),
+        );
+      });
     return () => {
       cancelled = true;
     };
@@ -509,13 +526,26 @@ function RecordTab({ authorName, canPost }: RecordTabProps) {
       return;
     }
     let cancelled = false;
-    listVersionsForRecord(selectedRecordId).then((result) => {
-      if (cancelled) {
-        return;
-      }
-      setVersions(result);
-      setSelectedVersionId(result[result.length - 1]?.id ?? null);
-    });
+    setVersionsStatus("loading");
+    setVersionsError("");
+    listVersionsForRecord(selectedRecordId)
+      .then((result) => {
+        if (cancelled) {
+          return;
+        }
+        setVersions(result);
+        setSelectedVersionId(result[result.length - 1]?.id ?? null);
+        setVersionsStatus("idle");
+      })
+      .catch((caught: unknown) => {
+        if (cancelled) {
+          return;
+        }
+        setVersionsStatus("error");
+        setVersionsError(
+          caught instanceof Error ? caught.message : String(caught),
+        );
+      });
     return () => {
       cancelled = true;
     };
@@ -596,6 +626,17 @@ function RecordTab({ authorName, canPost }: RecordTabProps) {
 
   return (
     <section className="knowledge-review-records" aria-label="記録から探す">
+      {recordsStatus === "error" ? (
+        <p className="soap-draft-error">
+          記録一覧の取得に失敗しました: {recordsError}
+        </p>
+      ) : null}
+      {recordsStatus === "idle" && (records ?? []).length === 0 ? (
+        <p className="workbench-main-description">
+          正式記録として保存された記録はまだありません。SOAP Studio
+          の「正式記録として保存」から作成できます。
+        </p>
+      ) : null}
       <ul className="knowledge-review-record-list">
         {(records ?? []).map((record) => (
           <li key={record.id}>
@@ -615,6 +656,12 @@ function RecordTab({ authorName, canPost }: RecordTabProps) {
           </li>
         ))}
       </ul>
+
+      {versionsStatus === "error" ? (
+        <p className="soap-draft-error">
+          版一覧の取得に失敗しました: {versionsError}
+        </p>
+      ) : null}
 
       {versions ? (
         <div className="knowledge-review-version-tabs">

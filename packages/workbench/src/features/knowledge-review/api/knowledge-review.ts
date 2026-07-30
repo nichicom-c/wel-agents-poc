@@ -1,3 +1,4 @@
+import { isSoapRecordType, SOAP_CATEGORIES } from "../../soap-draft/index.ts";
 import {
   createMaterialCandidateFromComments,
   type DecideMaterialCandidateStatusOptions,
@@ -17,113 +18,22 @@ import {
 import type {
   SoapRecordSummary,
   SoapRecordVersion,
+  SoapRecordVersionItem,
 } from "../model/soap-records.ts";
-import { versionsForRecord } from "../model/soap-records.ts";
 
 /**
  * BFF `/api/material-candidates` 等（`docs/notes/2026-07-30-training-materials-db-schema-and-aws-infra.md`
  * の AWS インフラ提案を参照）はまだ存在しないため、issue #8 の UI を dummy データで先行実装する。
  * module 内の変数を DB の代わりに使い、関数の入出力（Promise を返す非同期関数）だけは将来の
  * 実 API 呼び出しに置き換えやすい形にしておく。ブラウザを再読み込みすると内容はリセットされる。
+ *
+ * ただし SOAP 正式記録・編集履歴（`soap_records` / `soap_record_versions`）だけは、SOAP Studio の
+ * 「正式記録として保存」から BFF `/api/soap-records*`（Aurora Serverless v2 + RDS Data API）を
+ * 実際に呼ぶようになったため、この2つだけ dummy データではなく下の `listSoapRecords` /
+ * `listVersionsForRecord` で実 API を呼ぶ（コメント・教材候補は引き続き dummy）。そのため、下の
+ * `DUMMY_COMMENTS` が参照する `targetRecordId` / `targetRecordVersionId`（"record-1" 等）は
+ * 実際の記録には対応しない、issue #8 の UI 単体確認用の値のまま残る。
  */
-
-const DUMMY_RECORDS: SoapRecordSummary[] = [
-  {
-    createdAt: "2026-07-10T09:30:00.000Z",
-    createdBy: "田中 professional",
-    id: "record-1",
-    recordType: "support_activity",
-    status: "finalized",
-  },
-  {
-    createdAt: "2026-07-18T14:05:00.000Z",
-    createdBy: "佐藤 professional",
-    id: "record-2",
-    recordType: "general_record",
-    status: "finalized",
-  },
-];
-
-const DUMMY_VERSIONS: SoapRecordVersion[] = [
-  {
-    createdAt: "2026-07-10T09:30:00.000Z",
-    createdBy: "田中 professional",
-    id: "record-1-v1",
-    items: [
-      {
-        category: "S",
-        text: "母親から「夜間の授乳がつらく、眠れていない」と発言。",
-      },
-      {
-        category: "O",
-        text: "児は生後2ヶ月、体重増加は標準曲線内。母親の表情に疲労が見られる。",
-      },
-      {
-        category: "A",
-        text: "産後の睡眠不足による疲労蓄積のリスクがあると考えられる。",
-      },
-      {
-        category: "P",
-        text: "次回訪問までの家事・育児支援サービスの利用を提案する。",
-      },
-    ],
-    recordId: "record-1",
-    source: "soap_draft_ai",
-    versionNo: 1,
-  },
-  {
-    createdAt: "2026-07-12T11:00:00.000Z",
-    createdBy: "田中 professional",
-    id: "record-1-v2",
-    items: [
-      {
-        category: "S",
-        text: "母親から「夜間の授乳がつらく、眠れていない」と発言。",
-      },
-      {
-        category: "O",
-        text: "児は生後2ヶ月、体重増加は標準曲線内。母親の表情に疲労が見られる。",
-      },
-      {
-        category: "A",
-        text: "産後の睡眠不足による疲労蓄積のリスクがあると考えられる。パートナーの育児参加状況は未確認。",
-      },
-      {
-        category: "P",
-        text: "次回訪問までの家事・育児支援サービスの利用を提案する。パートナーの育児参加状況を次回確認する。",
-      },
-    ],
-    recordId: "record-1",
-    source: "manual",
-    versionNo: 2,
-  },
-  {
-    createdAt: "2026-07-18T14:05:00.000Z",
-    createdBy: "佐藤 professional",
-    id: "record-2-v1",
-    items: [
-      {
-        category: "S",
-        text: "本人から「一人で買い物に行くのが不安になってきた」と発言。",
-      },
-      {
-        category: "O",
-        text: "室内での歩行は安定しているが、屋外歩行時にふらつきが見られる。",
-      },
-      {
-        category: "A",
-        text: "屋外での活動範囲縮小により、社会的孤立のリスクが高まっている。",
-      },
-      {
-        category: "P",
-        text: "地域の見守り・移動支援サービスの利用について本人・家族と相談する。",
-      },
-    ],
-    recordId: "record-2",
-    source: "soap_draft_ai",
-    versionNo: 1,
-  },
-];
 
 const DUMMY_COMMENTS: ProfessionalComment[] = [
   createComment({
@@ -310,14 +220,155 @@ export async function createCandidateFromComments(
   return delay(candidates);
 }
 
-export async function listSoapRecords(): Promise<SoapRecordSummary[]> {
-  return delay(DUMMY_RECORDS);
+const SOAP_RECORDS_ENDPOINT = "/api/soap-records";
+
+type FetchFn = (
+  input: string | URL | Request,
+  init?: RequestInit,
+) => Promise<Response>;
+
+/** BFF `/api/soap-records` を呼び、SOAP Studio が保存した正式記録の一覧を取得する。 */
+export async function listSoapRecords(
+  fetchFn: FetchFn = fetch,
+): Promise<SoapRecordSummary[]> {
+  const response = await fetchFn(SOAP_RECORDS_ENDPOINT);
+  const payload = await readJson(response);
+
+  if (!response.ok) {
+    throw new Error(trimmedText(payload.error) || `HTTP ${response.status}`);
+  }
+
+  return normalizeRecordSummaries(payload.records);
 }
 
+/** BFF `/api/soap-records/:recordId/versions` を呼び、指定記録の版一覧（編集履歴）を取得する。 */
 export async function listVersionsForRecord(
   recordId: string,
+  fetchFn: FetchFn = fetch,
 ): Promise<SoapRecordVersion[]> {
-  return delay(versionsForRecord(DUMMY_VERSIONS, recordId));
+  const response = await fetchFn(
+    `${SOAP_RECORDS_ENDPOINT}/${encodeURIComponent(recordId)}/versions`,
+  );
+  const payload = await readJson(response);
+
+  if (!response.ok) {
+    throw new Error(trimmedText(payload.error) || `HTTP ${response.status}`);
+  }
+
+  return normalizeVersions(payload.versions);
+}
+
+async function readJson(response: Response): Promise<Record<string, unknown>> {
+  const payload: unknown = await response.json().catch(() => ({}));
+  return asRecord(payload);
+}
+
+function asRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
+function trimmedText(value: unknown): string {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function numberOrZero(value: unknown): number {
+  return typeof value === "number" && Number.isFinite(value) ? value : 0;
+}
+
+function normalizeRecordSummaries(value: unknown): SoapRecordSummary[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value
+    .map((entry) => normalizeRecordSummary(asRecord(entry)))
+    .filter((record): record is SoapRecordSummary => record !== undefined);
+}
+
+function normalizeRecordSummary(
+  record: Record<string, unknown>,
+): SoapRecordSummary | undefined {
+  const id = trimmedText(record.id);
+  const recordType = record.recordType;
+  const status = record.status;
+  const createdBy = trimmedText(record.createdBy);
+  const createdAt = trimmedText(record.createdAt);
+
+  if (
+    !id ||
+    !isSoapRecordType(recordType) ||
+    (status !== "draft" && status !== "finalized") ||
+    !createdBy ||
+    !createdAt
+  ) {
+    return undefined;
+  }
+
+  return { createdAt, createdBy, id, recordType, status };
+}
+
+function normalizeVersions(value: unknown): SoapRecordVersion[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value
+    .map((entry) => normalizeVersion(asRecord(entry)))
+    .filter((version): version is SoapRecordVersion => version !== undefined);
+}
+
+function normalizeVersion(
+  record: Record<string, unknown>,
+): SoapRecordVersion | undefined {
+  const id = trimmedText(record.id);
+  const recordId = trimmedText(record.recordId);
+  const versionNo = numberOrZero(record.versionNo);
+  const items = normalizeItems(record.items);
+  const source = record.source;
+  const createdBy = trimmedText(record.createdBy);
+  const createdAt = trimmedText(record.createdAt);
+
+  if (
+    !id ||
+    !recordId ||
+    versionNo <= 0 ||
+    items.length === 0 ||
+    (source !== "soap_draft_ai" &&
+      source !== "voice_capture" &&
+      source !== "manual") ||
+    !createdBy ||
+    !createdAt
+  ) {
+    return undefined;
+  }
+
+  return { createdAt, createdBy, id, items, recordId, source, versionNo };
+}
+
+function normalizeItems(value: unknown): SoapRecordVersionItem[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value
+    .map((entry) => normalizeItem(asRecord(entry)))
+    .filter((item): item is SoapRecordVersionItem => item !== undefined);
+}
+
+function normalizeItem(
+  record: Record<string, unknown>,
+): SoapRecordVersionItem | undefined {
+  const category = record.category;
+  const text = trimmedText(record.text);
+
+  if (
+    typeof category !== "string" ||
+    !(SOAP_CATEGORIES as readonly string[]).includes(category) ||
+    !text
+  ) {
+    return undefined;
+  }
+
+  return { category: category as SoapRecordVersionItem["category"], text };
 }
 
 export async function listCommentsForVersion(

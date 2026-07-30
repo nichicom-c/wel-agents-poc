@@ -29,6 +29,12 @@ import {
   withDraftAnswer,
   withDraftSkipReason,
 } from "../../features/soap-gaps/index.ts";
+import {
+  postSoapRecord,
+  type SavedRecordIds,
+  savableItemsFromCandidates,
+  withSavedRecordId,
+} from "../../features/soap-records/index.ts";
 
 const CATEGORY_LABELS: Record<SoapCategory, string> = {
   S: "S・主観的情報",
@@ -54,6 +60,7 @@ const QUESTION_STATUS_LABELS: Record<GapQuestionItem["status"], string> = {
 
 type AnalyzeStatus = "idle" | "loading" | "error";
 type GapsStatus = "idle" | "loading" | "error";
+type SaveStatus = "idle" | "loading" | "error";
 
 export type SoapStudioViewProps = {
   /** Voice Capture など他画面から引き継ぐ入力素材テキスト。渡されると textarea に反映する。 */
@@ -84,6 +91,10 @@ export function SoapStudioView({
   const [questions, setQuestions] = useState<GapQuestionItem[] | null>(null);
   const [gapsStatus, setGapsStatus] = useState<GapsStatus>("idle");
   const [gapsError, setGapsError] = useState("");
+  const [savedRecordIds, setSavedRecordIds] = useState<SavedRecordIds>({});
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
+  const [saveError, setSaveError] = useState("");
+  const [saveNotice, setSaveNotice] = useState("");
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: seedText の到着だけを検知したい（onSeedConsumed/seedSourceLabel は同時に渡される値）。
   useEffect(() => {
@@ -177,6 +188,65 @@ export function SoapStudioView({
     setReflectionSelections((prev) =>
       prev ? toggleReflectionSelection(prev, recordType) : prev,
     );
+  }
+
+  /**
+   * 反映候補でチェックされている記録種別それぞれについて、正式記録として保存する
+   * （issue #8 の前提。docs/notes/2026-07-30-... の「新規: SOAP Studio → 正式記録保存 →
+   * Knowledge Review」参照）。同じセッション内で既に保存済みの記録種別は、新規記録では
+   * なく version を追記する（`savedRecordIds`）。採用/編集済みの候補が無い記録種別は
+   * 保存対象から除く。
+   */
+  async function handleSaveRecords() {
+    if (!candidates || !reflectionSelections || saveStatus === "loading") {
+      return;
+    }
+
+    const targetTypes = SOAP_RECORD_TYPES.filter(
+      (recordType) => reflectionSelections[recordType],
+    );
+    const items = savableItemsFromCandidates(candidates);
+
+    if (targetTypes.length === 0 || items.length === 0) {
+      setSaveStatus("error");
+      setSaveError(
+        "保存する記録種別（反映候補）を1つ以上チェックし、採用または編集済みの候補を1件以上作ってください。",
+      );
+      return;
+    }
+
+    setSaveStatus("loading");
+    setSaveError("");
+    setSaveNotice("");
+
+    const source = sourceLabel ? "voice_capture" : "soap_draft_ai";
+    const savedNotices: string[] = [];
+
+    try {
+      let nextSavedRecordIds = savedRecordIds;
+      for (const recordType of targetTypes) {
+        const result = await postSoapRecord({
+          items,
+          recordId: nextSavedRecordIds[recordType],
+          recordType,
+          source,
+        });
+        nextSavedRecordIds = withSavedRecordId(
+          nextSavedRecordIds,
+          recordType,
+          result.recordId,
+        );
+        savedNotices.push(
+          `${soapRecordTypeLabel(recordType)}: version ${result.versionNo} として保存しました`,
+        );
+      }
+      setSavedRecordIds(nextSavedRecordIds);
+      setSaveNotice(savedNotices.join(" / "));
+      setSaveStatus("idle");
+    } catch (caught) {
+      setSaveStatus("error");
+      setSaveError(caught instanceof Error ? caught.message : String(caught));
+    }
   }
 
   function startEditing(candidate: SoapDraftCandidate) {
@@ -521,6 +591,36 @@ export function SoapStudioView({
                 </ul>
               )}
             </div>
+          ) : null}
+        </section>
+      ) : null}
+
+      {candidates && reflectionSelections ? (
+        <section
+          className="soap-save-record-section"
+          aria-label="正式記録として保存"
+          aria-busy={saveStatus === "loading"}
+        >
+          <h3>正式記録として保存</h3>
+          <p className="workbench-main-description">
+            反映候補でチェックした記録種別ごとに、採用/編集済みの候補を正式記録として保存します
+            （このセッションで同じ記録種別を再度保存すると、新しい版として追記されます）。
+          </p>
+          <button
+            type="button"
+            className="soap-save-record-button"
+            disabled={saveStatus === "loading"}
+            onClick={() => void handleSaveRecords()}
+          >
+            {saveStatus === "loading" ? "保存中…" : "正式記録として保存"}
+          </button>
+          {saveStatus === "error" ? (
+            <p className="soap-draft-error">{saveError}</p>
+          ) : null}
+          {saveNotice ? (
+            <p className="soap-save-record-notice" role="status">
+              {saveNotice}
+            </p>
           ) : null}
         </section>
       ) : null}

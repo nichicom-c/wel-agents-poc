@@ -18,6 +18,7 @@ import {
 } from "../application/handle-sessions-request.ts";
 import { handleSoapDraftRequest } from "../application/handle-soap-draft-request.ts";
 import { handleSoapGapsRequest } from "../application/handle-soap-gaps-request.ts";
+import { handleSoapRecordRequest } from "../application/handle-soap-record-request.ts";
 import { handleVoiceRecordingRequest } from "../application/handle-voice-recording-request.ts";
 import { handleWsUrlRequest } from "../application/handle-ws-url-request.ts";
 import { runtimeInvokeResultFromResponse } from "../application/runtime-response.ts";
@@ -27,6 +28,11 @@ import { authContextFromJwtClaims } from "../domain/auth.ts";
 import { listAgentCoreSessions } from "../infra/agentcore-sessions-client.ts";
 import { buildDevInfo } from "../infra/dev-info.ts";
 import { makeKnowledgeBaseDetailProvider } from "../infra/knowledge-base-detail.ts";
+import {
+  createSoapRecordVersion,
+  listSoapRecords,
+  listSoapRecordVersions,
+} from "../infra/soap-record-store.ts";
 import {
   getTranscriptionJobStatus,
   saveEditedTranscript,
@@ -73,6 +79,13 @@ export type BffDevConfig = {
   knowledgeBaseIds: KnowledgeBaseIds;
   /** forward 先の AgentCore Runtime base URL。 */
   agentCoreRuntimeUrl: string;
+  /**
+   * Training Data Store（Aurora Serverless v2、issue #8/#9/#10）の cluster ARN / secret ARN /
+   * database 名。3つとも設定済みの場合だけ `/api/soap-records*` が動く（未設定なら 503）。
+   */
+  trainingDataClusterArn?: string;
+  trainingDataDatabaseName?: string;
+  trainingDataSecretArn?: string;
   /** Voice Capture の音声原本 / transcript を保存する S3 bucket。未設定なら該当 API は 503。 */
   voiceCaptureBucket?: string;
   /**
@@ -119,6 +132,9 @@ export function resolveBffDevConfig(
       DEFAULT_REGION,
     agentCoreRuntimeUrl:
       clean(env.AGENTCORE_RUNTIME_URL) || DEFAULT_AGENTCORE_RUNTIME_URL,
+    trainingDataClusterArn: clean(env.TRAINING_DATA_CLUSTER_ARN),
+    trainingDataDatabaseName: clean(env.TRAINING_DATA_DATABASE_NAME),
+    trainingDataSecretArn: clean(env.TRAINING_DATA_SECRET_ARN),
     voiceCaptureBucket: clean(env.VOICE_CAPTURE_BUCKET),
     voiceCaptureDataAccessRoleArn: clean(env.VOICE_CAPTURE_TRANSCRIBE_ROLE_ARN),
     voiceCaptureLanguageCode: clean(env.VOICE_CAPTURE_LANGUAGE_CODE) || "ja-JP",
@@ -296,6 +312,41 @@ export async function handleBffDevRequest(
         invokeRuntime: (_runtimeSessionId, payload) =>
           invokeLocalRuntime(config, payload, fetchFn),
         logError: (message, detail) => console.error(message, detail),
+      },
+    );
+
+    return responseFromBff(bffResponse);
+  }
+
+  if (
+    url.pathname === "/api/soap-records" ||
+    url.pathname.startsWith("/api/soap-records/")
+  ) {
+    const storeConfig = {
+      clusterArn: config.trainingDataClusterArn ?? "",
+      database: config.trainingDataDatabaseName ?? "",
+      region: config.region,
+      secretArn: config.trainingDataSecretArn ?? "",
+    };
+
+    const bffResponse = await handleSoapRecordRequest(
+      {
+        body,
+        method: request.method,
+        path: url.pathname,
+      },
+      {
+        authContext: authContextForConfig(config),
+        createRecordVersion: (input) =>
+          createSoapRecordVersion(storeConfig, input),
+        listRecords: () => listSoapRecords(storeConfig),
+        listVersions: (input) => listSoapRecordVersions(storeConfig, input),
+        logError: (message, detail) => console.error(message, detail),
+        trainingDataConfigured: Boolean(
+          config.trainingDataClusterArn &&
+            config.trainingDataDatabaseName &&
+            config.trainingDataSecretArn,
+        ),
       },
     );
 

@@ -38,4 +38,11 @@ describe("SoapStudioView", () => {
     expect(html).not.toContain("soap-gaps-section");
     expect(html).not.toContain("不足を確認");
   });
+
+  test("候補が無い初期状態では正式記録として保存セクションを描画しない", () => {
+    const html = renderToStaticMarkup(<SoapStudioView />);
+
+    expect(html).not.toContain("soap-save-record-section");
+    expect(html).not.toContain("正式記録として保存");
+  });
 });

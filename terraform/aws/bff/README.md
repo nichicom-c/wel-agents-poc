@@ -272,7 +272,7 @@ Response:
 
 ## Training Data Store（issue #8/#9/#10、opt-in）
 
-`packages/workbench` の Knowledge Review（issue #8）・Training（issue #9）・Admin（issue #10）は現状 dummy データのみで動作し、この DB へはまだ何も接続していない。この節は、それらを実 DB に切り替える前段として Aurora Serverless v2 (PostgreSQL) + RDS Data API を用意し、スキーマを migrate するところまでを扱う。設計の詳細は [`docs/notes/2026-07-30-training-materials-db-schema-and-aws-infra.md`](../../../docs/notes/2026-07-30-training-materials-db-schema-and-aws-infra.md) を参照。BFF Lambda 以外（AgentCore・Chat UI）はこの DB に触れない方針のため、`voice-capture.tf` と同じ理由でこの module に置く。
+`packages/workbench` の Knowledge Review（issue #8）・Training（issue #9）・Admin（issue #10）の大半は現状 dummy データのみで動作するが、SOAP Studio の「正式記録として保存」→ Knowledge Review の記録一覧・版一覧（`soap_records` / `soap_record_versions`）だけは、この節の Aurora Serverless v2 (PostgreSQL) + RDS Data API を `POST/GET /api/soap-records` + `GET /api/soap-records/{recordId}/versions`（`packages/bff/infra/soap-record-store.ts`）経由で実際に読み書きする。コメント・教材候補・演習・管理系のテーブルは スキーマ・migration は用意済みだが BFF endpoint 未実装のため、引き続き dummy データで動く。設計の詳細は [`docs/notes/2026-07-30-training-materials-db-schema-and-aws-infra.md`](../../../docs/notes/2026-07-30-training-materials-db-schema-and-aws-infra.md) を参照。BFF Lambda 以外（AgentCore・Chat UI）はこの DB に触れない方針のため、`voice-capture.tf` と同じ理由でこの module に置く。
 
 ```mermaid
 flowchart LR
@@ -324,6 +324,7 @@ eval "$(mise exec -- terraform -chdir=terraform/aws/bff output -raw training_dat
 - `aws_apigatewayv2_route.dev_info`
 - `aws_apigatewayv2_route.sessions`
 - `aws_apigatewayv2_route.soap_draft`
+- `aws_apigatewayv2_route.soap_records_create` / `soap_records_list` / `soap_records_versions`
 - `aws_apigatewayv2_route.voice_recordings_create`
 - `aws_apigatewayv2_route.voice_recordings_status`
 - `aws_apigatewayv2_route.voice_recordings_edit`

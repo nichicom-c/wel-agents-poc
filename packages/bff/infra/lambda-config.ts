@@ -22,6 +22,13 @@ export type LambdaConfig = {
   requestTimeoutMs: number;
   /** invoke 対象の AgentCore Runtime ARN。 */
   runtimeArn: string;
+  /**
+   * Training Data Store（Aurora Serverless v2、issue #8/#9/#10）の cluster ARN / secret ARN /
+   * database 名。3つとも設定済みの場合だけ `/api/soap-records*` が動く（未設定なら 503）。
+   */
+  trainingDataClusterArn?: string;
+  trainingDataDatabaseName?: string;
+  trainingDataSecretArn?: string;
   /** user ID として使う JWT claim 名。 */
   userIdClaim: string;
   /** Voice Capture の音声原本 / transcript を保存する S3 bucket。未設定だと該当 API は 503。 */
@@ -83,6 +90,9 @@ export function configFromEnv(env: EnvSource = process.env): LambdaConfig {
     region,
     requestTimeoutMs: numberFromEnv(env, "REQUEST_TIMEOUT_MS", 28000),
     runtimeArn,
+    trainingDataClusterArn: cleanOptional(env.TRAINING_DATA_CLUSTER_ARN),
+    trainingDataDatabaseName: cleanOptional(env.TRAINING_DATA_DATABASE_NAME),
+    trainingDataSecretArn: cleanOptional(env.TRAINING_DATA_SECRET_ARN),
     userIdClaim: cleanOptional(env.BFF_USER_ID_CLAIM) || "sub",
     voiceCaptureBucket: cleanOptional(env.VOICE_CAPTURE_BUCKET),
     voiceCaptureDataAccessRoleArn: cleanOptional(

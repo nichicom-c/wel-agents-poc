@@ -694,6 +694,39 @@ button:focus-visible {
   min-width: 160px;
 }
 
+.soap-save-record-section {
+  display: grid;
+  gap: var(--space-3);
+  margin-top: var(--space-5);
+  padding-top: var(--space-5);
+  border-top: 1px solid var(--divider);
+}
+
+.soap-save-record-section h3 {
+  margin: 0;
+  color: var(--text-strong);
+  font-size: 16px;
+}
+
+.soap-save-record-button {
+  justify-self: start;
+  padding: var(--space-2) var(--space-5);
+  border-color: var(--button-border);
+  background: var(--button-bg);
+  color: var(--button-text);
+  font-weight: 700;
+}
+
+.soap-save-record-notice {
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--confidence-high-border);
+  border-radius: var(--radius-control);
+  background: var(--confidence-high-bg);
+  color: var(--confidence-high-text);
+  font-size: 13px;
+}
+
 .voice-capture-form {
   display: grid;
   gap: var(--space-3);

@@ -1,12 +1,12 @@
 # packages/workbench
 
-`packages/workbench` は WEL Agents Workbench の React web app です。Chat 画面に作業を集約せず、SOAP Studio・Voice Capture・Knowledge Review・Training のように作業目的ごとに画面を分ける想定の workspace shell を提供します。SOAP Studio は「SOAP 下書き生成」（issue #5）を実装済みで、入力テキストから S/O/A/P/未分類の候補（根拠原文・分類理由・信頼度つき）を生成し、解析結果全体に対する反映候補（支援実績/汎用記録/会議/サマリーのチェックボックス、LLM 推薦を初期値にユーザーが上書き可能。個々の候補ごとではない）と、候補ごとの採用/編集/却下/後で確認を session-local に選べます（正式記録への自動保存はしません）。記録種別は分類前の入力ではなく分類後の推薦であることに注意してください。
+`packages/workbench` は WEL Agents Workbench の React web app です。Chat 画面に作業を集約せず、SOAP Studio・Voice Capture・Knowledge Review・Training のように作業目的ごとに画面を分ける想定の workspace shell を提供します。SOAP Studio は「SOAP 下書き生成」（issue #5）を実装済みで、入力テキストから S/O/A/P/未分類の候補（根拠原文・分類理由・信頼度つき）を生成し、解析結果全体に対する反映候補（支援実績/汎用記録/会議/サマリーのチェックボックス、LLM 推薦を初期値にユーザーが上書き可能。個々の候補ごとではない）と、候補ごとの採用/編集/却下/後で確認を session-local に選べます（自動保存はしません）。記録種別は分類前の入力ではなく分類後の推薦であることに注意してください。反映候補でチェックした記録種別ごとに「正式記録として保存」ボタンを押すと、採用/編集済みの候補が BFF `/api/soap-records`（Aurora Serverless v2 + RDS Data API）へ実際に保存され（issue #8 の前提）、Knowledge Review の「記録から探す」タブから参照できるようになります。同じセッション内で再度保存すると、新規記録ではなく同じ記録へ版（編集履歴）が追記されます。
 
 SOAP Studio は「不足確認」（issue #6）も実装済みです。SOAP 下書き候補が生成された後、「不足を確認」で不足・曖昧・矛盾・根拠不足を検出し、不足一覧（常に表示、ルールベース検出のため AI 質問生成が失敗しても消えません）と、優先度上位を自然文化した確認質問を表示します。質問ごとに補足情報を入力して「回答して下書きに反映」すると、その内容が新しい候補として SOAP 下書きに追加されます（`status: "adopted"`）。スキップ可能な質問は任意のスキップ理由とともにスキップできます。いずれも session-local な状態で、正式記録への自動保存はしません。
 
 Voice Capture は「音声原本保存 + 文字起こし + SOAP Studio 連携」（issue #7）を実装済みです。マイク録音（`MediaRecorder`）または音声ファイルのアップロードで音声原本を BFF 経由 S3 へ保存し、Amazon Transcribe の非同期 job（queued/running/succeeded/failed）を開始します。完了後は transcript を画面上で編集でき、「SOAP Studio へ送る」で編集済み transcript を SOAP Studio の入力欄へ引き継ぎます（recordingId を由来 tag として表示するだけの session-local な引き継ぎで、正式記録への自動保存や DB 上のひも付けはしません）。文字起こしに失敗した場合は手動テキスト入力に切り替えて同じ経路で SOAP Studio へ送れます。長時間音声の分割・話者分離・音質改善は issue #7 の Out of Scope / Open Questions のため未対応です（1 回のアップロードでまとめて base64 JSON body として送るため、実用上の音声長も同じ制約を受けます）。
 
-他の nav 項目（Knowledge Review / Training）は準備中表示です。
+Knowledge Review（issue #8）・Training（issue #9）・Admin（issue #10）も画面としては実装済みですが、SOAP 正式記録・版（`soap_records` / `soap_record_versions`）以外は dummy データで動作します（詳細は各 `src/features/*/api/` を参照）。
 
 このディレクトリは Bun workspace `@wel-agents-poc/workbench` です。依存（`react` / `react-dom` と build 用 `vite` / `@vitejs/plugin-react` / `@types/react` / `@types/react-dom`）と `build` スクリプトは `package.json` が所有します（横断ツールと単一 `bun.lock` はルート）。
 
@@ -16,7 +16,7 @@ Voice Capture は「音声原本保存 + 文字起こし + SOAP Studio 連携」
 | --- | --- |
 | `index.html` | Vite が配信する HTML shell。`#root` と `/src/main.tsx` を読み込みます。 |
 | `src/main.tsx` | React app の mount 専用 entrypoint。`App` と `src/app/styles.css` を読み込みます。 |
-| `src/app/App.tsx` | ヘッダー、Workspace Nav、選択中画面のメインパネル、Context Inspector を組み立てます。SOAP Studio は `src/widgets/soap-studio/SoapStudioView.tsx`、Voice Capture は `src/widgets/voice-capture/VoiceCaptureView.tsx` を描画し、他の nav 項目は準備中表示です。Voice Capture の「SOAP Studio へ送る」で受け取った transcript は `soapSeed` として lift し、`SoapStudioView` の `seedText` / `seedSourceLabel` / `onSeedConsumed` props で引き継ぎます。 |
+| `src/app/App.tsx` | ヘッダー、Workspace Nav、選択中画面のメインパネル、Context Inspector を組み立てます。SOAP Studio は `src/widgets/soap-studio/SoapStudioView.tsx`、Voice Capture は `src/widgets/voice-capture/VoiceCaptureView.tsx`、Knowledge Review は `src/widgets/knowledge-review/KnowledgeReviewView.tsx`、Training は `src/widgets/training/TrainingView.tsx`、Admin は `src/widgets/admin/AdminView.tsx` を描画し、`chat` だけが準備中表示のままです。Voice Capture の「SOAP Studio へ送る」で受け取った transcript は `soapSeed` として lift し、`SoapStudioView` の `seedText` / `seedSourceLabel` / `onSeedConsumed` props で引き継ぎます。 |
 | `src/app/workspace-nav.ts` | Workspace Nav 項目、Context Inspector 項目を定義します。 |
 | `src/app/styles.css` | ヘッダー / 3ペイン layout、SOAP 下書き生成フォーム / 候補カード / 信頼度バッジ、不足確認セクション / 不足一覧 / 確認質問カード、Voice Capture フォーム / transcript editor のスタイルを担います。 |
 | `src/features/soap-draft/api/soap-draft.ts` | BFF `POST /api/soap-draft` を呼び、response を候補配列と入力全体の反映候補（`recommendedRecordTypes`）に正規化します。 |
@@ -47,4 +47,5 @@ env は `packages/workbench/.env.example` が所有します。`.env` にコピ�
 - `/api/soap-gaps` の request/response contract を変える場合は `src/features/soap-gaps/api/soap-gaps.ts` と `packages/bff/application/handle-soap-gaps-request.ts` を、dev proxy を変える場合は `vite.config.ts` の `proxy` も合わせます。
 - Voice Capture の録音/アップロード UI・polling・transcript 編集を変える場合は `src/features/voice-capture/` と `src/widgets/voice-capture/VoiceCaptureView.tsx` を見ます。
 - `/api/voice-recordings*` の request/response contract を変える場合は `src/features/voice-capture/api/voice-capture.ts` と `packages/bff/application/handle-voice-recording-request.ts` / `packages/bff/infra/voice-capture-store.ts` を合わせます。S3 bucket・IAM・Amazon Transcribe 権限は `terraform/aws/bff/voice-capture.tf` / `iam.tf` が持ちます。
-- 各 Workspace Nav 項目（Chat / Knowledge Review / Training）に実機能を追加する場合は、`src/app/App.tsx` の `ComingSoonView` 分岐を、その画面専用のコンポーネントに置き換えます。
+- SOAP Studio の「正式記録として保存」（issue #8 の前提）を変える場合は `src/features/soap-records/`（`api/soap-records.ts` / `model/save-record.ts`）と `src/widgets/soap-studio/SoapStudioView.tsx` の保存セクションを、backend 側は `packages/bff/application/handle-soap-record-request.ts` / `packages/bff/infra/soap-record-store.ts` を合わせます。Knowledge Review の記録一覧・版一覧は同じ `/api/soap-records*` を読むため `src/features/knowledge-review/api/knowledge-review.ts` の `listSoapRecords` / `listVersionsForRecord` も合わせて確認します（コメント・教材候補は引き続き dummy）。DB スキーマは `terraform/aws/bff/migrations/*.sql`、API Gateway route は `terraform/aws/bff/api-gateway.tf` が持ちます。
+- 各 Workspace Nav 項目に実機能を追加する場合は、`src/app/App.tsx` の分岐と `src/app/workspace-nav.ts` の `WorkspaceNavId` を合わせます（`chat` だけが未実装の `ComingSoonView` です）。

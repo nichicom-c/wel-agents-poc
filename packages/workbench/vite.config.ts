@@ -39,6 +39,10 @@ export function buildWorkbenchViteConfig(
       changeOrigin: true,
       target: config.bffUrl,
     },
+    "/api/soap-records": {
+      changeOrigin: true,
+      target: config.bffUrl,
+    },
     "/api/voice-recordings": {
       changeOrigin: true,
       target: config.bffUrl,

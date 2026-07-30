@@ -96,6 +96,33 @@ resource "aws_apigatewayv2_route" "knowledge_base_documents" {
   target               = "integrations/${aws_apigatewayv2_integration.lambda.id}"
 }
 
+resource "aws_apigatewayv2_route" "soap_records_create" {
+  api_id               = aws_apigatewayv2_api.this.id
+  authorization_scopes = var.jwt_authorization_scopes
+  authorization_type   = "JWT"
+  authorizer_id        = aws_apigatewayv2_authorizer.jwt.id
+  route_key            = "POST /api/soap-records"
+  target               = "integrations/${aws_apigatewayv2_integration.lambda.id}"
+}
+
+resource "aws_apigatewayv2_route" "soap_records_list" {
+  api_id               = aws_apigatewayv2_api.this.id
+  authorization_scopes = var.jwt_authorization_scopes
+  authorization_type   = "JWT"
+  authorizer_id        = aws_apigatewayv2_authorizer.jwt.id
+  route_key            = "GET /api/soap-records"
+  target               = "integrations/${aws_apigatewayv2_integration.lambda.id}"
+}
+
+resource "aws_apigatewayv2_route" "soap_records_versions" {
+  api_id               = aws_apigatewayv2_api.this.id
+  authorization_scopes = var.jwt_authorization_scopes
+  authorization_type   = "JWT"
+  authorizer_id        = aws_apigatewayv2_authorizer.jwt.id
+  route_key            = "GET /api/soap-records/{recordId}/versions"
+  target               = "integrations/${aws_apigatewayv2_integration.lambda.id}"
+}
+
 resource "aws_apigatewayv2_route" "voice_recordings_create" {
   api_id               = aws_apigatewayv2_api.this.id
   authorization_scopes = var.jwt_authorization_scopes
