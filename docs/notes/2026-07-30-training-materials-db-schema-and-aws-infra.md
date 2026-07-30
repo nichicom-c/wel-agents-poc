@@ -8,6 +8,22 @@ issue #8（専門職コメントからのノウハウ・教材候補蓄積）、
 現行の `wel-agents-poc` には Bedrock Knowledge Base（vector / SQL）と S3 オブジェクト以外に**永続的な OLTP データストアが存在しない**ため、この3 issue に着手する前提として、コメント・教材候補・演習・ルーブリックを保存できるリレーショナル DB を新設する必要がある。
 本メモは、この3 issue に共通するデータモデル（テーブル設計）と、それを載せる AWS インフラ（Aurora Serverless v2 PostgreSQL + RDS Data API を推奨）を検討する。
 
+## 実装状況（追記、2026-07-30）
+
+以下は本メモの提案どおりに実装済み。
+
+- **Aurora Serverless v2 (PostgreSQL) + RDS Data API**: `terraform/aws/bff/training-data.tf` として `terraform/aws/bff` に追加済み（提案どおりの配置）。`min_capacity = 0` の scale-to-zero 構成で稼働中。
+- **マイグレーション**: `terraform/aws/bff/migrations/0001_init.sql`（全テーブル・enum 型）+ `0002_seed_masters.sql`（specialties/learning_themes/difficulty_levels/rejection_reason_codes/quality_metrics_definitions の初期値）。ORM は導入せず、提案どおり repo 既存流儀（SQL を直接組み立てる）で `tools/db-migrate/run-migrations.ts` から Data API 経由で適用する軽量ランナーを実装。
+- **前提（SOAP 正式記録・編集履歴）**: 実装済み。`POST /api/soap-records` / `GET /api/soap-records` / `GET /api/soap-records/{recordId}/versions`（`packages/bff/infra/soap-record-store.ts`）。SOAP Studio の「正式記録として保存」ボタンから呼ばれる。
+- **issue #8（専門職コメント・教材候補）**: 実装済み。`POST /api/professional-comments` + `GET /api/professional-comments`、`GET/POST /api/material-candidates` + `PATCH /api/material-candidates/{id}/status`。加えて、本メモの提案時点では未設計だった **`POST /api/material-candidates/{id}/promote-to-material`** を追加した — 承認済み (`status: approved`) の教材候補を issue #10 の `materials` 行（`material_type: comment_derived_note`、`publication_status: draft`）に変換し、当初から schema にあった `material_candidates.material_id` 列（提案時点では「承認 gate を通過したらリンクする想定」とコメントしていた列）を実際に書き込む。自動連携ではなく Knowledge Review 画面から手動でトリガーする設計。
+- **issue #10（教材・ルーブリック・SOAP マッピング・必須推奨項目・品質指標）**: 実装済み。`GET/POST /api/materials` + `PATCH /api/materials/{id}/status`、`GET/POST /api/rubrics` + `PATCH /api/rubrics/{id}/review-status`、`GET /api/soap-mapping-versions` + `POST /api/soap-mapping-versions`、`GET/POST /api/required-items`、`GET /api/quality-metrics`。`GET /api/reference-knowledge` も実装したが read-only のまま（`reference_knowledge` テーブルへの作成 UI・シードデータは無く、実データは空）。
+- **issue #9（新人保健師向け演習）**: **未着手**。Workbench の Training 画面（`packages/workbench/src/features/training/`）は dummy データのままで、本メモの `exercise_*` テーブル群は未実装。
+
+以下は提案から変わった/未実装のままの点。
+
+- **ロールモデル（Cognito Group + `app_users.roles` ミラー）は未実装**。実際は Workbench 側の demo 用ロール切り替え（`model/roles.ts`。クライアント表示の出し分けのみで DB アクセス制御ではない）と、`professional_comments.author_role_at_post` / `material_candidate_status_events.changed_by_role`（自由記述の text 列、クライアントが送った値をそのまま記録するだけ）に留まる。issue #8 の Open Question「教材候補の承認者ロール」は本メモの想定どおり未決着のままで、実サーバー側の RBAC は今後の課題。
+- **スキーマの細部**が実装時に変わっている: enum 相当の列は提案時の `text + check` ではなく Postgres の native `enum` 型（`material_type` / `publication_status` 等）で実装、`materials.material_type` の値は `exercise_case` ではなく `teaching_case` / `comment_derived_note` / `reference_summary`、`specialty_id` / `learning_theme_id` / `difficulty_id` / `record_type` は `uuid` FK ではなくブラウザ表示用固定文字列を id にした `text` FK（`specialties.id` 等）、`required_recommended_items` に `created_by` 列は無い。正確な列定義は `terraform/aws/bff/migrations/0001_init.sql` を正とする。
+
 ## Context
 
 ### 現状のアーキテクチャ制約
@@ -346,7 +362,7 @@ create table quality_metrics_definitions (
 
 品質指標（分類精度・不足検出率・採用率・修正率・差し戻し率・学習効果）は issue #10 が「項目が定義されていること」だけを Acceptance Criteria にしているため、`quality_metrics_definitions` は**定義**だけを持つマスタとし、実際の値は `soap_record_versions` / `material_candidate_status_events` / `exercise_attempts` を集計する view / 定期集計ジョブに委ねる（生の指標値テーブルを持つと、issue #10 自身が戒めている「初期から作り込みすぎる」に反する）。
 
-## AWS インフラ提案
+## AWS インフラ提案（提案どおりに実装・deploy 済み）
 
 ### 配置場所: `terraform/aws/bff` に追加
 
@@ -544,6 +560,7 @@ stateDiagram-v2
   [*] --> CandidateList
   CandidateList --> CandidateDetail: 候補をクリック
   CandidateDetail --> CandidateList: 承認/却下/要修正で更新（一覧へ戻る）
+  CandidateDetail --> CandidateDetail: 承認済みなら「教材にする」（issue #10 の materials へ変換、実装で追加）
   CandidateList --> RecordBrowse: 「記録から探す」タブ
   RecordBrowse --> RecordDetail: 記録をクリック
   RecordDetail --> RecordDetail: コメント投稿（版・投稿者・時刻を記録）
@@ -552,7 +569,7 @@ stateDiagram-v2
 ```
 
 - `CandidateList`: `GET /api/material-candidates?specialty=&recordType=&learningTheme=&difficulty=&status=` で `material_candidates` を検索。既定フィルタは `status=candidate`。
-- `CandidateDetail`: 紐づく `professional_comments`（`material_candidate_comments` 経由）を表示し、状態変更ボタン（`approved`/`rejected`/`needs_revision`）は role が `reviewer`/`admin` の時のみ有効化。却下時は `rejection_reason_code` の選択を必須にする。
+- `CandidateDetail`: 紐づく `professional_comments`（`material_candidate_comments` 経由）を表示し、状態変更ボタン（`approved`/`rejected`/`needs_revision`）は role が `reviewer`/`admin` の時のみ有効化。却下時は `rejection_reason_code` の選択を必須にする。承認済み (`status: approved`) かつ未教材化（`material_id` 未設定）の場合は「教材にする」ボタンを表示し、`POST /api/material-candidates/{id}/promote-to-material` で issue #10 の `materials` へ変換する（実装時に追加。本メモの提案時点には無かった）。
 - `RecordDetail`: `soap_record_versions` の版一覧とコメントスレッド。コメント投稿フォームは `comment_type`（review/correction_rationale/instruction_note/case_study）の選択を必須にする。
 - `CandidateCreate`: 選択済みコメント ID 群を渡して `POST /api/material-candidates` を呼ぶモーダル。
 
@@ -619,10 +636,10 @@ issue #10 自身が「初期は設定・seed から始め、必要なものだ�
 
 ## 実装順序の提案
 
-1. **前提整備**: `app_users`（ロールミラー）、`soap_records` / `soap_record_versions`（正式記録・編集履歴の永続化）、および SOAP Studio への「正式記録として保存」アクション追加（前節「新規: SOAP Studio → 正式記録保存 → Knowledge Review」）。これがないと issue #8 のコメントが「対象記録」を持てない。
-2. **issue #10 の最小構成**: `materials` / `rubrics` / `reference_knowledge` / `soap_mapping_versions` / `required_recommended_items` / 3マスタ（specialty/learning_theme/difficulty）。issue #10 自身が「設定と seed から始める」と明言しており、他2 issue の土台になる。
-3. **issue #8**: `professional_comments` / `material_candidates` とその周辺。
-4. **issue #9**: `exercise_cases` 以下。issue #8/#10 の土台の上に乗るため最後にする。
+1. ✅ **前提整備**: `soap_records` / `soap_record_versions`（正式記録・編集履歴の永続化）、および SOAP Studio への「正式記録として保存」アクション追加（前節「新規: SOAP Studio → 正式記録保存 → Knowledge Review」）。これがないと issue #8 のコメントが「対象記録」を持てない。実装済み（`app_users` のロールミラーは前述のとおり未実装）。
+2. ✅ **issue #10 の最小構成**: `materials` / `rubrics` / `reference_knowledge` / `soap_mapping_versions` / `required_recommended_items` / 3マスタ（specialty/learning_theme/difficulty）。issue #10 自身が「設定と seed から始める」と明言しており、他2 issue の土台になる。実装済み（`reference_knowledge` は read-only）。
+3. ✅ **issue #8**: `professional_comments` / `material_candidates` とその周辺。実装済み（`promote-to-material` を追加）。
+4. ⬜ **issue #9**: `exercise_cases` 以下。issue #8/#10 の土台の上に乗るため最後にする。未着手（Training 画面は dummy データのまま）。
 
 ## 未決定事項（この提案で選ばなかった代替案）
 
