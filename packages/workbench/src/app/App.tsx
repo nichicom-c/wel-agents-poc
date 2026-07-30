@@ -1,5 +1,6 @@
 import { useState } from "react";
 
+import { KnowledgeReviewView } from "../widgets/knowledge-review/index.ts";
 import { SoapStudioView } from "../widgets/soap-studio/index.ts";
 import { VoiceCaptureView } from "../widgets/voice-capture/index.ts";
 import {
@@ -55,6 +56,8 @@ export function App() {
             />
           ) : activeNavId === "voice-capture" ? (
             <VoiceCaptureView onSendToSoapStudio={handleSendToSoapStudio} />
+          ) : activeNavId === "knowledge-review" ? (
+            <KnowledgeReviewView />
           ) : (
             <ComingSoonView navId={activeNavId} />
           )}
