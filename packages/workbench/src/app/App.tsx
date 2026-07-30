@@ -3,6 +3,7 @@ import { useState } from "react";
 import { AdminView } from "../widgets/admin/index.ts";
 import { KnowledgeReviewView } from "../widgets/knowledge-review/index.ts";
 import { SoapStudioView } from "../widgets/soap-studio/index.ts";
+import { TrainingView } from "../widgets/training/index.ts";
 import { VoiceCaptureView } from "../widgets/voice-capture/index.ts";
 import {
   CONTEXT_INSPECTOR_ITEMS,
@@ -61,6 +62,8 @@ export function App() {
             <KnowledgeReviewView />
           ) : activeNavId === "admin" ? (
             <AdminView />
+          ) : activeNavId === "training" ? (
+            <TrainingView />
           ) : (
             <ComingSoonView navId={activeNavId} />
           )}
