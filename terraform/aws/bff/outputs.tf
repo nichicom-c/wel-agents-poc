@@ -55,3 +55,28 @@ output "voice_capture_transcribe_role_arn" {
   description = "IAM role Amazon Transcribe assumes (via JobExecutionSettings.DataAccessRoleArn) to read/write the Voice Capture bucket."
   value       = aws_iam_role.voice_capture_transcribe.arn
 }
+
+output "training_data_cluster_arn" {
+  description = "Aurora cluster ARN for the training data store (issue #8/#9/#10). Empty when enable_training_data_store is false."
+  value       = var.enable_training_data_store ? aws_rds_cluster.training_data[0].arn : ""
+}
+
+output "training_data_secret_arn" {
+  description = "Secrets Manager secret ARN holding the training data Aurora cluster's master credentials (RDS-managed). Empty when enable_training_data_store is false."
+  value       = var.enable_training_data_store ? aws_rds_cluster.training_data[0].master_user_secret[0].secret_arn : ""
+}
+
+output "training_data_database_name" {
+  description = "Initial database name on the training data Aurora cluster. Empty when enable_training_data_store is false."
+  value       = var.enable_training_data_store ? aws_rds_cluster.training_data[0].database_name : ""
+}
+
+output "training_data_migrate_command" {
+  description = "Copy-paste command to apply terraform/aws/bff/migrations/*.sql via tools/db-migrate against this cluster."
+  value = var.enable_training_data_store ? join(" ", [
+    "TRAINING_DATA_CLUSTER_ARN='${aws_rds_cluster.training_data[0].arn}'",
+    "TRAINING_DATA_SECRET_ARN='${aws_rds_cluster.training_data[0].master_user_secret[0].secret_arn}'",
+    "TRAINING_DATA_DATABASE_NAME='${aws_rds_cluster.training_data[0].database_name}'",
+    "mise exec -- bun run training-data:migrate",
+  ]) : ""
+}

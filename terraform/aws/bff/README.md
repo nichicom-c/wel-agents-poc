@@ -13,6 +13,8 @@ Workbench 向けの追加 endpoint として、`POST /api/soap-draft`（SOAP Stu
 
 > [WARNING] **API Gateway・Lambda・CloudWatch Logs・AgentCore Runtime invoke は利用量に応じて課金される可能性がある。** 使用しない場合は [`cleanup.md`](./cleanup.md) に従って削除する。
 
+> [WARNING] **`enable_training_data_store = true` にすると Aurora Serverless v2 が課金対象になる。** 既定は `false`（作成しない）。詳細は下の「Training Data Store」節を参照。
+
 ## 構成図（概念）
 
 ```mermaid
@@ -268,6 +270,51 @@ Response:
 
 音声原本は `recordings/{recordingId}/original.<format>`、Transcribe の出力は `recordings/{recordingId}/transcript-raw.json`、編集済み transcript は `recordings/{recordingId}/transcript-edited.txt` として同じ bucket に保存する。SOAP Studio への引き継ぎ（編集済み transcript を `/api/soap-draft` の入力にする）は Workbench 側（session-local、DB 上のひも付けなし）が担う。
 
+## Training Data Store（issue #8/#9/#10、opt-in）
+
+`packages/workbench` の Knowledge Review（issue #8）・Training（issue #9）・Admin（issue #10）は現状 dummy データのみで動作し、この DB へはまだ何も接続していない。この節は、それらを実 DB に切り替える前段として Aurora Serverless v2 (PostgreSQL) + RDS Data API を用意し、スキーマを migrate するところまでを扱う。設計の詳細は [`docs/notes/2026-07-30-training-materials-db-schema-and-aws-infra.md`](../../../docs/notes/2026-07-30-training-materials-db-schema-and-aws-infra.md) を参照。BFF Lambda 以外（AgentCore・Chat UI）はこの DB に触れない方針のため、`voice-capture.tf` と同じ理由でこの module に置く。
+
+```mermaid
+flowchart LR
+    lambda["BFF Lambda"]
+    dataapi["RDS Data API"]
+    secrets["Secrets Manager<br/>(RDS-managed master credentials)"]
+    aurora["Aurora Serverless v2<br/>PostgreSQL<br/>min/max ACU 設定可"]
+
+    lambda -->|"rds-data:ExecuteStatement 等"| dataapi
+    lambda -->|"secretsmanager:GetSecretValue"| secrets
+    dataapi --> aurora
+    secrets -.->|"RDS が発行・ローテーション"| aurora
+```
+
+> [WARNING] **既定は作成しない（`enable_training_data_store = false`）。** `true` にすると Aurora Serverless v2 が課金対象になる。既定の `training_data_min_acu = 0` は 2024-11 以降 GA の scale-to-zero（対応エンジンバージョンは Aurora PostgreSQL `13.15+`/`14.12+`/`15.7+`/`16.3+`）を使い、接続が無い間は自動 pause して ACU 課金を止める。pause からの復帰（最初の接続）には数秒〜1分程度の遅延が発生する。確認済みの正式レート（us-east-1）は Aurora Standard で `$0.12/ACU-時間`・storage `$0.10/GB-月`・I/O `$0.20/百万リクエスト`。**ap-northeast-1（東京）の正式レートは未確認**（AWS Pricing API を呼べる認証情報が無く確認できていない）ため、apply 前に AWS Pricing Calculator で実レートを確認すること。`min_capacity` が効かない/未対応エンジンバージョンの場合、`0.5` ACU の常時起動フロアだけで us-east-1 換算で概算 `$43/月` が固定費として発生し続ける。検証していない期間は destroy するか、[`cleanup.md`](./cleanup.md) の手順で削除する。
+
+### 前提（追加分）
+
+- 対象 region に **default VPC** が必要（Redshift Serverless と同じ理由。`aws_db_subnet_group` がこの VPC の subnet を使う）。無い場合は `aws ec2 create-default-vpc --region <region>` で作成する。
+- `training_data_engine_version` は apply 前に対象 region で利用可能な minor version を確認する：`aws rds describe-db-engine-versions --engine aurora-postgresql --query "DBEngineVersions[?starts_with(EngineVersion, '16.')].EngineVersion"`（scale-to-zero を使うなら `16.3` 以降）。
+- `terraform apply` を実行する IAM user / role に、Aurora cluster / subnet group / security group の作成に必要な EC2・RDS・RDS Data API・Secrets Manager 権限が必要（`aws_iam_role.lambda` 等の Terraform 管理リソースの実行ロールとは別に、Terraform を実行する側の権限）。`terraform/aws/wel-agents-{agentcore,auth,bff,chat-ui}-policy.json`（各 stack 用の least-privilege 運用者ポリシー）と同じ置き場に [`../wel-agents-training-data-policy.json`](../wel-agents-training-data-policy.json) を用意した。`name_prefix = "wel-agents-bff"` かつ default VPC が `vpc-0f40364f767c71a06` のアカウント（ap-northeast-1、328513660901）向けに ARN を絞り込んだ例なので、`name_prefix` / account / region / default VPC ID が異なる場合は ARN を書き換える。AWS 管理者に依頼してその IAM user / role へ付与するか、自身で付与できる場合は次のように適用する：
+  ```bash
+  aws iam put-user-policy \
+    --user-name <your-iam-user> \
+    --policy-name wel-agents-bff-training-data \
+    --policy-document file://terraform/aws/wel-agents-training-data-policy.json
+  ```
+  EC2 / RDS の `Describe*` 系アクションは AWS 側の仕様上 resource-level permission に対応しておらず `Resource: "*"` が必須（[EC2](https://docs.aws.amazon.com/service-authorization/latest/reference/list_amazonec2.html) / [RDS](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/security_iam_id-based-policy-examples-create-and-modify-examples.html) の Service Authorization Reference 参照）。security group の ID は作成前には分からないため、`ec2:CreateSecurityGroup` は対象 VPC の ARN に、作成後の管理（`Delete`/`Authorize`/`Revoke`）は `aws:ResourceTag/Project` 条件（この module が付ける `tags.Project = "wel-agents-poc"` と一致）で絞り込んでいる。RDS-managed secret（`manage_master_user_password`）の ARN も作成前には分からないため、`rds!cluster-*` という AWS 側の命名規則パターンで絞り込む。apigateway のタグ付け権限が不足する場合は `wel-agents-bff-policy.json` 側に `apigateway:TagResource`/`UntagResource`/`GetTags` を追加する（training data とは無関係の既存 stack の権限不足）。
+
+### 手順
+
+```bash
+# terraform.tfvars に enable_training_data_store = true を設定してから
+mise exec -- terraform -chdir=terraform/aws/bff plan
+mise exec -- terraform -chdir=terraform/aws/bff apply
+
+# migration を適用（terraform/aws/bff/migrations/*.sql を版番号順に適用する）
+eval "$(mise exec -- terraform -chdir=terraform/aws/bff output -raw training_data_migrate_command)"
+```
+
+`bun run training-data:migrate`（`tools/db-migrate/run-migrations.ts`）は ORM を使わず、`terraform/aws/bff/migrations/*.sql` を1ファイル1トランザクションで適用し、適用済みファイル名を対象 DB 自身の `schema_migrations` テーブルに記録する（再実行しても未適用分だけを追加で適用する）。`0001_init.sql` がテーブル・enum 型を作り、`0002_seed_masters.sql` が `packages/workbench` の dummy 実装と同じ id/label でマスタ（分野・学習テーマ・難易度・却下理由・品質指標定義）を投入する。
+
 ## このモジュールが作るリソース
 
 - `aws_apigatewayv2_api.this`
@@ -293,6 +340,8 @@ Response:
 - `aws_s3_bucket_public_access_block.voice_capture`
 - `aws_s3_bucket_server_side_encryption_configuration.voice_capture`
 - `aws_iam_role.voice_capture_transcribe` / `aws_iam_role_policy.voice_capture_transcribe`（`transcribe.amazonaws.com` が assume する data access role。Forward Access Sessions が機能しないアカウント向け）
+- `aws_db_subnet_group.training_data` / `aws_security_group.training_data`（`enable_training_data_store = true` の場合のみ。既定 `false` では作成されない）
+- `aws_rds_cluster.training_data` / `aws_rds_cluster_instance.training_data`（Aurora Serverless v2 (PostgreSQL) + RDS Data API。同上）
 
 Lambda deployment package は `bun run build:bff` で `packages/bff/lambda.ts` から `dist/bff-lambda/index.mjs` に bundle し、`archive_file` data source でその build artifact から作成する。同じ build で local BFF server 用の `dist/bff-dev-server/index.mjs` も生成する。`dist/` は生成物なのでコミットしない。
 

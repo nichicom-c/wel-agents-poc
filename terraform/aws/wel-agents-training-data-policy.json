@@ -1,0 +1,143 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "TrainingDataEc2DescribeRequiresWildcard",
+      "Effect": "Allow",
+      "Action": [
+        "ec2:DescribeVpcs",
+        "ec2:DescribeSubnets",
+        "ec2:DescribeSecurityGroups",
+        "ec2:DescribeTags"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "TrainingDataCreateSecurityGroupInDefaultVpc",
+      "Effect": "Allow",
+      "Action": ["ec2:CreateSecurityGroup"],
+      "Resource": [
+        "arn:aws:ec2:ap-northeast-1:328513660901:vpc/vpc-0f40364f767c71a06",
+        "arn:aws:ec2:ap-northeast-1:328513660901:security-group/*"
+      ]
+    },
+    {
+      "Sid": "TrainingDataTagOnSecurityGroupCreateOnly",
+      "Effect": "Allow",
+      "Action": ["ec2:CreateTags"],
+      "Resource": "arn:aws:ec2:ap-northeast-1:328513660901:*/*",
+      "Condition": {
+        "StringEquals": { "ec2:CreateAction": "CreateSecurityGroup" }
+      }
+    },
+    {
+      "Sid": "TrainingDataManageOwnTaggedSecurityGroup",
+      "Effect": "Allow",
+      "Action": [
+        "ec2:DeleteSecurityGroup",
+        "ec2:AuthorizeSecurityGroupEgress",
+        "ec2:AuthorizeSecurityGroupIngress",
+        "ec2:RevokeSecurityGroupEgress",
+        "ec2:RevokeSecurityGroupIngress",
+        "ec2:DeleteTags"
+      ],
+      "Resource": "arn:aws:ec2:ap-northeast-1:328513660901:security-group/*",
+      "Condition": {
+        "StringEquals": { "aws:ResourceTag/Project": "wel-agents-poc" }
+      }
+    },
+    {
+      "Sid": "TrainingDataCreateSubnetGroup",
+      "Effect": "Allow",
+      "Action": ["rds:CreateDBSubnetGroup"],
+      "Resource": "arn:aws:rds:ap-northeast-1:328513660901:subgrp:wel-agents-bff-training-data"
+    },
+    {
+      "Sid": "TrainingDataCreateCluster",
+      "Effect": "Allow",
+      "Action": ["rds:CreateDBCluster"],
+      "Resource": [
+        "arn:aws:rds:ap-northeast-1:328513660901:cluster:wel-agents-bff-training-data",
+        "arn:aws:rds:ap-northeast-1:328513660901:subgrp:wel-agents-bff-training-data",
+        "arn:aws:rds:ap-northeast-1:328513660901:cluster-pg:default*"
+      ]
+    },
+    {
+      "Sid": "TrainingDataCreateClusterInstance",
+      "Effect": "Allow",
+      "Action": ["rds:CreateDBInstance"],
+      "Resource": [
+        "arn:aws:rds:ap-northeast-1:328513660901:db:wel-agents-bff-training-data-1",
+        "arn:aws:rds:ap-northeast-1:328513660901:cluster:wel-agents-bff-training-data",
+        "arn:aws:rds:ap-northeast-1:328513660901:subgrp:wel-agents-bff-training-data",
+        "arn:aws:rds:ap-northeast-1:328513660901:pg:default*"
+      ]
+    },
+    {
+      "Sid": "TrainingDataManageOwnResources",
+      "Effect": "Allow",
+      "Action": [
+        "rds:ModifyDBSubnetGroup",
+        "rds:DeleteDBSubnetGroup",
+        "rds:ModifyDBCluster",
+        "rds:DeleteDBCluster",
+        "rds:ModifyDBInstance",
+        "rds:DeleteDBInstance",
+        "rds:AddTagsToResource",
+        "rds:RemoveTagsFromResource",
+        "rds:ListTagsForResource"
+      ],
+      "Resource": [
+        "arn:aws:rds:ap-northeast-1:328513660901:cluster:wel-agents-bff-training-data",
+        "arn:aws:rds:ap-northeast-1:328513660901:db:wel-agents-bff-training-data-1",
+        "arn:aws:rds:ap-northeast-1:328513660901:subgrp:wel-agents-bff-training-data"
+      ]
+    },
+    {
+      "Sid": "TrainingDataRdsDescribeRequiresWildcard",
+      "Effect": "Allow",
+      "Action": [
+        "rds:DescribeDBSubnetGroups",
+        "rds:DescribeDBClusters",
+        "rds:DescribeDBInstances",
+        "rds:DescribeDBEngineVersions",
+        "rds:DescribeGlobalClusters"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "TrainingDataDataApi",
+      "Effect": "Allow",
+      "Action": [
+        "rds-data:ExecuteStatement",
+        "rds-data:BatchExecuteStatement",
+        "rds-data:BeginTransaction",
+        "rds-data:CommitTransaction",
+        "rds-data:RollbackTransaction"
+      ],
+      "Resource": "arn:aws:rds:ap-northeast-1:328513660901:cluster:wel-agents-bff-training-data"
+    },
+    {
+      "Sid": "TrainingDataReadManagedSecret",
+      "Effect": "Allow",
+      "Action": [
+        "secretsmanager:GetSecretValue",
+        "secretsmanager:DescribeSecret"
+      ],
+      "Resource": "arn:aws:secretsmanager:ap-northeast-1:328513660901:secret:rds!cluster-*"
+    },
+    {
+      "Sid": "BffApiGatewayTagging",
+      "Effect": "Allow",
+      "Action": [
+        "apigateway:TagResource",
+        "apigateway:UntagResource",
+        "apigateway:GetTags"
+      ],
+      "Resource": [
+        "arn:aws:apigateway:ap-northeast-1::/apis/*/stages",
+        "arn:aws:apigateway:ap-northeast-1::/apis/*/stages/*"
+      ]
+    }
+  ]
+}

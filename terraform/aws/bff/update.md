@@ -3,12 +3,13 @@
 この module をデプロイ済みの状態で、Lambda handler や BFF 設定を更新したときの手順。初回デプロイは
 [`README.md`](./README.md#手順) を参照する。すべてリポジトリルートから実行する。
 
-更新する資産は主に 2 種類あり、何を変えたかで build の要否が変わる。
+更新する資産は主に 3 種類あり、何を変えたかで build の要否が変わる。
 
 | 更新した資産 | `bun run build:bff` | `terraform apply` | `chat-ui` 再 apply |
 | --- | :---: | :---: | :---: |
 | (A) Lambda package の入力（`packages/bff/` / `package.json` / `bun.lock` / `tsconfig.json`） | [OK] | [OK] | 通常不要 |
 | (B) BFF 設定（`agent_runtime_arn` / `agent_runtime_qualifier` / CORS / timeout ほか） | – | [OK] | API endpoint が変わった場合のみ |
+| (C) Training Data Store のスキーマ（`terraform/aws/bff/migrations/*.sql`、issue #8/#9/#10） | – | 新規リソース追加時のみ | 不要 |
 
 ## (A) Lambda package の入力を更新
 
@@ -61,6 +62,21 @@ mise exec -- terraform -chdir=terraform/aws/bff output chat_ui_origin
 mise exec -- terraform -chdir=terraform/aws/chat-ui plan
 mise exec -- terraform -chdir=terraform/aws/chat-ui apply
 ```
+
+## (C) Training Data Store のスキーマを更新
+
+`terraform/aws/bff/migrations/` に新しい番号（`0003_...sql` 等）の SQL ファイルを追加した場合、
+Terraform apply は不要（migration ファイル自体はどの `.tf` からも参照されない）。追加した
+ファイルだけを再実行する。
+
+```bash
+eval "$(mise exec -- terraform -chdir=terraform/aws/bff output -raw training_data_migrate_command)"
+```
+
+`tools/db-migrate/run-migrations.ts` は対象 DB の `schema_migrations` テーブルを見て未適用のファイル
+だけを版番号順に適用するため、既存分を再実行しても影響しない。既存の migration ファイルの内容を
+書き換えるのではなく、常に新しい番号のファイルを追加する（適用済みファイルは再実行されないため、
+書き換えても反映されない）。
 
 ## 不要になったら
 

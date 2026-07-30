@@ -31,4 +31,7 @@ locals {
   lambda_log_group_name = "/aws/lambda/${local.function_name}"
 
   voice_capture_bucket_name = "${var.name_prefix}-voice-capture-${local.agent_runtime_account_id}-${local.agent_runtime_region}"
+
+  training_data_cluster_identifier = "${var.name_prefix}-training-data"
+  training_data_default_vpc_id     = var.enable_training_data_store ? data.aws_vpcs.default[0].ids[0] : null
 }

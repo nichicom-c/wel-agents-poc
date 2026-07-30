@@ -105,6 +105,34 @@ data "aws_iam_policy_document" "lambda" {
       values   = ["transcribe.amazonaws.com"]
     }
   }
+
+  dynamic "statement" {
+    for_each = var.enable_training_data_store ? [aws_rds_cluster.training_data[0].arn] : []
+
+    content {
+      sid    = "ExecuteTrainingDataStatements"
+      effect = "Allow"
+      actions = [
+        "rds-data:ExecuteStatement",
+        "rds-data:BatchExecuteStatement",
+        "rds-data:BeginTransaction",
+        "rds-data:CommitTransaction",
+        "rds-data:RollbackTransaction",
+      ]
+      resources = [statement.value]
+    }
+  }
+
+  dynamic "statement" {
+    for_each = var.enable_training_data_store ? [aws_rds_cluster.training_data[0].master_user_secret[0].secret_arn] : []
+
+    content {
+      sid       = "ReadTrainingDataSecret"
+      effect    = "Allow"
+      actions   = ["secretsmanager:GetSecretValue"]
+      resources = [statement.value]
+    }
+  }
 }
 
 resource "aws_iam_role_policy" "lambda" {

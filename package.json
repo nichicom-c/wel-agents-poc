@@ -23,9 +23,11 @@
     "law:generate:child-abuse-prevention": "bun run tools/law-rag/generate-child-abuse-prevention-law-corpus.ts",
     "medical-care-law:generate:textbook": "bun run tools/medical-care-law-rag/generate-textbook-corpus.ts",
     "structured-data:generate:support-activity": "bun run tools/structured-data/generate-support-activity-sample.ts",
+    "training-data:migrate": "bun run tools/db-migrate/run-migrations.ts",
     "ncu": "bunx npm-check-updates --workspaces"
   },
   "devDependencies": {
+    "@aws-sdk/client-rds-data": "3.1068.0",
     "@biomejs/biome": "2.5.0",
     "@duckdb/node-api": "1.5.3-r.3",
     "@types/bun": "1.3.14",

@@ -281,6 +281,62 @@ variable "voice_capture_language_code" {
   default     = "ja-JP"
 }
 
+variable "enable_training_data_store" {
+  description = "Create the Aurora Serverless v2 (PostgreSQL) + RDS Data API training data store (issue #8/#9/#10). Costly opt-in, defaults to false like enable_law_hierarchical_comparison in the agentcore module."
+  type        = bool
+  default     = false
+}
+
+variable "training_data_database_name" {
+  description = "Initial database name created on the training data Aurora cluster."
+  type        = string
+  default     = "training_data"
+
+  validation {
+    condition     = can(regex("^[a-z][a-z0-9_]{0,62}$", var.training_data_database_name))
+    error_message = "training_data_database_name must start with a lowercase letter and contain only lowercase letters, digits, or underscores."
+  }
+}
+
+variable "training_data_master_username" {
+  description = "Master username for the training data Aurora cluster. Avoid reserved names like \"admin\"/\"postgres\"."
+  type        = string
+  default     = "training_data_admin"
+
+  validation {
+    condition     = can(regex("^[a-z][a-z0-9_]{0,62}$", var.training_data_master_username))
+    error_message = "training_data_master_username must start with a lowercase letter and contain only lowercase letters, digits, or underscores."
+  }
+}
+
+variable "training_data_engine_version" {
+  description = "Aurora PostgreSQL engine version for the training data cluster. Must support scale-to-zero (Aurora PostgreSQL 13.15+/14.12+/15.7+/16.3+ as of the 2024-11 GA). Verify the current minor version available in your region with `aws rds describe-db-engine-versions --engine aurora-postgresql` before applying."
+  type        = string
+  default     = "16.14"
+}
+
+variable "training_data_min_acu" {
+  description = "Minimum Aurora Capacity Units for the training data cluster. 0 enables scale-to-zero auto-pause (recommended default for PoC use); raise only while load-testing concurrent access."
+  type        = number
+  default     = 0
+
+  validation {
+    condition     = var.training_data_min_acu >= 0 && var.training_data_min_acu <= var.training_data_max_acu
+    error_message = "training_data_min_acu must be >= 0 and <= training_data_max_acu."
+  }
+}
+
+variable "training_data_max_acu" {
+  description = "Maximum Aurora Capacity Units for the training data cluster."
+  type        = number
+  default     = 1
+
+  validation {
+    condition     = var.training_data_max_acu >= 0.5
+    error_message = "training_data_max_acu must be >= 0.5."
+  }
+}
+
 variable "throttling_burst_limit" {
   description = "API Gateway default route throttling burst limit."
   type        = number

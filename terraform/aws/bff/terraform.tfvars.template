@@ -41,6 +41,21 @@ cors_allowed_origins = ["*"]
 # Optional: Amazon Transcribe LanguageCode for Voice Capture (issue #7). Defaults to "ja-JP".
 # voice_capture_language_code = "ja-JP"
 
+# Optional: Aurora Serverless v2 (PostgreSQL) + RDS Data API training data store for issue #8/#9/#10.
+# Costly opt-in (defaults to false) — the workbench UI for these issues is dummy-data only today and
+# does not yet call this database. See docs/notes/2026-07-30-training-materials-db-schema-and-aws-infra.md.
+# enable_training_data_store = true
+#
+# Verify the exact minor version available in your region before applying:
+#   aws rds describe-db-engine-versions --engine aurora-postgresql \
+#     --query "DBEngineVersions[?starts_with(EngineVersion, '16.')].EngineVersion"
+# training_data_engine_version = "16.14"
+#
+# min=0 enables scale-to-zero auto-pause (near-zero cost while idle). Raise max only to
+# load-test concurrent access; see the README cost warning before changing either value.
+# training_data_min_acu = 0
+# training_data_max_acu = 1
+
 tags = {
   Project   = "wel-agents-poc"
   Purpose   = "bff"
