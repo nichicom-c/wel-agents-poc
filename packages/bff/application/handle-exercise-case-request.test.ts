@@ -1,6 +1,11 @@
 import { describe, expect, test } from "bun:test";
 
 import {
+  ExerciseCaseAlreadyExistsError,
+  ExerciseCaseMaterialNotFoundError,
+  ExerciseCaseMaterialTypeError,
+} from "../contracts/training.ts";
+import {
   type HandleExerciseCaseOptions,
   handleExerciseCaseRequest,
 } from "./handle-exercise-case-request.ts";
@@ -25,6 +30,7 @@ function baseOptions(
 ): HandleExerciseCaseOptions {
   return {
     authContext: AUTH_CONTEXT,
+    createCase: async () => SAMPLE_CASE,
     getCaseById: async () => SAMPLE_CASE,
     listCases: async () => [],
     trainingDataConfigured: true,
@@ -119,5 +125,123 @@ describe("handleExerciseCaseRequest", () => {
       }),
     );
     expect(response.statusCode).toBe(502);
+  });
+
+  describe("POST /api/exercise-cases", () => {
+    function postRequest(body: unknown) {
+      return {
+        body: JSON.stringify(body),
+        method: "POST",
+        path: "/api/exercise-cases",
+      };
+    }
+
+    test("materialId と initialPresentation を渡して作る", async () => {
+      let captured: unknown;
+      const response = await handleExerciseCaseRequest(
+        postRequest({
+          followupQuestions: [
+            { questionText: "q1", revealedInfoText: "info1" },
+          ],
+          initialPresentation: "presentation",
+          materialId: "material-1",
+          modelAnswers: [{ answerType: "soap", content: "content" }],
+          rubricIds: ["rubric-1"],
+        }),
+        baseOptions({
+          createCase: async (input) => {
+            captured = input;
+            return SAMPLE_CASE;
+          },
+        }),
+      );
+
+      expect(response.statusCode).toBe(200);
+      expect(captured).toEqual({
+        constraintsText: undefined,
+        expectedWorkScene: undefined,
+        followupQuestions: [{ questionText: "q1", revealedInfoText: "info1" }],
+        initialPresentation: "presentation",
+        materialId: "material-1",
+        modelAnswers: [
+          { acceptableNote: undefined, answerType: "soap", content: "content" },
+        ],
+        requiredInstitutionalKnowledge: undefined,
+        rubricIds: ["rubric-1"],
+      });
+    });
+
+    test("materialId が無ければ 400 を返す", async () => {
+      const response = await handleExerciseCaseRequest(
+        postRequest({ initialPresentation: "presentation" }),
+        baseOptions(),
+      );
+      expect(response.statusCode).toBe(400);
+    });
+
+    test("initialPresentation が無ければ 400 を返す", async () => {
+      const response = await handleExerciseCaseRequest(
+        postRequest({ materialId: "material-1" }),
+        baseOptions(),
+      );
+      expect(response.statusCode).toBe(400);
+    });
+
+    test("modelAnswers の answerType が不正なら 400 を返す", async () => {
+      const response = await handleExerciseCaseRequest(
+        postRequest({
+          initialPresentation: "presentation",
+          materialId: "material-1",
+          modelAnswers: [{ answerType: "invalid", content: "content" }],
+        }),
+        baseOptions(),
+      );
+      expect(response.statusCode).toBe(400);
+    });
+
+    test("ExerciseCaseMaterialNotFoundError を 400 にする", async () => {
+      const response = await handleExerciseCaseRequest(
+        postRequest({
+          initialPresentation: "presentation",
+          materialId: "missing",
+        }),
+        baseOptions({
+          createCase: async () => {
+            throw new ExerciseCaseMaterialNotFoundError("material not found");
+          },
+        }),
+      );
+      expect(response.statusCode).toBe(400);
+    });
+
+    test("ExerciseCaseMaterialTypeError を 400 にする", async () => {
+      const response = await handleExerciseCaseRequest(
+        postRequest({
+          initialPresentation: "presentation",
+          materialId: "material-1",
+        }),
+        baseOptions({
+          createCase: async () => {
+            throw new ExerciseCaseMaterialTypeError("wrong type");
+          },
+        }),
+      );
+      expect(response.statusCode).toBe(400);
+    });
+
+    test("ExerciseCaseAlreadyExistsError を 400 にする", async () => {
+      const response = await handleExerciseCaseRequest(
+        postRequest({
+          initialPresentation: "presentation",
+          materialId: "material-1",
+        }),
+        baseOptions({
+          createCase: async () => {
+            throw new ExerciseCaseAlreadyExistsError("already exists");
+          },
+        }),
+      );
+      expect(response.statusCode).toBe(400);
+    });
   });
 });

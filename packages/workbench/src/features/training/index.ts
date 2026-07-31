@@ -1,4 +1,10 @@
+export type {
+  NewExerciseCaseFollowupQuestionInput,
+  NewExerciseCaseInput,
+  NewExerciseCaseModelAnswerInput,
+} from "./api/training.ts";
 export {
+  createExerciseCase,
   listAttemptsForTrainee,
   listExerciseCases,
   listInstructorQueue,

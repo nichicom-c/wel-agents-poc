@@ -321,6 +321,15 @@ resource "aws_apigatewayv2_route" "exercise_cases_detail" {
   target               = "integrations/${aws_apigatewayv2_integration.lambda.id}"
 }
 
+resource "aws_apigatewayv2_route" "exercise_cases_create" {
+  api_id               = aws_apigatewayv2_api.this.id
+  authorization_scopes = var.jwt_authorization_scopes
+  authorization_type   = "JWT"
+  authorizer_id        = aws_apigatewayv2_authorizer.jwt.id
+  route_key            = "POST /api/exercise-cases"
+  target               = "integrations/${aws_apigatewayv2_integration.lambda.id}"
+}
+
 resource "aws_apigatewayv2_route" "exercise_attempts_create" {
   api_id               = aws_apigatewayv2_api.this.id
   authorization_scopes = var.jwt_authorization_scopes

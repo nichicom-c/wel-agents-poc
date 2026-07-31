@@ -56,6 +56,12 @@ import {
   type SoapRecordType,
   soapRecordTypeLabel,
 } from "../../features/soap-draft/index.ts";
+import {
+  createExerciseCase,
+  MODEL_ANSWER_TYPES,
+  type ModelAnswerType,
+  modelAnswerTypeLabel,
+} from "../../features/training/index.ts";
 
 type AdminTab =
   | "materials"
@@ -415,6 +421,9 @@ function MaterialsTab() {
                 変更
               </button>
             </div>
+            {material.materialType === "teaching_case" ? (
+              <ExerciseCaseCreateForm materialId={material.id} />
+            ) : null}
           </li>
         ))}
       </ul>
@@ -489,6 +498,309 @@ function MaterialsTab() {
         </button>
       </div>
     </section>
+  );
+}
+
+type DraftFollowupQuestion = { questionText: string; revealedInfoText: string };
+type DraftModelAnswer = {
+  answerType: ModelAnswerType;
+  content: string;
+  acceptableNote: string;
+};
+
+/**
+ * 既存の教材（`material_type: teaching_case`）から演習ケース（issue #9）を作るフォーム。
+ * 演習ケースは教材ごとに1件だけ（`exercise_cases.material_id` が1:1）作れる。
+ */
+function ExerciseCaseCreateForm({ materialId }: { materialId: string }) {
+  const [expanded, setExpanded] = useState(false);
+  const [rubrics, setRubrics] = useState<Rubric[] | null>(null);
+  const [initialPresentation, setInitialPresentation] = useState("");
+  const [expectedWorkScene, setExpectedWorkScene] = useState("");
+  const [constraintsText, setConstraintsText] = useState("");
+  const [requiredInstitutionalKnowledge, setRequiredInstitutionalKnowledge] =
+    useState("");
+  const [followupQuestions, setFollowupQuestions] = useState<
+    DraftFollowupQuestion[]
+  >([]);
+  const [modelAnswers, setModelAnswers] = useState<DraftModelAnswer[]>([]);
+  const [selectedRubricIds, setSelectedRubricIds] = useState<string[]>([]);
+  const [status, setStatus] = useState<"idle" | "saving" | "done" | "error">(
+    "idle",
+  );
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (!expanded || rubrics) {
+      return;
+    }
+    let cancelled = false;
+    listRubrics().then((result) => {
+      if (!cancelled) {
+        setRubrics(result);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [expanded, rubrics]);
+
+  function updateFollowupQuestion(
+    index: number,
+    field: keyof DraftFollowupQuestion,
+    value: string,
+  ) {
+    setFollowupQuestions((prev) =>
+      prev.map((question, i) =>
+        i === index ? { ...question, [field]: value } : question,
+      ),
+    );
+  }
+
+  function updateModelAnswer(
+    index: number,
+    field: keyof DraftModelAnswer,
+    value: string,
+  ) {
+    setModelAnswers((prev) =>
+      prev.map((answer, i) =>
+        i === index ? { ...answer, [field]: value } : answer,
+      ),
+    );
+  }
+
+  function toggleRubric(rubricId: string) {
+    setSelectedRubricIds((prev) =>
+      prev.includes(rubricId)
+        ? prev.filter((id) => id !== rubricId)
+        : [...prev, rubricId],
+    );
+  }
+
+  function resetForm() {
+    setInitialPresentation("");
+    setExpectedWorkScene("");
+    setConstraintsText("");
+    setRequiredInstitutionalKnowledge("");
+    setFollowupQuestions([]);
+    setModelAnswers([]);
+    setSelectedRubricIds([]);
+  }
+
+  async function handleSubmit() {
+    setStatus("saving");
+    setError("");
+    try {
+      await createExerciseCase({
+        constraintsText: constraintsText.trim() || undefined,
+        expectedWorkScene: expectedWorkScene.trim() || undefined,
+        followupQuestions: followupQuestions
+          .filter((q) => q.questionText.trim() && q.revealedInfoText.trim())
+          .map((q) => ({
+            questionText: q.questionText.trim(),
+            revealedInfoText: q.revealedInfoText.trim(),
+          })),
+        initialPresentation: initialPresentation.trim(),
+        materialId,
+        modelAnswers: modelAnswers
+          .filter((a) => a.content.trim())
+          .map((a) => ({
+            acceptableNote: a.acceptableNote.trim() || undefined,
+            answerType: a.answerType,
+            content: a.content.trim(),
+          })),
+        requiredInstitutionalKnowledge:
+          requiredInstitutionalKnowledge.trim() || undefined,
+        rubricIds: selectedRubricIds,
+      });
+      setStatus("done");
+      resetForm();
+    } catch (caught) {
+      setStatus("error");
+      setError(caught instanceof Error ? caught.message : String(caught));
+    }
+  }
+
+  if (!expanded) {
+    return (
+      <button type="button" onClick={() => setExpanded(true)}>
+        演習ケースを作成
+      </button>
+    );
+  }
+
+  return (
+    <div className="knowledge-review-create-form">
+      <h5>演習ケースの作成</h5>
+      <label>
+        初期提示情報
+        <textarea
+          value={initialPresentation}
+          onChange={(event) => setInitialPresentation(event.target.value)}
+        />
+      </label>
+      <label>
+        想定業務場面
+        <input
+          value={expectedWorkScene}
+          onChange={(event) => setExpectedWorkScene(event.target.value)}
+        />
+      </label>
+      <label>
+        制約条件
+        <textarea
+          value={constraintsText}
+          onChange={(event) => setConstraintsText(event.target.value)}
+        />
+      </label>
+      <label>
+        必要な制度知識
+        <input
+          value={requiredInstitutionalKnowledge}
+          onChange={(event) =>
+            setRequiredInstitutionalKnowledge(event.target.value)
+          }
+        />
+      </label>
+
+      <fieldset>
+        <legend>追加質問</legend>
+        {followupQuestions.map((question, index) => (
+          // biome-ignore lint/suspicious/noArrayIndexKey: 並べ替え無しの追加専用リストのため index で十分。
+          <div key={index}>
+            <input
+              placeholder="設問文"
+              value={question.questionText}
+              onChange={(event) =>
+                updateFollowupQuestion(
+                  index,
+                  "questionText",
+                  event.target.value,
+                )
+              }
+            />
+            <input
+              placeholder="開示される追加情報"
+              value={question.revealedInfoText}
+              onChange={(event) =>
+                updateFollowupQuestion(
+                  index,
+                  "revealedInfoText",
+                  event.target.value,
+                )
+              }
+            />
+            <button
+              type="button"
+              onClick={() =>
+                setFollowupQuestions((prev) =>
+                  prev.filter((_, i) => i !== index),
+                )
+              }
+            >
+              削除
+            </button>
+          </div>
+        ))}
+        <button
+          type="button"
+          onClick={() =>
+            setFollowupQuestions((prev) => [
+              ...prev,
+              { questionText: "", revealedInfoText: "" },
+            ])
+          }
+        >
+          追加質問を追加
+        </button>
+      </fieldset>
+
+      <fieldset>
+        <legend>模範回答</legend>
+        {modelAnswers.map((answer, index) => (
+          // biome-ignore lint/suspicious/noArrayIndexKey: 並べ替え無しの追加専用リストのため index で十分。
+          <div key={index}>
+            <select
+              value={answer.answerType}
+              onChange={(event) =>
+                updateModelAnswer(index, "answerType", event.target.value)
+              }
+            >
+              {MODEL_ANSWER_TYPES.map((type) => (
+                <option key={type} value={type}>
+                  {modelAnswerTypeLabel(type)}
+                </option>
+              ))}
+            </select>
+            <textarea
+              placeholder="回答内容"
+              value={answer.content}
+              onChange={(event) =>
+                updateModelAnswer(index, "content", event.target.value)
+              }
+            />
+            <input
+              placeholder="許容される理由（任意）"
+              value={answer.acceptableNote}
+              onChange={(event) =>
+                updateModelAnswer(index, "acceptableNote", event.target.value)
+              }
+            />
+            <button
+              type="button"
+              onClick={() =>
+                setModelAnswers((prev) => prev.filter((_, i) => i !== index))
+              }
+            >
+              削除
+            </button>
+          </div>
+        ))}
+        <button
+          type="button"
+          onClick={() =>
+            setModelAnswers((prev) => [
+              ...prev,
+              {
+                acceptableNote: "",
+                answerType: MODEL_ANSWER_TYPES[0],
+                content: "",
+              },
+            ])
+          }
+        >
+          模範回答を追加
+        </button>
+      </fieldset>
+
+      <fieldset>
+        <legend>評価観点として使うルーブリック</legend>
+        {(rubrics ?? []).map((rubric) => (
+          <label key={rubric.id}>
+            <input
+              type="checkbox"
+              checked={selectedRubricIds.includes(rubric.id)}
+              onChange={() => toggleRubric(rubric.id)}
+            />
+            {rubric.name}
+          </label>
+        ))}
+      </fieldset>
+
+      {status === "done" ? <p>演習ケースを作成しました。</p> : null}
+      {status === "error" ? <p className="soap-draft-error">{error}</p> : null}
+
+      <button type="button" onClick={() => setExpanded(false)}>
+        閉じる
+      </button>
+      <button
+        type="button"
+        disabled={!initialPresentation.trim() || status === "saving"}
+        onClick={() => void handleSubmit()}
+      >
+        {status === "saving" ? "作成中…" : "作成"}
+      </button>
+    </div>
   );
 }
 

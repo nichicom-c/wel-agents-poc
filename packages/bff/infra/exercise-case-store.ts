@@ -1,28 +1,35 @@
-import type {
-  ExerciseCase,
-  ExerciseCaseFilters,
-  ExerciseFollowupQuestion,
-  ExerciseModelAnswer,
+import {
+  type ExerciseCase,
+  ExerciseCaseAlreadyExistsError,
+  type ExerciseCaseFilters,
+  ExerciseCaseMaterialNotFoundError,
+  ExerciseCaseMaterialTypeError,
+  type ExerciseFollowupQuestion,
+  type ExerciseModelAnswer,
+  type ModelAnswerType,
 } from "../contracts/training.ts";
 import {
+  beginTransaction,
+  commitTransaction,
   execute,
+  jsonParam,
   nullableStringParam,
   parseJsonColumn,
   parseRows,
   resolveClient,
+  rollbackTransaction,
   stringParam,
   type TrainingDataStoreConfig,
   type TrainingDataStoreDeps,
 } from "./training-data-sql.ts";
 
 /**
- * 演習ケース（issue #9）の読み取り専用永続化層。issue #10 の `materials`
+ * 演習ケース（issue #9）の永続化層。issue #10 の `materials`
  * （`material_type: teaching_case`）の1:1拡張である `exercise_cases` を主に、追加質問
  * （`exercise_followup_questions`）・模範回答（`exercise_model_answers`）・評価観点
  * （`exercise_case_rubrics` 経由の `rubric_items.criterion_name`）を `json_agg` で1回の
- * select に埋め込んで返す。作成/更新 UI はまだ無い（教材候補からの教材化と同様、issue #10 の
- * Admin から `materials` 行を作るところまでしか実装が無い）ため read のみ提供する。
- * 受講者（trainee）が見る一覧は公開済み（`publication_status: published`）だけに絞る。
+ * select に埋め込んで返す。受講者（trainee）が見る一覧は公開済み（`publication_status: published`）
+ * だけに絞る。`createExerciseCase` は既存の `teaching_case` 教材から演習ケースを作る（更新 UI は無い）。
  */
 
 type RawEmbeddedFollowupQuestion = ExerciseFollowupQuestion;
@@ -145,4 +152,175 @@ export async function getExerciseCaseById(
   );
   const row = rows[0];
   return row ? mapExerciseCaseRow(row) : undefined;
+}
+
+export type CreateExerciseCaseFollowupQuestionInput = {
+  questionText: string;
+  revealedInfoText: string;
+};
+
+export type CreateExerciseCaseModelAnswerInput = {
+  answerType: ModelAnswerType;
+  content: string;
+  acceptableNote?: string;
+};
+
+export type CreateExerciseCaseInput = {
+  /** 演習ケース化する `materials` 行（`material_type: teaching_case` 必須）。 */
+  materialId: string;
+  initialPresentation: string;
+  expectedWorkScene?: string;
+  constraintsText?: string;
+  requiredInstitutionalKnowledge?: string;
+  followupQuestions: CreateExerciseCaseFollowupQuestionInput[];
+  modelAnswers: CreateExerciseCaseModelAnswerInput[];
+  /** 評価観点として紐づける既存ルーブリックの id（`exercise_case_rubrics`）。 */
+  rubricIds: string[];
+};
+
+/**
+ * 既存の教材（`material_type: teaching_case`）から演習ケースを作る。教材ごとに1件だけ
+ * （`exercise_cases.material_id` が主キー）で、追加質問・模範回答・評価観点用ルーブリックを
+ * 同じトランザクションで束ねて作る。
+ */
+export async function createExerciseCase(
+  config: TrainingDataStoreConfig,
+  input: CreateExerciseCaseInput,
+  deps: TrainingDataStoreDeps = {},
+): Promise<ExerciseCase> {
+  const rdsClient = resolveClient(config, deps);
+  const transactionId = await beginTransaction(rdsClient, config);
+
+  try {
+    const materialRows = parseRows<{ material_type: string }>(
+      await execute(
+        rdsClient,
+        config,
+        `select material_type from materials where id = :materialId::uuid`,
+        [stringParam("materialId", input.materialId)],
+        transactionId,
+      ),
+    );
+    const material = materialRows[0];
+    if (!material) {
+      throw new ExerciseCaseMaterialNotFoundError(
+        `material not found: ${input.materialId}`,
+      );
+    }
+    if (material.material_type !== "teaching_case") {
+      throw new ExerciseCaseMaterialTypeError(
+        `material_type must be teaching_case: ${input.materialId}`,
+      );
+    }
+
+    const existingRows = parseRows<{ material_id: string }>(
+      await execute(
+        rdsClient,
+        config,
+        `select material_id from exercise_cases where material_id = :materialId::uuid`,
+        [stringParam("materialId", input.materialId)],
+        transactionId,
+      ),
+    );
+    if (existingRows[0]) {
+      throw new ExerciseCaseAlreadyExistsError(
+        `exercise case already exists for material: ${input.materialId}`,
+      );
+    }
+
+    await execute(
+      rdsClient,
+      config,
+      `insert into exercise_cases
+         (material_id, initial_presentation, constraints_text, expected_work_scene,
+          required_institutional_knowledge)
+       values
+         (:materialId::uuid, :initialPresentation, :constraintsText, :expectedWorkScene,
+          :requiredInstitutionalKnowledge)`,
+      [
+        stringParam("materialId", input.materialId),
+        jsonParam("initialPresentation", input.initialPresentation),
+        nullableStringParam("constraintsText", input.constraintsText),
+        nullableStringParam("expectedWorkScene", input.expectedWorkScene),
+        nullableStringParam(
+          "requiredInstitutionalKnowledge",
+          input.requiredInstitutionalKnowledge,
+        ),
+      ],
+      transactionId,
+    );
+
+    for (const [index, question] of input.followupQuestions.entries()) {
+      await execute(
+        rdsClient,
+        config,
+        `insert into exercise_followup_questions
+           (exercise_case_material_id, question_text, revealed_info_text, order_no)
+         values
+           (:materialId::uuid, :questionText, :revealedInfoText, :orderNo)`,
+        [
+          stringParam("materialId", input.materialId),
+          stringParam("questionText", question.questionText),
+          stringParam("revealedInfoText", question.revealedInfoText),
+          { name: "orderNo", value: { longValue: index + 1 } },
+        ],
+        transactionId,
+      );
+    }
+
+    for (const answer of input.modelAnswers) {
+      await execute(
+        rdsClient,
+        config,
+        `insert into exercise_model_answers
+           (exercise_case_material_id, answer_type, content, acceptable_note)
+         values
+           (:materialId::uuid, :answerType::model_answer_type, :content, :acceptableNote)`,
+        [
+          stringParam("materialId", input.materialId),
+          stringParam("answerType", answer.answerType),
+          jsonParam("content", answer.content),
+          nullableStringParam("acceptableNote", answer.acceptableNote),
+        ],
+        transactionId,
+      );
+    }
+
+    for (const rubricId of input.rubricIds) {
+      await execute(
+        rdsClient,
+        config,
+        `insert into exercise_case_rubrics (exercise_case_material_id, rubric_id)
+         values (:materialId::uuid, :rubricId::uuid)`,
+        [
+          stringParam("materialId", input.materialId),
+          stringParam("rubricId", rubricId),
+        ],
+        transactionId,
+      );
+    }
+
+    const createdRows = parseRows<ExerciseCaseRow>(
+      await execute(
+        rdsClient,
+        config,
+        `${EXERCISE_CASE_SELECT} where m.id = :materialId::uuid`,
+        [stringParam("materialId", input.materialId)],
+        transactionId,
+      ),
+    );
+    const createdRow = createdRows[0];
+    if (!createdRow) {
+      throw new Error(
+        `failed to load created exercise case: ${input.materialId}`,
+      );
+    }
+
+    await commitTransaction(rdsClient, config, transactionId);
+
+    return mapExerciseCaseRow(createdRow);
+  } catch (error) {
+    await rollbackTransaction(rdsClient, config, transactionId);
+    throw error;
+  }
 }

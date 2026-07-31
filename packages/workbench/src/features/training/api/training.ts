@@ -10,6 +10,7 @@ import {
   type ExerciseFollowupQuestion,
   type ExerciseModelAnswer,
   MODEL_ANSWER_TYPES,
+  type ModelAnswerType,
 } from "../model/exercise-cases.ts";
 import type {
   ExerciseFeedback,
@@ -59,6 +60,53 @@ export async function listExerciseCases(
   }
 
   return normalizeExerciseCases(payload.cases);
+}
+
+export type NewExerciseCaseFollowupQuestionInput = {
+  questionText: string;
+  revealedInfoText: string;
+};
+
+export type NewExerciseCaseModelAnswerInput = {
+  answerType: ModelAnswerType;
+  content: string;
+  acceptableNote?: string;
+};
+
+export type NewExerciseCaseInput = {
+  /** 演習ケース化する教材（`material_type: teaching_case`）の id。 */
+  materialId: string;
+  initialPresentation: string;
+  expectedWorkScene?: string;
+  constraintsText?: string;
+  requiredInstitutionalKnowledge?: string;
+  followupQuestions?: NewExerciseCaseFollowupQuestionInput[];
+  modelAnswers?: NewExerciseCaseModelAnswerInput[];
+  /** 評価観点として紐づける既存ルーブリックの id。 */
+  rubricIds?: string[];
+};
+
+/** 既存の教材（issue #10、`material_type: teaching_case`）から演習ケースを作る。 */
+export async function createExerciseCase(
+  input: NewExerciseCaseInput,
+  fetchFn: FetchFn = fetch,
+): Promise<ExerciseCase> {
+  const response = await fetchFn(EXERCISE_CASES_ENDPOINT, {
+    body: JSON.stringify(input),
+    headers: { "content-type": "application/json" },
+    method: "POST",
+  });
+  const payload = await readJson(response);
+
+  if (!response.ok) {
+    throw new Error(trimmedText(payload.error) || `HTTP ${response.status}`);
+  }
+
+  const exerciseCase = normalizeExerciseCase(payload);
+  if (!exerciseCase) {
+    throw new Error("invalid response from /api/exercise-cases");
+  }
+  return exerciseCase;
 }
 
 export async function startAttempt(

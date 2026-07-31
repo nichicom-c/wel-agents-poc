@@ -50,6 +50,7 @@ import {
   startAttempt,
 } from "../infra/exercise-attempt-store.ts";
 import {
+  createExerciseCase,
   getExerciseCaseById,
   listExerciseCases,
 } from "../infra/exercise-case-store.ts";
@@ -386,6 +387,7 @@ export async function handleBffDevRequest(
       },
       {
         authContext: authContextForConfig(config),
+        createCase: (input) => createExerciseCase(storeConfig, input),
         getCaseById: (id) => getExerciseCaseById(storeConfig, id),
         listCases: (filters) => listExerciseCases(storeConfig, filters),
         logError: (message, detail) => console.error(message, detail),

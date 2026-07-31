@@ -64,6 +64,7 @@ import {
   startAttempt,
 } from "../infra/exercise-attempt-store.ts";
 import {
+  createExerciseCase,
   getExerciseCaseById,
   listExerciseCases,
 } from "../infra/exercise-case-store.ts";
@@ -857,6 +858,7 @@ function exerciseCaseOptions(
 
   return {
     authContext: authContextForEvent(event, config),
+    createCase: (input) => createExerciseCase(storeConfig, input),
     getCaseById: (id) => getExerciseCaseById(storeConfig, id),
     listCases: (filters) => listExerciseCases(storeConfig, filters),
     logError:

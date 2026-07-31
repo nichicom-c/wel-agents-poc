@@ -73,6 +73,24 @@ export type ExerciseCaseFilters = {
   learningThemeId?: string;
 };
 
+/**
+ * `POST /api/exercise-cases` で存在しない `materialId` を指定した場合。infra と application の
+ * 両方から instanceof で判定できるよう contracts に置く。
+ */
+export class ExerciseCaseMaterialNotFoundError extends Error {
+  override name = "ExerciseCaseMaterialNotFoundError";
+}
+
+/** `material_type` が `teaching_case` ではない教材から演習ケースを作ろうとした場合。 */
+export class ExerciseCaseMaterialTypeError extends Error {
+  override name = "ExerciseCaseMaterialTypeError";
+}
+
+/** すでに演習ケースが存在する教材（`exercise_cases.material_id` が1:1）にもう一度作ろうとした場合。 */
+export class ExerciseCaseAlreadyExistsError extends Error {
+  override name = "ExerciseCaseAlreadyExistsError";
+}
+
 export type ExerciseInstructorComment = {
   id: string;
   instructorId: string;
