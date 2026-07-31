@@ -9,6 +9,7 @@ export {
   addRubric,
   addSoapMappingVersion,
   changeMaterialStatus,
+  getTrainingDataClusterStatus,
   listMaterials,
   listQualityMetrics,
   listReferenceKnowledge,
@@ -16,6 +17,7 @@ export {
   listRubrics,
   listSoapMappingVersions,
   setRubricStatus,
+  startTrainingDataCluster,
 } from "./api/admin.ts";
 export type {
   Material,

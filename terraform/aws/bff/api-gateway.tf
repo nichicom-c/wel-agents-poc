@@ -177,6 +177,24 @@ resource "aws_apigatewayv2_route" "material_candidates_promote" {
   target               = "integrations/${aws_apigatewayv2_integration.lambda.id}"
 }
 
+resource "aws_apigatewayv2_route" "training_data_cluster_status" {
+  api_id               = aws_apigatewayv2_api.this.id
+  authorization_scopes = var.jwt_authorization_scopes
+  authorization_type   = "JWT"
+  authorizer_id        = aws_apigatewayv2_authorizer.jwt.id
+  route_key            = "GET /api/training-data-cluster"
+  target               = "integrations/${aws_apigatewayv2_integration.lambda.id}"
+}
+
+resource "aws_apigatewayv2_route" "training_data_cluster_start" {
+  api_id               = aws_apigatewayv2_api.this.id
+  authorization_scopes = var.jwt_authorization_scopes
+  authorization_type   = "JWT"
+  authorizer_id        = aws_apigatewayv2_authorizer.jwt.id
+  route_key            = "POST /api/training-data-cluster/start"
+  target               = "integrations/${aws_apigatewayv2_integration.lambda.id}"
+}
+
 resource "aws_apigatewayv2_route" "materials_list" {
   api_id               = aws_apigatewayv2_api.this.id
   authorization_scopes = var.jwt_authorization_scopes

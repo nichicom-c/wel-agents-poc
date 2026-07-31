@@ -50,6 +50,7 @@ const REFERENCE_KNOWLEDGE_ENDPOINT = "/api/reference-knowledge";
 const SOAP_MAPPING_VERSIONS_ENDPOINT = "/api/soap-mapping-versions";
 const REQUIRED_ITEMS_ENDPOINT = "/api/required-items";
 const QUALITY_METRICS_ENDPOINT = "/api/quality-metrics";
+const TRAINING_DATA_CLUSTER_ENDPOINT = "/api/training-data-cluster";
 
 type FetchFn = (
   input: string | URL | Request,
@@ -331,6 +332,44 @@ export async function listQualityMetrics(
   }
 
   return normalizeQualityMetrics(payload.metrics);
+}
+
+// --- Training Data Store（Aurora）cluster 起動 ------------------------------
+
+/** 現在の Training Data Store（Aurora Serverless v2）cluster の status を取得する。 */
+export async function getTrainingDataClusterStatus(
+  fetchFn: FetchFn = fetch,
+): Promise<string> {
+  const response = await fetchFn(TRAINING_DATA_CLUSTER_ENDPOINT);
+  const payload = await readJson(response);
+
+  if (!response.ok) {
+    throw new Error(trimmedText(payload.error) || `HTTP ${response.status}`);
+  }
+
+  return trimmedText(payload.status) || "unknown";
+}
+
+/**
+ * Training Data Store（Aurora Serverless v2）の cluster を起動する。
+ *
+ * scale-to-zero の自動 pause と違い、手動 stop された cluster は Data API 呼び出しでは
+ * 復帰しないため、開発者が CLI で `aws rds start-db-cluster` を叩く代わりに UI から
+ * `POST /api/training-data-cluster/start` を呼べるようにする。
+ */
+export async function startTrainingDataCluster(
+  fetchFn: FetchFn = fetch,
+): Promise<string> {
+  const response = await fetchFn(`${TRAINING_DATA_CLUSTER_ENDPOINT}/start`, {
+    method: "POST",
+  });
+  const payload = await readJson(response);
+
+  if (!response.ok) {
+    throw new Error(trimmedText(payload.error) || `HTTP ${response.status}`);
+  }
+
+  return trimmedText(payload.status) || "unknown";
 }
 
 // --- helpers --------------------------------------------------------------

@@ -133,6 +133,34 @@ data "aws_iam_policy_document" "lambda" {
       resources = [statement.value]
     }
   }
+
+  # 手動 stop された Training Data Store cluster を UI（`POST /api/training-data-cluster/start`）
+  # から起動できるようにする。scale-to-zero の自動 pause からの復帰は Data API 呼び出しだけで
+  # 効くため対象外。
+  dynamic "statement" {
+    for_each = var.enable_training_data_store ? [aws_rds_cluster.training_data[0].arn] : []
+
+    content {
+      sid       = "StartTrainingDataCluster"
+      effect    = "Allow"
+      actions   = ["rds:StartDBCluster"]
+      resources = [statement.value]
+    }
+  }
+
+  dynamic "statement" {
+    for_each = var.enable_training_data_store ? [1] : []
+
+    content {
+      sid    = "DescribeTrainingDataClusterRequiresWildcard"
+      effect = "Allow"
+      actions = [
+        "rds:DescribeDBClusters",
+      ]
+      # Describe 系 RDS API は resource-level 権限をサポートしないため "*" が必須。
+      resources = ["*"]
+    }
+  }
 }
 
 resource "aws_iam_role_policy" "lambda" {

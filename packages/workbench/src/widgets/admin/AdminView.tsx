@@ -11,6 +11,7 @@ import {
   canViewAdmin,
   changeMaterialStatus,
   currentVersionForRecordType,
+  getTrainingDataClusterStatus,
   listMaterials,
   listQualityMetrics,
   listReferenceKnowledge,
@@ -42,6 +43,7 @@ import {
   rubricTargetTypeLabel,
   type SoapMappingVersion,
   setRubricStatus,
+  startTrainingDataCluster,
 } from "../../features/admin/index.ts";
 import {
   DIFFICULTY_LEVELS,
@@ -106,6 +108,8 @@ export function AdminView() {
         </p>
       ) : (
         <>
+          <TrainingDataClusterPanel />
+
           <div className="knowledge-review-tabs" role="tablist">
             {ADMIN_TABS.map((tab) => (
               <button
@@ -137,6 +141,108 @@ export function AdminView() {
         </>
       )}
     </>
+  );
+}
+
+/**
+ * Training Data Store（Aurora Serverless v2）の cluster 状態を表示し、手動 stop された
+ * cluster（scale-to-zero の自動 pause と違い Data API 呼び出しでは復帰しない）を CLI の
+ * 代わりに起動できるようにする。
+ */
+function TrainingDataClusterPanel() {
+  const [status, setStatus] = useState<string | null>(null);
+  const [statusLoadState, setStatusLoadState] = useState<
+    "idle" | "loading" | "error"
+  >("idle");
+  const [startState, setStartState] = useState<"idle" | "starting" | "error">(
+    "idle",
+  );
+  const [message, setMessage] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+    setStatusLoadState("loading");
+    getTrainingDataClusterStatus()
+      .then((result) => {
+        if (cancelled) {
+          return;
+        }
+        setStatus(result);
+        setStatusLoadState("idle");
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setStatusLoadState("error");
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  async function handleCheckStatus() {
+    setStatusLoadState("loading");
+    try {
+      setStatus(await getTrainingDataClusterStatus());
+      setStatusLoadState("idle");
+    } catch {
+      setStatusLoadState("error");
+    }
+  }
+
+  async function handleStart() {
+    setStartState("starting");
+    setMessage("");
+    try {
+      const nextStatus = await startTrainingDataCluster();
+      setStatus(nextStatus);
+      setStartState("idle");
+      setMessage(
+        `Aurora クラスターの status: ${nextStatus}。起動には数分かかることがあるため、しばらくしてから「状態を確認」を押してください。`,
+      );
+    } catch (error) {
+      setStartState("error");
+      setMessage(
+        error instanceof Error
+          ? error.message
+          : "クラスターの起動に失敗しました。",
+      );
+    }
+  }
+
+  return (
+    <section
+      className="admin-infra-panel"
+      aria-label="Training Data Store（Aurora）の状態"
+    >
+      <h3>Training Data Store（Aurora）</h3>
+      <p className="workbench-main-description">
+        教材候補・専門職コメントなどが使う Aurora Serverless v2 cluster が手動
+        stop されている場合、ここから起動できます。
+      </p>
+      <p>
+        現在の status:{" "}
+        {statusLoadState === "loading" ? "確認中…" : (status ?? "unknown")}
+      </p>
+      <div>
+        <button type="button" onClick={() => void handleCheckStatus()}>
+          状態を確認
+        </button>{" "}
+        <button
+          type="button"
+          disabled={startState === "starting"}
+          onClick={() => void handleStart()}
+        >
+          {startState === "starting" ? "起動中…" : "Aurora クラスターを起動"}
+        </button>
+      </div>
+      {message ? <p>{message}</p> : null}
+      {statusLoadState === "error" ? (
+        <p className="soap-draft-error">
+          Training Data Store の状態取得に失敗しました。
+        </p>
+      ) : null}
+    </section>
   );
 }
 

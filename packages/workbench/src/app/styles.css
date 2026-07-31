@@ -42,6 +42,8 @@
   --error-bg: #fff0ef;
   --error-border: #d98c84;
   --error-text: #8e2f28;
+  --infra-panel-bg: #fff6df;
+  --infra-panel-border: #c99a3f;
   --soap-cat-s-bg: #eaf1fb;
   --soap-cat-s-border: #2a78d6;
   --soap-cat-s-text: #0c4282;
@@ -98,6 +100,8 @@
     --error-bg: rgba(219, 88, 78, 0.15);
     --error-border: #db746b;
     --error-text: #ffb7b1;
+    --infra-panel-bg: rgba(217, 158, 55, 0.16);
+    --infra-panel-border: #d29a39;
     --soap-cat-s-bg: rgba(57, 135, 229, 0.15);
     --soap-cat-s-border: #3987e5;
     --soap-cat-s-text: #accef7;
@@ -241,6 +245,26 @@ button:disabled {
   margin: var(--space-2) 0 var(--space-5);
   color: var(--text-muted);
   font-size: 14px;
+}
+
+.admin-infra-panel {
+  display: grid;
+  gap: var(--space-2);
+  margin-bottom: var(--space-5);
+  padding: var(--space-4);
+  border: 1px solid var(--infra-panel-border);
+  border-radius: var(--radius-control);
+  background: var(--infra-panel-bg);
+}
+
+.admin-infra-panel h3 {
+  margin: 0;
+  color: var(--text-strong);
+  font-size: 16px;
+}
+
+.admin-infra-panel p {
+  margin: 0;
 }
 
 textarea {

@@ -31,6 +31,7 @@ import { handleSoapDraftRequest } from "../application/handle-soap-draft-request
 import { handleSoapGapsRequest } from "../application/handle-soap-gaps-request.ts";
 import { handleSoapMappingRequest } from "../application/handle-soap-mapping-request.ts";
 import { handleSoapRecordRequest } from "../application/handle-soap-record-request.ts";
+import { handleTrainingDataClusterRequest } from "../application/handle-training-data-cluster-request.ts";
 import { handleVoiceRecordingRequest } from "../application/handle-voice-recording-request.ts";
 import {
   type CreateWebSocketUrl,
@@ -109,6 +110,10 @@ import {
   listSoapRecordVersions,
 } from "../infra/soap-record-store.ts";
 import {
+  makeTrainingDataClusterControl,
+  type TrainingDataClusterControl,
+} from "../infra/training-data-cluster-control.ts";
+import {
   getTranscriptionJobStatus,
   saveEditedTranscript,
   uploadRecordingAndStartTranscription,
@@ -122,6 +127,7 @@ type LambdaHandlerDeps = AgentCoreRuntimeClientDeps & {
   getKnowledgeBaseDetail?: KnowledgeBaseDetailProvider;
   listSessions?: ListSessions;
   logError?: (message: string, detail: Record<string, unknown>) => void;
+  trainingDataClusterControl?: TrainingDataClusterControl;
   webSocketPresignerDeps?: AgentCoreWebSocketPresignerDeps;
 };
 
@@ -408,6 +414,21 @@ export async function handleLambdaEvent(
     );
   }
 
+  if (
+    path === "/api/training-data-cluster" ||
+    path === "/api/training-data-cluster/start"
+  ) {
+    return handleTrainingDataClusterRequest(
+      {
+        body: event.body,
+        isBase64Encoded: event.isBase64Encoded,
+        method,
+        path,
+      },
+      trainingDataClusterOptions(config, event, deps),
+    );
+  }
+
   if (path === "/api/materials" || path.startsWith("/api/materials/")) {
     return handleMaterialRequest(
       {
@@ -630,6 +651,32 @@ function materialCandidateOptions(
         config.trainingDataDatabaseName &&
         config.trainingDataSecretArn,
     ),
+  };
+}
+
+/**
+ * Training Data Store cluster 起動 handler が使う options を組み立てる。
+ *
+ * この endpoint は RDS control-plane（`StartDBCluster`/`DescribeDBClusters`）だけを呼ぶため、
+ * Data API 用の secret / database 名は不要。cluster ARN の有無だけで 503 を判定する。
+ */
+function trainingDataClusterOptions(
+  config: LambdaConfig,
+  event: LambdaEvent,
+  deps: LambdaHandlerDeps,
+): Parameters<typeof handleTrainingDataClusterRequest>[1] {
+  const clusterConfig = { clusterArn: config.trainingDataClusterArn ?? "" };
+  const control =
+    deps.trainingDataClusterControl ??
+    makeTrainingDataClusterControl({ region: config.region });
+
+  return {
+    authContext: authContextForEvent(event, config),
+    getClusterStatus: () => control.getStatus(clusterConfig),
+    logError:
+      deps.logError ?? ((message, detail) => console.error(message, detail)),
+    startCluster: () => control.start(clusterConfig),
+    trainingDataConfigured: Boolean(config.trainingDataClusterArn),
   };
 }
 

@@ -87,6 +87,10 @@ export function buildWorkbenchViteConfig(
       changeOrigin: true,
       target: config.bffUrl,
     },
+    "/api/training-data-cluster": {
+      changeOrigin: true,
+      target: config.bffUrl,
+    },
     "/api/voice-recordings": {
       changeOrigin: true,
       target: config.bffUrl,

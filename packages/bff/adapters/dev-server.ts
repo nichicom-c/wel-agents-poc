@@ -30,6 +30,7 @@ import { handleSoapDraftRequest } from "../application/handle-soap-draft-request
 import { handleSoapGapsRequest } from "../application/handle-soap-gaps-request.ts";
 import { handleSoapMappingRequest } from "../application/handle-soap-mapping-request.ts";
 import { handleSoapRecordRequest } from "../application/handle-soap-record-request.ts";
+import { handleTrainingDataClusterRequest } from "../application/handle-training-data-cluster-request.ts";
 import { handleVoiceRecordingRequest } from "../application/handle-voice-recording-request.ts";
 import { handleWsUrlRequest } from "../application/handle-ws-url-request.ts";
 import { runtimeInvokeResultFromResponse } from "../application/runtime-response.ts";
@@ -89,6 +90,10 @@ import {
   listSoapRecords,
   listSoapRecordVersions,
 } from "../infra/soap-record-store.ts";
+import {
+  makeTrainingDataClusterControl,
+  type TrainingDataClusterControl,
+} from "../infra/training-data-cluster-control.ts";
 import {
   getTranscriptionJobStatus,
   saveEditedTranscript,
@@ -157,6 +162,7 @@ type BffDevDeps = {
   getKnowledgeBaseDetail?: KnowledgeBaseDetailProvider;
   listSessions?: ListSessions;
   logError?: (message: string, detail: Record<string, unknown>) => void;
+  trainingDataClusterControl?: TrainingDataClusterControl;
 };
 
 /**
@@ -586,6 +592,35 @@ export async function handleBffDevRequest(
             config.trainingDataDatabaseName &&
             config.trainingDataSecretArn,
         ),
+      },
+    );
+
+    return responseFromBff(bffResponse);
+  }
+
+  if (
+    url.pathname === "/api/training-data-cluster" ||
+    url.pathname === "/api/training-data-cluster/start"
+  ) {
+    const clusterConfig = { clusterArn: config.trainingDataClusterArn ?? "" };
+    const control =
+      deps.trainingDataClusterControl ??
+      makeTrainingDataClusterControl({ region: config.region });
+
+    const bffResponse = await handleTrainingDataClusterRequest(
+      {
+        body,
+        method: request.method,
+        path: url.pathname,
+      },
+      {
+        authContext: authContextForConfig(config),
+        getClusterStatus: () => control.getStatus(clusterConfig),
+        logError:
+          deps.logError ??
+          ((message, detail) => console.error(message, detail)),
+        startCluster: () => control.start(clusterConfig),
+        trainingDataConfigured: Boolean(config.trainingDataClusterArn),
       },
     );
 
