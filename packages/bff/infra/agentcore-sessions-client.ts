@@ -43,7 +43,15 @@ export async function listAgentCoreSessions(
     memoryId: config.memoryId,
   });
   const sender = deps.sender ?? defaultSender(config.region);
-  const output = await sender(command);
+  const output = await sender(command).catch((error) => {
+    if (isNewActorNotFound(error)) {
+      return {
+        $metadata: {},
+        sessionSummaries: [],
+      } as ListSessionsCommandOutput;
+    }
+    throw error;
+  });
 
   return {
     memoryId: config.memoryId,
@@ -68,6 +76,19 @@ export async function listAgentCoreSessions(
       .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt)),
     truncated: Boolean(output.nextToken),
   };
+}
+
+/**
+ * まだ一度も会話していない actor への ListSessions は `ResourceNotFoundException:
+ * Actor <id> not found` を返す（memoryId 自体が存在しない場合の `Memory not found: <id>` とは
+ * message で区別する）。前者は「セッションが 0 件」という正常系なので空配列として扱う。
+ */
+function isNewActorNotFound(error: unknown): boolean {
+  return (
+    error instanceof Error &&
+    error.name === "ResourceNotFoundException" &&
+    /^Actor .* not found$/i.test(error.message)
+  );
 }
 
 function defaultSender(region: string): AgentCoreSessionsSender {

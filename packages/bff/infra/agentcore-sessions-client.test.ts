@@ -79,4 +79,43 @@ describe("listAgentCoreSessions", () => {
 
     expect(result.truncated).toBe(true);
   });
+
+  test("actor が未作成（会話履歴 0 件）なら ResourceNotFoundException を空配列にする", async () => {
+    const result = await listAgentCoreSessions(
+      {
+        memoryId: "memory-1",
+        region: "ap-northeast-1",
+      },
+      { actorId: "u-new-user" },
+      {
+        sender: async () => {
+          const error = new Error("Actor u-new-user not found");
+          error.name = "ResourceNotFoundException";
+          throw error;
+        },
+      },
+    );
+
+    expect(result).toEqual({
+      memoryId: "memory-1",
+      sessions: [],
+      truncated: false,
+    });
+  });
+
+  test("memoryId 自体が存在しない ResourceNotFoundException は投げ直す", async () => {
+    await expect(
+      listAgentCoreSessions(
+        { memoryId: "memory-missing", region: "ap-northeast-1" },
+        { actorId: "u-user-123" },
+        {
+          sender: async () => {
+            const error = new Error("Memory not found: memory-missing");
+            error.name = "ResourceNotFoundException";
+            throw error;
+          },
+        },
+      ),
+    ).rejects.toThrow("Memory not found: memory-missing");
+  });
 });

@@ -8,6 +8,7 @@ import { VoiceCaptureView } from "../widgets/voice-capture/index.ts";
 import {
   CONTEXT_INSPECTOR_ITEMS,
   DEFAULT_WORKSPACE_NAV_ID,
+  resolveChatUiUrl,
   WORKSPACE_NAV_ITEMS,
   type WorkspaceNavId,
 } from "./workspace-nav.ts";
@@ -26,6 +27,14 @@ export function App() {
     setActiveNavId("soap-studio");
   }
 
+  function handleNavSelect(navId: WorkspaceNavId) {
+    if (navId === "chat") {
+      window.open(resolveChatUiUrl(), "_blank", "noopener,noreferrer");
+      return;
+    }
+    setActiveNavId(navId);
+  }
+
   return (
     <div className="workbench-shell">
       <header className="workbench-header">
@@ -41,7 +50,7 @@ export function App() {
                   type="button"
                   className="workspace-nav-item"
                   data-active={item.id === activeNavId}
-                  onClick={() => setActiveNavId(item.id)}
+                  onClick={() => handleNavSelect(item.id)}
                 >
                   {item.label}
                 </button>

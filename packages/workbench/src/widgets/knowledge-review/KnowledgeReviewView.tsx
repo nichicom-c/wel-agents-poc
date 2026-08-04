@@ -141,6 +141,7 @@ function CandidateTab({ authorName, canDecide }: CandidateTabProps) {
     null,
   );
   const [status, setStatus] = useState<LoadStatus>("idle");
+  const [loadError, setLoadError] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [reasonCode, setReasonCode] = useState<RejectionReasonCode | "">("");
   const [reasonText, setReasonText] = useState("");
@@ -157,8 +158,11 @@ function CandidateTab({ authorName, canDecide }: CandidateTabProps) {
         setCandidates(result);
         setStatus("idle");
       })
-      .catch(() => {
+      .catch((caught: unknown) => {
         if (!cancelled) {
+          setLoadError(
+            caught instanceof Error ? caught.message : String(caught),
+          );
           setStatus("error");
         }
       });
@@ -303,7 +307,9 @@ function CandidateTab({ authorName, canDecide }: CandidateTabProps) {
       </fieldset>
 
       {status === "error" ? (
-        <p className="soap-draft-error">教材候補の取得に失敗しました。</p>
+        <p className="soap-draft-error">
+          教材候補の取得に失敗しました: {loadError}
+        </p>
       ) : null}
 
       {candidates ? (

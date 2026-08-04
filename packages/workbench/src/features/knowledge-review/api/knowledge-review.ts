@@ -67,7 +67,11 @@ export async function listMaterialCandidates(
   const payload = await readJson(response);
 
   if (!response.ok) {
-    throw new Error(trimmedText(payload.error) || `HTTP ${response.status}`);
+    throw new Error(
+      trimmedText(payload.message) ||
+        trimmedText(payload.error) ||
+        `HTTP ${response.status}`,
+    );
   }
 
   return normalizeCandidates(payload.candidates);
