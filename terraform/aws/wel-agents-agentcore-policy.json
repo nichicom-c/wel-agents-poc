@@ -146,6 +146,7 @@
         "bedrock:ListTagsForResource",
         "bedrock:StartIngestionJob",
         "bedrock:GetIngestionJob",
+        "bedrock:Retrieve",
         "bedrock:ListFoundationModels",
         "bedrock:ListInferenceProfiles"
       ],
