@@ -1,19 +1,22 @@
-import { randomUUID } from "node:crypto";
-
 import type { BffHttpRequest, BffHttpResponse } from "../contracts/http.ts";
 import { BFF_JSON_HEADERS } from "../contracts/http.ts";
 import type { RuntimeInvoker, RuntimePayload } from "../contracts/runtime.ts";
+import {
+  createConversationId,
+  isRuntimeSessionId,
+  textField,
+} from "../domain/chat-session.ts";
 
 /** BFF core の依存。adapter ごとに actor ID / Runtime 呼び出し / logging を注入する。 */
-export type HandleSoapGapsOptions = {
+export type HandleSoapGapsChatOptions = {
   /** RuntimePayload に埋め込む actor ID。 */
   actorId: string;
   /** AgentCore Runtime を呼び出す adapter 実装。 */
   invokeRuntime: RuntimeInvoker;
   /** 想定外 error の記録先。省略時は握りつぶして構造化 response のみ返す。 */
   logError?: (message: string, detail: Record<string, unknown>) => void;
-  /** runtime session ID 生成（テスト用。省略時は randomUUID）。 */
-  createSessionId?: () => string;
+  /** conversationId 生成（テスト用。省略時は `createConversationId`）。 */
+  createConversationId?: () => string;
   /**
    * 保健師SOAP_KB_詳細設計書_v2 の active な Knowledge Base 項目（SOAP_RULE/SAFETY/
    * FEEDBACK_POLICY）を取得する。Training Data Store 未設定時や取得失敗時は省略してよい
@@ -22,63 +25,83 @@ export type HandleSoapGapsOptions = {
   getKnowledgeContext?: () => Promise<
     { category: string; title: string; content: string }[]
   >;
-  /**
-   * `knowledge_item`（`DOMAIN_RULE` カテゴリ）から読み出したルールベース不足検出設定
-   * （JSON.parse 済み）。未設定・取得失敗時は省略してよい（best-effort、AgentCore 側が
-   * 既定値へフォールバックする）。
-   */
-  getGapRuleConfig?: () => Promise<unknown>;
 };
 
 const SOAP_CATEGORIES = ["S", "O", "A", "P", "UNCLASSIFIED"];
+const GAP_TYPES = [
+  "missing_required",
+  "insufficient_reasoning",
+  "contradictory",
+  "ambiguous",
+  "missing_recommended",
+  "review_recommended",
+];
 
 /**
- * SOAP Studio の「不足確認」画面が呼ぶ BFF handler。
+ * SOAP Studio の「不足確認」チャット画面が呼ぶ BFF handler。
  *
- * 会話ではなく stateless な一回限りの分析リクエストなので、client からの conversationId は
- * 受け取らず、呼び出しごとに新しい runtime session ID を生成して AgentCore Runtime へ渡す。
- * `invokeRuntime` は `/api/chat` / `/api/soap-draft` と同じ seam を再利用する（transport は
- * agnostic）。分析対象は client 側で既に得ている SOAP 下書き候補（`/api/soap-draft` の出力）。
+ * 「次にどの不足を扱うか」は client（Workbench）が `/api/soap-gaps` の結果から決定的に
+ * 管理し、この handler は client が選んだ1件の不足（`gap`）を1ターン分だけ処理する。
+ * 一般Chat（`handle-request.ts`）と同じ `conversationId` の仕組みで AgentCore Memory の
+ * session を継続させる：省略時は新規発行し、以降のターンでは同じ値を送り返してもらう。
  */
-export async function handleSoapGapsRequest(
+export async function handleSoapGapsChatRequest(
   request: BffHttpRequest,
-  options: HandleSoapGapsOptions,
+  options: HandleSoapGapsChatOptions,
 ): Promise<BffHttpResponse> {
   try {
-    if (request.method === "OPTIONS" && request.path === "/api/soap-gaps") {
+    if (
+      request.method === "OPTIONS" &&
+      request.path === "/api/soap-gaps-chat"
+    ) {
       return response(204, {});
     }
 
-    if (request.method !== "POST" || request.path !== "/api/soap-gaps") {
+    if (request.method !== "POST" || request.path !== "/api/soap-gaps-chat") {
       return response(404, { error: "not found" });
     }
 
     const body = parseJsonBody(request);
-    const candidates = candidatesField(body.candidates);
 
+    const candidates = candidatesField(body.candidates);
     if (!candidates) {
       return response(400, { error: "candidates is required" });
     }
 
-    const sessionId = (options.createSessionId ?? randomUUID)();
+    const gap = gapField(body.gap);
+    if (!gap) {
+      return response(400, { error: "gap is required" });
+    }
+
+    const message = textField(body.message) || undefined;
+
+    const conversationId =
+      textField(body.conversationId) ||
+      (options.createConversationId ?? createConversationId)();
+
+    if (!isRuntimeSessionId(conversationId)) {
+      return response(400, {
+        error:
+          "conversationId must be 33-256 chars, start with an alphanumeric character, and contain only A-Z, a-z, 0-9, _ or -",
+      });
+    }
+
     const knowledgeContext = await fetchKnowledgeContext(options);
-    const gapRuleConfig = await fetchGapRuleConfig(options);
 
     const runtimePayload: RuntimePayload = {
       actor_id: options.actorId,
-      type: "soap_gaps",
+      type: "soap_gaps_chat",
       candidates,
-      session_id: sessionId,
+      gap,
+      session_id: conversationId,
+      ...(message ? { message } : {}),
       ...(knowledgeContext.length > 0
         ? { knowledge_context: knowledgeContext }
-        : {}),
-      ...(gapRuleConfig !== undefined
-        ? { gap_rule_config: gapRuleConfig }
         : {}),
     };
 
     const runtimeResponse = await options.invokeRuntime(
-      sessionId,
+      conversationId,
       runtimePayload,
     );
 
@@ -101,7 +124,16 @@ export async function handleSoapGapsRequest(
     }
 
     return response(200, {
-      gaps: Array.isArray(payload.gaps) ? payload.gaps : [],
+      conversationId,
+      message: typeof payload.message === "string" ? payload.message : "",
+      suggestions: Array.isArray(payload.suggestions)
+        ? payload.suggestions
+        : [],
+      resolved: payload.resolved === true,
+      candidateText:
+        typeof payload.candidateText === "string"
+          ? payload.candidateText
+          : undefined,
     });
   } catch (error) {
     const statusCode =
@@ -112,7 +144,7 @@ export async function handleSoapGapsRequest(
           : 500;
 
     if (!(error instanceof BadRequestError)) {
-      options.logError?.("soap gaps request failed", {
+      options.logError?.("soap gaps chat request failed", {
         message: error instanceof Error ? error.message : String(error),
         name: error instanceof Error ? error.name : undefined,
       });
@@ -134,7 +166,7 @@ export async function handleSoapGapsRequest(
  * AgentCore 呼び出し自体は継続する（`options.logError` があれば記録する）。
  */
 async function fetchKnowledgeContext(
-  options: HandleSoapGapsOptions,
+  options: HandleSoapGapsChatOptions,
 ): Promise<{ category: string; title: string; content: string }[]> {
   if (!options.getKnowledgeContext) {
     return [];
@@ -146,26 +178,6 @@ async function fetchKnowledgeContext(
       message: error instanceof Error ? error.message : String(error),
     });
     return [];
-  }
-}
-
-/**
- * ルールベース不足検出設定を best-effort で取得する。未設定・失敗時は undefined にして
- * AgentCore 呼び出し自体は継続する（`options.logError` があれば記録する）。
- */
-async function fetchGapRuleConfig(
-  options: HandleSoapGapsOptions,
-): Promise<unknown> {
-  if (!options.getGapRuleConfig) {
-    return undefined;
-  }
-  try {
-    return await options.getGapRuleConfig();
-  } catch (error) {
-    options.logError?.("failed to fetch gap rule config", {
-      message: error instanceof Error ? error.message : String(error),
-    });
-    return undefined;
   }
 }
 
@@ -192,6 +204,33 @@ function isCandidateLike(value: unknown): boolean {
     typeof record.reasoning === "string" &&
     typeof record.confidence === "number"
   );
+}
+
+/**
+ * body.gap が `/api/soap-gaps` の返す Gap そのものかを検証する。client が `/api/soap-gaps` で
+ * 取得した1件をそのまま送り返す想定で、サーバー側は不足の再検出をしない。
+ */
+function gapField(value: unknown): Record<string, unknown> | undefined {
+  if (!value || typeof value !== "object") {
+    return undefined;
+  }
+  const record = value as Record<string, unknown>;
+  const isValid =
+    typeof record.gapType === "string" &&
+    GAP_TYPES.includes(record.gapType) &&
+    typeof record.soapCategory === "string" &&
+    SOAP_CATEGORIES.includes(record.soapCategory) &&
+    typeof record.targetItem === "string" &&
+    record.targetItem.trim() !== "" &&
+    typeof record.detail === "string" &&
+    record.detail.trim() !== "" &&
+    Array.isArray(record.relatedEvidenceQuotes) &&
+    record.relatedEvidenceQuotes.length > 0 &&
+    record.relatedEvidenceQuotes.every(
+      (quote): quote is string => typeof quote === "string",
+    ) &&
+    typeof record.skippable === "boolean";
+  return isValid ? record : undefined;
 }
 
 /** JSON body を object として parse する。base64 body は UTF-8 に decode してから読む。 */

@@ -2,8 +2,19 @@
  * SOAP 下書き候補から不足・曖昧・矛盾・根拠不足を検出するルールベースの判定器。
  *
  * issue #6 の技術方針どおり、ここでは字句・構造ベースの決定的なルールだけで判定し
- * （AI は使わない）、自然文の質問生成は `application/soap-gaps-agent.ts` 側の AI に委ねる。
+ * （AI は使わない）、会話的な提示は `application/soap-gaps-chat-agent.ts` 側の AI に委ねる。
  * こう分離することで、AI 呼び出しが失敗しても不足一覧自体は常に返せる。
+ *
+ * 既存候補の「質」（根拠不足・曖昧・矛盾等）だけでなく、A/P 候補が丸ごと欠けている「SOAPと
+ * しての完成度」も見る（`detectMissingAssessment`/`detectMissingPlan`）。これが無いと、
+ * 入力に元々アセスメントや計画の記述が無い場合に不足確認チャットが何もせず即終了してしまい、
+ * 「不足情報をチャットで埋めてSOAPを完成させる」という目的を満たせない。
+ *
+ * キーワード・閾値・パターン・文言テンプレートは `contracts/soap-gap-rules.ts` の
+ * `SoapGapRuleConfig` として外部化してあり（`knowledge_item` の `DOMAIN_RULE` カテゴリから
+ * BFF 経由で上書き可能）、各検出関数は既定値付きの `config` 引数として受け取る。
+ * gapType の優先順位（`GAP_TYPE_PRIORITY`）とキュー上限（`MAX_PRIORITIZED_GAPS`）は
+ * ドメイン知識というより提示順序・ページングという実装内部の制御値なので外部化の対象外とする。
  */
 
 import type { RuntimeRequest } from "../contracts/runtime.ts";
@@ -12,18 +23,15 @@ import {
   type SoapCategory,
   type SoapDraftCandidate,
 } from "../contracts/soap-draft.ts";
-import type {
-  AiDetectedGap,
-  Gap,
-  GapQuestion,
-  GapType,
-} from "../contracts/soap-gaps.ts";
+import {
+  DEFAULT_SOAP_GAP_RULE_CONFIG,
+  type SoapGapRuleConfig,
+} from "../contracts/soap-gap-rules.ts";
+import type { AiDetectedGap, Gap, GapType } from "../contracts/soap-gaps.ts";
+import { compileDatePattern, renderTemplate } from "./soap-gap-rules.ts";
 
-/** 質問が多くなりすぎないよう、AI 質問生成の対象にする不足件数の上限。 */
-export const MAX_QUESTIONS = 8;
-
-/** 低信頼度とみなす閾値。workbench 側の confidenceTier の "low" と揃える。 */
-const LOW_CONFIDENCE_THRESHOLD = 0.4;
+/** 不足確認チャットのキューが長くなりすぎないよう、優先度付け後に残す件数の上限。 */
+export const MAX_PRIORITIZED_GAPS = 8;
 
 /** gapType の優先度（数値が小さいほど優先）。必須不足・根拠不足・矛盾を優先する。 */
 const GAP_TYPE_PRIORITY: Record<GapType, number> = {
@@ -35,71 +43,6 @@ const GAP_TYPE_PRIORITY: Record<GapType, number> = {
   review_recommended: 5,
 };
 
-const FOLLOW_UP_PLAN_KEYWORDS = [
-  "次回",
-  "予定",
-  "フォロー",
-  "経過観察",
-  "再評価",
-  "再検討",
-  "継続",
-  "訪問予定",
-];
-
-const DATE_PATTERN =
-  /\d{1,2}\s*月\s*\d{1,2}\s*日|\d{4}\s*年|来週|来月|今週中|今月中|明日|再来週|再来月/;
-
-const METHOD_KEYWORDS = [
-  "訪問",
-  "電話",
-  "面談",
-  "オンライン",
-  "来所",
-  "メール",
-  "手紙",
-  "同行",
-];
-
-const RESPONSIBLE_KEYWORDS = [
-  "担当",
-  "ケアマネ",
-  "相談員",
-  "主治医",
-  "看護師",
-  "職員",
-  "本人",
-  "家族",
-  "支援員",
-];
-
-const AMBIGUOUS_KEYWORDS = [
-  "たぶん",
-  "かもしれない",
-  "のような",
-  "適宜",
-  "様子を見る",
-  "検討する",
-  "できれば",
-  "なるべく",
-  "多分",
-  "おそらく",
-  "そのうち",
-  "近いうちに",
-  "など",
-];
-
-/** 矛盾検知に使う対義語ペア（POC 向けの単純な字句一致ルール。意味的な矛盾検知はしない）。 */
-const CONTRADICTION_WORD_PAIRS: ReadonlyArray<readonly [string, string]> = [
-  ["改善", "悪化"],
-  ["できる", "できない"],
-  ["増加", "減少"],
-  ["安定", "不安定"],
-  ["良好", "不良"],
-  ["賛成", "反対"],
-  ["希望", "拒否"],
-  ["継続", "中止"],
-];
-
 function candidateText(candidate: SoapDraftCandidate): string {
   return `${candidate.draftText} ${candidate.evidenceQuote}`;
 }
@@ -108,8 +51,83 @@ function truncate(text: string, max = 40): string {
   return text.length > max ? `${text.slice(0, max)}…` : text;
 }
 
+/** すべての候補の evidenceQuote を「不足の根拠」として集める（missing_required 系で使う）。 */
+function allEvidenceQuotes(candidates: SoapDraftCandidate[]): string[] {
+  return candidates.map((candidate) => candidate.evidenceQuote);
+}
+
+/**
+ * S/O はあるのに A（アセスメント）候補が一件も無ければ、SOAPを完成させる観点での不足として
+ * 検出する（`detectInsufficientReasoning` は逆に「Aはあるが根拠が無い」場合を扱う。両者は
+ * 排他的で同時には発火しない）。
+ */
+function detectMissingAssessment(
+  candidates: SoapDraftCandidate[],
+  config: SoapGapRuleConfig,
+): Gap[] {
+  const hasAssessment = candidates.some(
+    (candidate) => candidate.category === "A",
+  );
+  if (hasAssessment) {
+    return [];
+  }
+  const hasSupport = candidates.some(
+    (candidate) => candidate.category === "S" || candidate.category === "O",
+  );
+  if (!hasSupport) {
+    return [];
+  }
+  return [
+    {
+      gapType: "missing_required",
+      soapCategory: "A",
+      targetItem: "アセスメント（A）",
+      detail: config.messages.missingAssessment,
+      relatedEvidenceQuotes: allEvidenceQuotes(candidates),
+      skippable: false,
+    },
+  ];
+}
+
+/**
+ * P（支援計画）候補が一件も無ければ、SOAPを完成させる観点での不足として検出する。A が未作成
+ * でも（`detectMissingAssessment` と合わせて）両方を最初から不足一覧に含め、1回のチャットで
+ * A→P の順に連続して埋められるようにする。
+ */
+function detectMissingPlan(
+  candidates: SoapDraftCandidate[],
+  config: SoapGapRuleConfig,
+): Gap[] {
+  const hasPlan = candidates.some((candidate) => candidate.category === "P");
+  if (hasPlan) {
+    return [];
+  }
+  const hasSupportOrAssessment = candidates.some(
+    (candidate) =>
+      candidate.category === "S" ||
+      candidate.category === "O" ||
+      candidate.category === "A",
+  );
+  if (!hasSupportOrAssessment) {
+    return [];
+  }
+  return [
+    {
+      gapType: "missing_required",
+      soapCategory: "P",
+      targetItem: "支援計画（P）",
+      detail: config.messages.missingPlan,
+      relatedEvidenceQuotes: allEvidenceQuotes(candidates),
+      skippable: false,
+    },
+  ];
+}
+
 /** A（アセスメント）はあるが S/O（根拠）が候補内に一件も無い場合、根拠不足として検出する。 */
-function detectInsufficientReasoning(candidates: SoapDraftCandidate[]): Gap[] {
+function detectInsufficientReasoning(
+  candidates: SoapDraftCandidate[],
+  config: SoapGapRuleConfig,
+): Gap[] {
   const assessments = candidates.filter(
     (candidate) => candidate.category === "A",
   );
@@ -126,54 +144,62 @@ function detectInsufficientReasoning(candidates: SoapDraftCandidate[]): Gap[] {
     gapType: "insufficient_reasoning",
     soapCategory: "A",
     targetItem: truncate(candidate.draftText),
-    detail:
-      `アセスメント「${truncate(candidate.draftText)}」の根拠となる S（主観的情報）または ` +
-      "O（客観的情報）が見当たりません。",
+    detail: renderTemplate(config.messages.insufficientReasoning, {
+      draftText: truncate(candidate.draftText),
+    }),
     relatedEvidenceQuotes: [candidate.evidenceQuote],
     skippable: false,
   }));
 }
 
 /** P（支援計画）のうち次回予定らしい候補について、日付・方法・担当者の欠落を検出する。 */
-function detectFollowUpPlanGaps(candidates: SoapDraftCandidate[]): Gap[] {
+function detectFollowUpPlanGaps(
+  candidates: SoapDraftCandidate[],
+  config: SoapGapRuleConfig,
+): Gap[] {
   const gaps: Gap[] = [];
+  const datePattern = compileDatePattern(config.datePattern);
   for (const candidate of candidates.filter((c) => c.category === "P")) {
     const text = candidateText(candidate);
-    const looksLikeFollowUp = FOLLOW_UP_PLAN_KEYWORDS.some((keyword) =>
+    const looksLikeFollowUp = config.followUpPlanKeywords.some((keyword) =>
       text.includes(keyword),
     );
     if (!looksLikeFollowUp) {
       continue;
     }
 
-    if (!DATE_PATTERN.test(text)) {
+    if (!datePattern.test(text)) {
       gaps.push({
         gapType: "missing_required",
         soapCategory: "P",
         targetItem: truncate(candidate.draftText),
-        detail: `次回予定「${truncate(candidate.draftText)}」に実施日が明記されていません。`,
+        detail: renderTemplate(config.messages.followUpMissingDate, {
+          draftText: truncate(candidate.draftText),
+        }),
         relatedEvidenceQuotes: [candidate.evidenceQuote],
         skippable: false,
       });
     }
-    if (!METHOD_KEYWORDS.some((keyword) => text.includes(keyword))) {
+    if (!config.methodKeywords.some((keyword) => text.includes(keyword))) {
       gaps.push({
         gapType: "missing_recommended",
         soapCategory: "P",
         targetItem: truncate(candidate.draftText),
-        detail:
-          `次回予定「${truncate(candidate.draftText)}」に実施方法（訪問/電話など）が明記されて` +
-          "いません。",
+        detail: renderTemplate(config.messages.followUpMissingMethod, {
+          draftText: truncate(candidate.draftText),
+        }),
         relatedEvidenceQuotes: [candidate.evidenceQuote],
         skippable: true,
       });
     }
-    if (!RESPONSIBLE_KEYWORDS.some((keyword) => text.includes(keyword))) {
+    if (!config.responsibleKeywords.some((keyword) => text.includes(keyword))) {
       gaps.push({
         gapType: "missing_recommended",
         soapCategory: "P",
         targetItem: truncate(candidate.draftText),
-        detail: `次回予定「${truncate(candidate.draftText)}」に担当者が明記されていません。`,
+        detail: renderTemplate(config.messages.followUpMissingResponsible, {
+          draftText: truncate(candidate.draftText),
+        }),
         relatedEvidenceQuotes: [candidate.evidenceQuote],
         skippable: true,
       });
@@ -183,11 +209,16 @@ function detectFollowUpPlanGaps(candidates: SoapDraftCandidate[]): Gap[] {
 }
 
 /** 候補本文に曖昧な表現（ヘッジ表現）が含まれていないか検出する。 */
-function detectAmbiguous(candidates: SoapDraftCandidate[]): Gap[] {
+function detectAmbiguous(
+  candidates: SoapDraftCandidate[],
+  config: SoapGapRuleConfig,
+): Gap[] {
   const gaps: Gap[] = [];
   for (const candidate of candidates) {
     const text = candidateText(candidate);
-    const hit = AMBIGUOUS_KEYWORDS.find((keyword) => text.includes(keyword));
+    const hit = config.ambiguousKeywords.find((keyword) =>
+      text.includes(keyword),
+    );
     if (!hit) {
       continue;
     }
@@ -195,7 +226,10 @@ function detectAmbiguous(candidates: SoapDraftCandidate[]): Gap[] {
       gapType: "ambiguous",
       soapCategory: candidate.category,
       targetItem: truncate(candidate.draftText),
-      detail: `「${truncate(candidate.draftText)}」に曖昧な表現（${hit}）が含まれています。`,
+      detail: renderTemplate(config.messages.ambiguous, {
+        draftText: truncate(candidate.draftText),
+        keyword: hit,
+      }),
       relatedEvidenceQuotes: [candidate.evidenceQuote],
       skippable: true,
     });
@@ -204,7 +238,10 @@ function detectAmbiguous(candidates: SoapDraftCandidate[]): Gap[] {
 }
 
 /** 候補どうしで対義語ペアが出現していないか総当たりで検出する（字句一致のみ）。 */
-function detectContradictions(candidates: SoapDraftCandidate[]): Gap[] {
+function detectContradictions(
+  candidates: SoapDraftCandidate[],
+  config: SoapGapRuleConfig,
+): Gap[] {
   const gaps: Gap[] = [];
   for (let i = 0; i < candidates.length; i++) {
     for (let j = i + 1; j < candidates.length; j++) {
@@ -215,7 +252,7 @@ function detectContradictions(candidates: SoapDraftCandidate[]): Gap[] {
       }
       const aText = candidateText(a);
       const bText = candidateText(b);
-      for (const [wordA, wordB] of CONTRADICTION_WORD_PAIRS) {
+      for (const [wordA, wordB] of config.contradictionWordPairs) {
         const crossed =
           (aText.includes(wordA) && bText.includes(wordB)) ||
           (aText.includes(wordB) && bText.includes(wordA));
@@ -226,9 +263,12 @@ function detectContradictions(candidates: SoapDraftCandidate[]): Gap[] {
           gapType: "contradictory",
           soapCategory: a.category,
           targetItem: truncate(a.draftText),
-          detail:
-            `「${truncate(a.draftText)}」と「${truncate(b.draftText)}」の間に矛盾する可能性の` +
-            `ある記述（${wordA}/${wordB}）があります。`,
+          detail: renderTemplate(config.messages.contradiction, {
+            draftTextA: truncate(a.draftText),
+            draftTextB: truncate(b.draftText),
+            wordA,
+            wordB,
+          }),
           relatedEvidenceQuotes: [a.evidenceQuote, b.evidenceQuote],
           skippable: false,
         });
@@ -239,11 +279,15 @@ function detectContradictions(candidates: SoapDraftCandidate[]): Gap[] {
 }
 
 /** UNCLASSIFIED または低信頼度の候補は、内容に関わらず確認をおすすめする。 */
-function detectReviewRecommended(candidates: SoapDraftCandidate[]): Gap[] {
+function detectReviewRecommended(
+  candidates: SoapDraftCandidate[],
+  config: SoapGapRuleConfig,
+): Gap[] {
   const gaps: Gap[] = [];
   for (const candidate of candidates) {
     const isUnclassified = candidate.category === "UNCLASSIFIED";
-    const isLowConfidence = candidate.confidence < LOW_CONFIDENCE_THRESHOLD;
+    const isLowConfidence =
+      candidate.confidence < config.lowConfidenceThreshold;
     if (!isUnclassified && !isLowConfidence) {
       continue;
     }
@@ -251,9 +295,12 @@ function detectReviewRecommended(candidates: SoapDraftCandidate[]): Gap[] {
       gapType: "review_recommended",
       soapCategory: candidate.category,
       targetItem: truncate(candidate.draftText),
-      detail: isUnclassified
-        ? `「${truncate(candidate.draftText)}」は SOAP 区分が未分類のため確認をおすすめします。`
-        : `「${truncate(candidate.draftText)}」は分類の確信度が低いため確認をおすすめします。`,
+      detail: renderTemplate(
+        isUnclassified
+          ? config.messages.reviewUnclassified
+          : config.messages.reviewLowConfidence,
+        { draftText: truncate(candidate.draftText) },
+      ),
       relatedEvidenceQuotes: [candidate.evidenceQuote],
       skippable: true,
     });
@@ -262,13 +309,18 @@ function detectReviewRecommended(candidates: SoapDraftCandidate[]): Gap[] {
 }
 
 /** SOAP 下書き候補から検出できる不足をすべて（種別を問わず）返す。 */
-export function detectGaps(candidates: SoapDraftCandidate[]): Gap[] {
+export function detectGaps(
+  candidates: SoapDraftCandidate[],
+  config: SoapGapRuleConfig = DEFAULT_SOAP_GAP_RULE_CONFIG,
+): Gap[] {
   return [
-    ...detectInsufficientReasoning(candidates),
-    ...detectFollowUpPlanGaps(candidates),
-    ...detectAmbiguous(candidates),
-    ...detectContradictions(candidates),
-    ...detectReviewRecommended(candidates),
+    ...detectMissingAssessment(candidates, config),
+    ...detectInsufficientReasoning(candidates, config),
+    ...detectMissingPlan(candidates, config),
+    ...detectFollowUpPlanGaps(candidates, config),
+    ...detectAmbiguous(candidates, config),
+    ...detectContradictions(candidates, config),
+    ...detectReviewRecommended(candidates, config),
   ];
 }
 
@@ -316,38 +368,16 @@ export function mergeGapLists(ruleBased: Gap[], aiDetected: Gap[]): Gap[] {
 }
 
 /**
- * 質問が多くなりすぎないよう、必須不足・根拠不足・矛盾を優先して上位 `limit` 件だけ残す。
+ * キューが長くなりすぎないよう、必須不足・根拠不足・矛盾を優先して上位 `limit` 件だけ残す。
  * `Array.prototype.sort` は安定ソートなので、同じ gapType 内では検出順を保つ。
  */
-export function prioritizeGaps(gaps: Gap[], limit = MAX_QUESTIONS): Gap[] {
+export function prioritizeGaps(
+  gaps: Gap[],
+  limit = MAX_PRIORITIZED_GAPS,
+): Gap[] {
   return [...gaps]
     .sort((a, b) => GAP_TYPE_PRIORITY[a.gapType] - GAP_TYPE_PRIORITY[b.gapType])
     .slice(0, limit);
-}
-
-const GAP_TYPE_QUESTION_LABELS: Record<GapType, string> = {
-  missing_required: "必須の情報が不足しています",
-  missing_recommended: "推奨される情報が不足している可能性があります",
-  ambiguous: "表現が曖昧です",
-  contradictory: "矛盾する記述の可能性があります",
-  insufficient_reasoning: "判断根拠が不足しています",
-  review_recommended: "内容の確認をおすすめします",
-};
-
-/** AI 質問生成に頼らず、不足の `detail` から機械的に質問文を組み立てる（fallback 用）。 */
-export function fallbackQuestionText(gap: Gap): string {
-  return `${GAP_TYPE_QUESTION_LABELS[gap.gapType]}：${gap.detail} 補足情報があれば入力してください。`;
-}
-
-/** AI 質問生成が失敗した不足を、fallback の質問文で GapQuestion に変換する。 */
-export function buildFallbackQuestion(gap: Gap): GapQuestion {
-  return {
-    gapType: gap.gapType,
-    soapCategory: gap.soapCategory,
-    targetItem: gap.targetItem,
-    questionText: fallbackQuestionText(gap),
-    skippable: gap.skippable,
-  };
 }
 
 /** payload が不足確認リクエストかどうか。 */

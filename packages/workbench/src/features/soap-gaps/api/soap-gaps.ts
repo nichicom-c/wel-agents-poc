@@ -21,18 +21,8 @@ export type GapApiItem = {
   skippable: boolean;
 };
 
-/** BFF `/api/soap-gaps` が返す、優先度上位を自然文化した（または fallback の）質問。 */
-export type GapQuestionApiItem = {
-  gapType: GapType;
-  soapCategory: SoapCategory;
-  targetItem: string;
-  questionText: string;
-  skippable: boolean;
-};
-
 export type SoapGapsApiResult = {
   gaps: GapApiItem[];
-  questions: GapQuestionApiItem[];
 };
 
 export type PostSoapGapsOptions = {
@@ -66,7 +56,6 @@ export async function postSoapGaps({
 
   return {
     gaps: normalizeGaps(payload.gaps),
-    questions: normalizeQuestions(payload.questions),
   };
 }
 
@@ -99,37 +88,6 @@ function normalizeGap(record: Record<string, unknown>): GapApiItem | undefined {
             typeof quote === "string" && quote.trim() !== "",
         )
       : [],
-    skippable: record.skippable === true,
-  };
-}
-
-function normalizeQuestions(value: unknown): GapQuestionApiItem[] {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-  return value
-    .map((entry) => normalizeQuestion(asRecord(entry)))
-    .filter(
-      (question): question is GapQuestionApiItem => question !== undefined,
-    );
-}
-
-function normalizeQuestion(
-  record: Record<string, unknown>,
-): GapQuestionApiItem | undefined {
-  if (!isGapType(record.gapType) || !isSoapCategory(record.soapCategory)) {
-    return undefined;
-  }
-  const targetItem = trimmedText(record.targetItem);
-  const questionText = trimmedText(record.questionText);
-  if (!targetItem || !questionText) {
-    return undefined;
-  }
-  return {
-    gapType: record.gapType,
-    soapCategory: record.soapCategory,
-    targetItem,
-    questionText,
     skippable: record.skippable === true,
   };
 }

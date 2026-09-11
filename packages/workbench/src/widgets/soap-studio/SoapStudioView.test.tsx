@@ -36,7 +36,7 @@ describe("SoapStudioView", () => {
     const html = renderToStaticMarkup(<SoapStudioView />);
 
     expect(html).not.toContain("soap-gaps-section");
-    expect(html).not.toContain("不足を確認");
+    expect(html).not.toContain("不足をチャットで確認");
   });
 
   test("候補が無い初期状態では正式記録として保存セクションを描画しない", () => {

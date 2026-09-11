@@ -47,6 +47,15 @@ export const ALWAYS_INCLUDED_KNOWLEDGE_CATEGORIES = [
   "FEEDBACK_POLICY",
 ] as const satisfies readonly KnowledgeItemCategory[];
 
+/**
+ * `soap_gaps` のルールベース不足検出設定（`packages/agentcore/contracts/soap-gap-rules.ts` の
+ * `SoapGapRuleConfig`）を JSON として保存する `knowledge_item`（`DOMAIN_RULE` カテゴリ）の
+ * `item_key`。シード SQL（`terraform/aws/bff/migrations/0006_seed_soap_gap_detection_rules.sql`）
+ * と BFF の fetcher（`adapters/dev-server.ts` / `adapters/lambda.ts` の `gapRuleConfigFetcher`）
+ * の両方から参照する単一の真実源。
+ */
+export const SOAP_GAP_RULE_CONFIG_ITEM_KEY = "soap_gap_detection_rules";
+
 export type SoapKnowledgeBase = {
   id: string;
   code: string;

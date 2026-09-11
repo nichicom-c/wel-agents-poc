@@ -604,16 +604,6 @@ describe("handleLambdaEvent", () => {
                       skippable: false,
                     },
                   ],
-                  questions: [
-                    {
-                      gapType: "insufficient_reasoning",
-                      soapCategory: "A",
-                      targetItem: "転倒リスクが高い。",
-                      questionText:
-                        "転倒リスクの根拠となる様子はありましたか？",
-                      skippable: false,
-                    },
-                  ],
                 }),
             },
             statusCode: 200,
@@ -631,15 +621,6 @@ describe("handleLambdaEvent", () => {
           targetItem: "転倒リスクが高い。",
           detail: "根拠となる S/O が見当たりません。",
           relatedEvidenceQuotes: ["転倒リスクが高い"],
-          skippable: false,
-        },
-      ],
-      questions: [
-        {
-          gapType: "insufficient_reasoning",
-          soapCategory: "A",
-          targetItem: "転倒リスクが高い。",
-          questionText: "転倒リスクの根拠となる様子はありましたか？",
           skippable: false,
         },
       ],

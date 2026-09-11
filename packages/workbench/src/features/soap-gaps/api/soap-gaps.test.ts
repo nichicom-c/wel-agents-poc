@@ -29,15 +29,6 @@ describe("postSoapGaps", () => {
             skippable: false,
           },
         ],
-        questions: [
-          {
-            gapType: "insufficient_reasoning",
-            soapCategory: "A",
-            targetItem: "転倒リスクが高い。",
-            questionText: "転倒リスクの根拠となる様子はありましたか？",
-            skippable: false,
-          },
-        ],
       });
     };
 
@@ -45,10 +36,6 @@ describe("postSoapGaps", () => {
 
     expect(capturedBody).toEqual({ candidates: [CANDIDATE] });
     expect(result.gaps).toHaveLength(1);
-    expect(result.questions).toHaveLength(1);
-    expect(result.questions[0]?.questionText).toBe(
-      "転倒リスクの根拠となる様子はありましたか？",
-    );
   });
 
   test("candidates が空なら呼ばずに throw する", async () => {
@@ -71,7 +58,7 @@ describe("postSoapGaps", () => {
     ).rejects.toThrow("candidates is required");
   });
 
-  test("不正な gap/question（gapType 不正や必須項目欠落）は取り除く", async () => {
+  test("不正な gap（gapType 不正や必須項目欠落）は取り除く", async () => {
     const fetchFn = async () =>
       Response.json({
         gaps: [
@@ -96,32 +83,19 @@ describe("postSoapGaps", () => {
             detail: "x",
           },
         ],
-        questions: [
-          {
-            gapType: "ambiguous",
-            soapCategory: "S",
-            targetItem: "ok",
-            questionText: "ok?",
-            skippable: true,
-          },
-          { gapType: "not_a_type", soapCategory: "S", targetItem: "x" },
-        ],
       });
 
     const result = await postSoapGaps({ candidates: [CANDIDATE], fetchFn });
 
     expect(result.gaps).toHaveLength(1);
     expect(result.gaps[0]?.targetItem).toBe("ok");
-    expect(result.questions).toHaveLength(1);
-    expect(result.questions[0]?.targetItem).toBe("ok");
   });
 
-  test("gaps / questions が欠落/不正形式なら空配列にする", async () => {
+  test("gaps が欠落/不正形式なら空配列にする", async () => {
     const fetchFn = async () => Response.json({});
 
     const result = await postSoapGaps({ candidates: [CANDIDATE], fetchFn });
 
     expect(result.gaps).toEqual([]);
-    expect(result.questions).toEqual([]);
   });
 });

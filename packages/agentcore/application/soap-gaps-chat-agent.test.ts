@@ -3,7 +3,10 @@ import type { BedrockModel } from "@strands-agents/sdk";
 
 import type { Config } from "../infra/config.ts";
 import type { AgentDeps } from "./agent-deps.ts";
-import { buildSoapGapsAgent, SOAP_GAPS_AGENT_NAME } from "./soap-gaps-agent.ts";
+import {
+  buildSoapGapsChatAgent,
+  SOAP_GAPS_CHAT_AGENT_NAME,
+} from "./soap-gaps-chat-agent.ts";
 
 function makeConfig(): Config {
   return {
@@ -25,12 +28,12 @@ function makeConfig(): Config {
   };
 }
 
-describe("buildSoapGapsAgent", () => {
-  test("SOAP_GAPS_AGENT_NAME を name に持つ Agent を生成する", () => {
+describe("buildSoapGapsChatAgent", () => {
+  test("SOAP_GAPS_CHAT_AGENT_NAME を name に持つ Agent を生成する", () => {
     const deps: AgentDeps = { config: makeConfig() };
-    const agent = buildSoapGapsAgent(deps);
+    const agent = buildSoapGapsChatAgent(deps);
 
-    expect(agent.name).toBe(SOAP_GAPS_AGENT_NAME);
+    expect(agent.name).toBe(SOAP_GAPS_CHAT_AGENT_NAME);
   });
 
   test("deps.modelFor が指定されればそちらを使う", () => {
@@ -45,14 +48,14 @@ describe("buildSoapGapsAgent", () => {
       },
     };
 
-    buildSoapGapsAgent(deps);
+    buildSoapGapsChatAgent(deps);
 
-    expect(requestedRole).toBe("soap_gaps");
+    expect(requestedRole).toBe("soap_gaps_chat");
   });
 
   test("config.soapGapsModelId が未設定なら config.modelId を使う", () => {
     const deps: AgentDeps = { config: makeConfig() };
-    const agent = buildSoapGapsAgent(deps);
+    const agent = buildSoapGapsChatAgent(deps);
 
     const model = agent.model as BedrockModel;
     expect(model.getConfig().modelId).toBe("jp.anthropic.claude-test");
@@ -65,9 +68,20 @@ describe("buildSoapGapsAgent", () => {
         soapGapsModelId: "jp.anthropic.claude-haiku-4-5",
       },
     };
-    const agent = buildSoapGapsAgent(deps);
+    const agent = buildSoapGapsChatAgent(deps);
 
     const model = agent.model as BedrockModel;
     expect(model.getConfig().modelId).toBe("jp.anthropic.claude-haiku-4-5");
+  });
+
+  test("knowledgeContext が与えられれば systemPrompt 末尾に追記する", () => {
+    const deps: AgentDeps = { config: makeConfig() };
+    const withoutContext = buildSoapGapsChatAgent(deps);
+    const withContext = buildSoapGapsChatAgent(deps, [
+      { category: "SAFETY", content: "捏造禁止。", title: "事実の捏造禁止" },
+    ]);
+
+    expect(String(withContext.systemPrompt)).toContain("事実の捏造禁止");
+    expect(String(withoutContext.systemPrompt)).not.toContain("事実の捏造禁止");
   });
 });

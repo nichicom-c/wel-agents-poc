@@ -2,10 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { StructuredOutputError } from "@strands-agents/sdk";
 
 import type { SoapDraftCandidate } from "../contracts/soap-draft.ts";
-import type {
-  AiGapDetectionOutput,
-  AiGapQuestionList,
-} from "../contracts/soap-gaps.ts";
+import type { AiGapDetectionOutput } from "../contracts/soap-gaps.ts";
 import {
   getSoapGapsCandidates,
   isSoapGapsRequest,
@@ -24,7 +21,10 @@ function makeConfig(modelId = "test-model"): Config {
   };
 }
 
-/** A のみ（S/O 無し）で根拠不足が1件検出される候補セット。 */
+/**
+ * A のみ（S/O 無し）で根拠不足が1件検出される候補セット。P も付けて missing_plan（Pが丸ごと
+ * 無いこと自体の不足検出）が混ざらないようにし、insufficient_reasoning に焦点を絞る。
+ */
 const CANDIDATES_WITH_GAP: SoapDraftCandidate[] = [
   {
     category: "A",
@@ -32,6 +32,13 @@ const CANDIDATES_WITH_GAP: SoapDraftCandidate[] = [
     evidenceQuote: "転倒リスクが高い",
     reasoning: "観察結果からの評価。",
     confidence: 0.8,
+  },
+  {
+    category: "P",
+    draftText: "本人の希望を尊重する方針とする。",
+    evidenceQuote: "本人の希望を尊重する方針とする",
+    reasoning: "方針の記述。",
+    confidence: 0.9,
   },
 ];
 
@@ -58,20 +65,18 @@ const CANDIDATES_WITHOUT_GAP: SoapDraftCandidate[] = [
     reasoning: "S/O から評価。",
     confidence: 0.9,
   },
+  {
+    category: "P",
+    draftText: "本人の希望を尊重する方針とする。",
+    evidenceQuote: "本人の希望を尊重する方針とする",
+    reasoning: "方針の記述。",
+    confidence: 0.9,
+  },
 ];
 
 function fakeSoapGapsDetectionRunner(
   output: AiGapDetectionOutput = { gaps: [] },
 ) {
-  const messages: string[] = [];
-  const run = async (message: string) => {
-    messages.push(message);
-    return output;
-  };
-  return { run, messages };
-}
-
-function fakeSoapGapsRunner(output: AiGapQuestionList) {
   const messages: string[] = [];
   const run = async (message: string) => {
     messages.push(message);
@@ -97,13 +102,11 @@ describe("isSoapGapsRequest / getSoapGapsCandidates", () => {
 describe("buildSoapGapsResponse", () => {
   test("modelId 不備は throw せず error JSON を返す", async () => {
     const detection = fakeSoapGapsDetectionRunner();
-    const questions = fakeSoapGapsRunner({ questions: [] });
     const result = await buildSoapGapsResponse(
       { type: "soap_gaps", candidates: CANDIDATES_WITH_GAP },
       {
         config: makeConfig(""),
         soapGapsDetectionRunner: detection.run,
-        soapGapsRunner: questions.run,
       },
     );
     expect(result.status).toBe("error");
@@ -115,13 +118,11 @@ describe("buildSoapGapsResponse", () => {
 
   test("candidates 欠落は error を返す", async () => {
     const detection = fakeSoapGapsDetectionRunner();
-    const questions = fakeSoapGapsRunner({ questions: [] });
     const result = await buildSoapGapsResponse(
       { type: "soap_gaps" },
       {
         config: makeConfig(),
         soapGapsDetectionRunner: detection.run,
-        soapGapsRunner: questions.run,
       },
     );
     expect(result.status).toBe("error");
@@ -129,12 +130,10 @@ describe("buildSoapGapsResponse", () => {
       expect(result.error).toContain("candidates");
     }
     expect(detection.messages).toHaveLength(0);
-    expect(questions.messages).toHaveLength(0);
   });
 
-  test("不足が無ければ質問生成 AI を呼ばず gaps/questions とも空配列で返す", async () => {
+  test("不足が無ければ gaps は空配列で返す", async () => {
     const detection = fakeSoapGapsDetectionRunner();
-    const questions = fakeSoapGapsRunner({ questions: [] });
     const result = await buildSoapGapsResponse(
       {
         type: "soap_gaps",
@@ -145,7 +144,6 @@ describe("buildSoapGapsResponse", () => {
       {
         config: makeConfig(),
         soapGapsDetectionRunner: detection.run,
-        soapGapsRunner: questions.run,
       },
     );
 
@@ -153,27 +151,15 @@ describe("buildSoapGapsResponse", () => {
       status: "success",
       type: "soap_gaps",
       gaps: [],
-      questions: [],
       session_id: "s1",
       actor_id: "a1",
       model_id: "test-model",
     });
     expect(detection.messages).toHaveLength(1);
-    expect(questions.messages).toHaveLength(0);
   });
 
-  test("ルールベースで検出した不足を AI が返した質問とマッチさせて反映する", async () => {
+  test("ルールベースで検出した不足を返す", async () => {
     const detection = fakeSoapGapsDetectionRunner();
-    const questions = fakeSoapGapsRunner({
-      questions: [
-        {
-          gapType: "insufficient_reasoning",
-          soapCategory: "A",
-          targetItem: "転倒リスクが高い。",
-          questionText: "転倒リスクの根拠となる具体的な様子はありましたか？",
-        },
-      ],
-    });
     const result = await buildSoapGapsResponse(
       {
         type: "soap_gaps",
@@ -184,7 +170,6 @@ describe("buildSoapGapsResponse", () => {
       {
         config: makeConfig(),
         soapGapsDetectionRunner: detection.run,
-        soapGapsRunner: questions.run,
       },
     );
 
@@ -196,17 +181,7 @@ describe("buildSoapGapsResponse", () => {
     ) {
       expect(result.gaps).toHaveLength(1);
       expect(result.gaps[0]?.gapType).toBe("insufficient_reasoning");
-      expect(result.questions).toEqual([
-        {
-          gapType: "insufficient_reasoning",
-          soapCategory: "A",
-          targetItem: "転倒リスクが高い。",
-          questionText: "転倒リスクの根拠となる具体的な様子はありましたか？",
-          skippable: false,
-        },
-      ]);
     }
-    expect(questions.messages[0]).toContain("insufficient_reasoning");
   });
 
   test("AI が検出した意味的な不足をルールベースの結果に統合する", async () => {
@@ -221,28 +196,11 @@ describe("buildSoapGapsResponse", () => {
         },
       ],
     });
-    const questions = fakeSoapGapsRunner({
-      questions: [
-        {
-          gapType: "insufficient_reasoning",
-          soapCategory: "A",
-          targetItem: "転倒リスクが高い。",
-          questionText: "転倒リスクの根拠となる具体的な様子はありましたか？",
-        },
-        {
-          gapType: "contradictory",
-          soapCategory: "S",
-          targetItem: "食欲はある。",
-          questionText: "食事量が少ない理由を教えてください。",
-        },
-      ],
-    });
     const result = await buildSoapGapsResponse(
       { type: "soap_gaps", candidates: CANDIDATES_WITH_GAP },
       {
         config: makeConfig(),
         soapGapsDetectionRunner: detection.run,
-        soapGapsRunner: questions.run,
       },
     );
 
@@ -255,7 +213,6 @@ describe("buildSoapGapsResponse", () => {
       expect(new Set(result.gaps.map((g) => g.gapType))).toEqual(
         new Set(["contradictory", "insufficient_reasoning"]),
       );
-      expect(result.questions).toHaveLength(2);
     }
     expect(detection.messages[0]).toContain("転倒リスクが高い");
   });
@@ -272,13 +229,11 @@ describe("buildSoapGapsResponse", () => {
         },
       ],
     });
-    const questions = fakeSoapGapsRunner({ questions: [] });
     const result = await buildSoapGapsResponse(
       { type: "soap_gaps", candidates: CANDIDATES_WITH_GAP },
       {
         config: makeConfig(),
         soapGapsDetectionRunner: detection.run,
-        soapGapsRunner: questions.run,
       },
     );
 
@@ -293,7 +248,6 @@ describe("buildSoapGapsResponse", () => {
   });
 
   test("不足検出 AI の StructuredOutputError はルールベースの結果のみで続行する", async () => {
-    const questions = fakeSoapGapsRunner({ questions: [] });
     const result = await buildSoapGapsResponse(
       { type: "soap_gaps", candidates: CANDIDATES_WITH_GAP },
       {
@@ -301,7 +255,6 @@ describe("buildSoapGapsResponse", () => {
         soapGapsDetectionRunner: async () => {
           throw new StructuredOutputError("did not converge");
         },
-        soapGapsRunner: questions.run,
       },
     );
 
@@ -323,83 +276,6 @@ describe("buildSoapGapsResponse", () => {
         {
           config: makeConfig(),
           soapGapsDetectionRunner: async () => {
-            throw new Error("boom");
-          },
-        },
-      ),
-    ).rejects.toThrow("boom");
-  });
-
-  test("AI がマッチしない質問を返した不足には fallback 質問文を使う", async () => {
-    const detection = fakeSoapGapsDetectionRunner();
-    const questions = fakeSoapGapsRunner({
-      questions: [
-        {
-          gapType: "ambiguous",
-          soapCategory: "S",
-          targetItem: "別の項目",
-          questionText: "無関係な質問",
-        },
-      ],
-    });
-    const result = await buildSoapGapsResponse(
-      { type: "soap_gaps", candidates: CANDIDATES_WITH_GAP },
-      {
-        config: makeConfig(),
-        soapGapsDetectionRunner: detection.run,
-        soapGapsRunner: questions.run,
-      },
-    );
-
-    expect(result.status).toBe("success");
-    if (
-      result.status === "success" &&
-      "type" in result &&
-      result.type === "soap_gaps"
-    ) {
-      expect(result.questions).toHaveLength(1);
-      expect(result.questions[0]?.questionText).toContain(
-        "判断根拠が不足しています",
-      );
-    }
-  });
-
-  test("質問生成 AI の StructuredOutputError は fallback 質問文に変換し、不足一覧は必ず返す", async () => {
-    const detection = fakeSoapGapsDetectionRunner();
-    const result = await buildSoapGapsResponse(
-      { type: "soap_gaps", candidates: CANDIDATES_WITH_GAP },
-      {
-        config: makeConfig(),
-        soapGapsDetectionRunner: detection.run,
-        soapGapsRunner: async () => {
-          throw new StructuredOutputError("did not converge");
-        },
-      },
-    );
-
-    expect(result.status).toBe("success");
-    if (
-      result.status === "success" &&
-      "type" in result &&
-      result.type === "soap_gaps"
-    ) {
-      expect(result.gaps).toHaveLength(1);
-      expect(result.questions).toHaveLength(1);
-      expect(result.questions[0]?.questionText).toContain(
-        "判断根拠が不足しています",
-      );
-    }
-  });
-
-  test("質問生成 AI の StructuredOutputError 以外の例外は re-throw する", async () => {
-    const detection = fakeSoapGapsDetectionRunner();
-    await expect(
-      buildSoapGapsResponse(
-        { type: "soap_gaps", candidates: CANDIDATES_WITH_GAP },
-        {
-          config: makeConfig(),
-          soapGapsDetectionRunner: detection.run,
-          soapGapsRunner: async () => {
             throw new Error("boom");
           },
         },

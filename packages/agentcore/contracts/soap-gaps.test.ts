@@ -2,16 +2,10 @@ import { describe, expect, test } from "bun:test";
 
 import {
   type AiDetectedGap,
-  type AiGapQuestion,
   aiDetectedGapSchema,
   aiGapDetectionOutputSchema,
-  aiGapQuestionListSchema,
-  aiGapQuestionSchema,
   type Gap,
-  gapQuestionSchema,
   gapSchema,
-  type SoapGapsOutput,
-  soapGapsOutputSchema,
 } from "./soap-gaps.ts";
 
 const VALID_GAP: Gap = {
@@ -50,52 +44,6 @@ describe("gapSchema", () => {
   });
 });
 
-describe("gapQuestionSchema", () => {
-  test("有効な質問を parse できる", () => {
-    const question = {
-      gapType: VALID_GAP.gapType,
-      soapCategory: VALID_GAP.soapCategory,
-      targetItem: VALID_GAP.targetItem,
-      questionText: "次回訪問の実施日はいつですか？",
-      skippable: false,
-    };
-    expect(gapQuestionSchema.parse(question)).toEqual(question);
-  });
-
-  test("questionText が空文字だと失敗する", () => {
-    expect(
-      gapQuestionSchema.safeParse({
-        gapType: VALID_GAP.gapType,
-        soapCategory: VALID_GAP.soapCategory,
-        targetItem: VALID_GAP.targetItem,
-        questionText: "",
-        skippable: false,
-      }).success,
-    ).toBe(false);
-  });
-});
-
-describe("aiGapQuestionSchema / aiGapQuestionListSchema", () => {
-  test("skippable を含まなくても有効", () => {
-    const aiQuestion: AiGapQuestion = {
-      gapType: VALID_GAP.gapType,
-      soapCategory: VALID_GAP.soapCategory,
-      targetItem: VALID_GAP.targetItem,
-      questionText: "次回訪問の実施日はいつですか？",
-    };
-    expect(aiGapQuestionSchema.parse(aiQuestion)).toEqual(aiQuestion);
-    expect(
-      aiGapQuestionListSchema.safeParse({ questions: [aiQuestion] }).success,
-    ).toBe(true);
-  });
-
-  test("questions が空配列でも有効", () => {
-    expect(aiGapQuestionListSchema.safeParse({ questions: [] }).success).toBe(
-      true,
-    );
-  });
-});
-
 describe("aiDetectedGapSchema / aiGapDetectionOutputSchema", () => {
   test("skippable を含まなくても有効", () => {
     const detected: AiDetectedGap = {
@@ -128,36 +76,5 @@ describe("aiDetectedGapSchema / aiGapDetectionOutputSchema", () => {
         relatedEvidenceQuotes: [],
       }).success,
     ).toBe(false);
-  });
-});
-
-describe("soapGapsOutputSchema", () => {
-  test("gaps と questions を parse できる", () => {
-    const output: SoapGapsOutput = {
-      gaps: [VALID_GAP],
-      questions: [
-        {
-          gapType: VALID_GAP.gapType,
-          soapCategory: VALID_GAP.soapCategory,
-          targetItem: VALID_GAP.targetItem,
-          questionText: "次回訪問の実施日はいつですか？",
-          skippable: false,
-        },
-      ],
-    };
-    expect(soapGapsOutputSchema.parse(output)).toEqual(output);
-  });
-
-  test("gaps / questions とも空配列で有効", () => {
-    expect(
-      soapGapsOutputSchema.safeParse({ gaps: [], questions: [] }).success,
-    ).toBe(true);
-  });
-
-  test("gaps / questions 欠落は失敗する", () => {
-    expect(soapGapsOutputSchema.safeParse({ gaps: [] }).success).toBe(false);
-    expect(soapGapsOutputSchema.safeParse({ questions: [] }).success).toBe(
-      false,
-    );
   });
 });

@@ -14,7 +14,7 @@ const CANDIDATE = {
 };
 
 describe("handleSoapGapsRequest", () => {
-  test("BFF request を runtime payload に変換し gaps/questions を返す", async () => {
+  test("BFF request を runtime payload に変換し gaps を返す", async () => {
     let runtimeSessionId = "";
     let runtimePayload: unknown;
 
@@ -45,15 +45,6 @@ describe("handleSoapGapsRequest", () => {
                   skippable: false,
                 },
               ],
-              questions: [
-                {
-                  gapType: "insufficient_reasoning",
-                  soapCategory: "A",
-                  targetItem: "転倒リスクが高い。",
-                  questionText: "転倒リスクの根拠となる様子はありましたか？",
-                  skippable: false,
-                },
-              ],
               session_id: sessionId,
               actor_id: ACTOR_ID,
               model_id: "test-model",
@@ -73,15 +64,6 @@ describe("handleSoapGapsRequest", () => {
           targetItem: "転倒リスクが高い。",
           detail: "根拠となる S/O が見当たりません。",
           relatedEvidenceQuotes: ["転倒リスクが高い"],
-          skippable: false,
-        },
-      ],
-      questions: [
-        {
-          gapType: "insufficient_reasoning",
-          soapCategory: "A",
-          targetItem: "転倒リスクが高い。",
-          questionText: "転倒リスクの根拠となる様子はありましたか？",
           skippable: false,
         },
       ],
@@ -241,5 +223,66 @@ describe("handleSoapGapsRequest", () => {
     );
 
     expect(response.statusCode).toBe(404);
+  });
+
+  test("getGapRuleConfig の取得結果を gap_rule_config として payload に渡す", async () => {
+    let runtimePayload: unknown;
+    const gapRuleConfig = { lowConfidenceThreshold: 0.6 };
+
+    await handleSoapGapsRequest(
+      {
+        body: JSON.stringify({ candidates: [CANDIDATE] }),
+        method: "POST",
+        path: "/api/soap-gaps",
+      },
+      {
+        actorId: ACTOR_ID,
+        createSessionId: () => SESSION_ID,
+        getGapRuleConfig: async () => gapRuleConfig,
+        invokeRuntime: async (_sessionId, payload) => {
+          runtimePayload = payload;
+          return {
+            ok: true,
+            payload: { status: "success", type: "soap_gaps", gaps: [] },
+            statusCode: 200,
+          };
+        },
+      },
+    );
+
+    expect(runtimePayload).toMatchObject({ gap_rule_config: gapRuleConfig });
+  });
+
+  test("getGapRuleConfig が失敗しても best-effort で続行し、payload には含めない", async () => {
+    let runtimePayload: unknown;
+    const errors: unknown[] = [];
+
+    const response = await handleSoapGapsRequest(
+      {
+        body: JSON.stringify({ candidates: [CANDIDATE] }),
+        method: "POST",
+        path: "/api/soap-gaps",
+      },
+      {
+        actorId: ACTOR_ID,
+        createSessionId: () => SESSION_ID,
+        getGapRuleConfig: async () => {
+          throw new Error("boom");
+        },
+        invokeRuntime: async (_sessionId, payload) => {
+          runtimePayload = payload;
+          return {
+            ok: true,
+            payload: { status: "success", type: "soap_gaps", gaps: [] },
+            statusCode: 200,
+          };
+        },
+        logError: (message, detail) => errors.push({ message, detail }),
+      },
+    );
+
+    expect(response.statusCode).toBe(200);
+    expect(runtimePayload).not.toHaveProperty("gap_rule_config");
+    expect(errors).toHaveLength(1);
   });
 });

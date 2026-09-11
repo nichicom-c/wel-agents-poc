@@ -268,7 +268,6 @@ describe("buildResponse", () => {
         config: makeConfig(),
         supervisorRunner: supervisor.run,
         soapGapsDetectionRunner: async () => ({ gaps: [] }),
-        soapGapsRunner: async () => ({ questions: [] }),
       },
     );
 
@@ -276,8 +275,54 @@ describe("buildResponse", () => {
     if (result.status === "success" && "type" in result) {
       expect(result.type).toBe("soap_gaps");
       if (result.type === "soap_gaps") {
-        expect(result.gaps).toHaveLength(1);
-        expect(result.questions).toHaveLength(1);
+        expect(
+          result.gaps.filter((g) => g.gapType === "insufficient_reasoning"),
+        ).toHaveLength(1);
+      }
+    }
+    expect(supervisor.messages).toHaveLength(0);
+  });
+
+  test("type: soap_gaps_chat は supervisor を経由せず buildSoapGapsChatResponse に委譲する", async () => {
+    const supervisor = fakeSupervisor();
+    const result = await buildResponse(
+      {
+        type: "soap_gaps_chat",
+        candidates: [
+          {
+            category: "A",
+            draftText: "転倒リスクが高い。",
+            evidenceQuote: "転倒リスクが高い",
+            reasoning: "観察結果からの評価。",
+            confidence: 0.8,
+          },
+        ],
+        gap: {
+          gapType: "insufficient_reasoning",
+          soapCategory: "A",
+          targetItem: "転倒リスクが高い。",
+          detail: "アセスメントの根拠が不足しています。",
+          relatedEvidenceQuotes: ["転倒リスクが高い"],
+          skippable: false,
+        },
+      },
+      {
+        config: makeConfig(),
+        supervisorRunner: supervisor.run,
+        soapGapsChatRunner: async () => ({
+          message: "根拠となる具体的な様子はありましたか？",
+          suggestions: [],
+          resolved: false,
+        }),
+        memory: null,
+      },
+    );
+
+    expect(result.status).toBe("success");
+    if (result.status === "success" && "type" in result) {
+      expect(result.type).toBe("soap_gaps_chat");
+      if (result.type === "soap_gaps_chat") {
+        expect(result.resolved).toBe(false);
       }
     }
     expect(supervisor.messages).toHaveLength(0);

@@ -3,13 +3,11 @@ import { describe, expect, test } from "bun:test";
 import type { SoapDraftCandidate } from "../contracts/soap-draft.ts";
 import type { AiDetectedGap, Gap } from "../contracts/soap-gaps.ts";
 import {
-  buildFallbackQuestion,
   defaultSkippableForGapType,
   detectGaps,
-  fallbackQuestionText,
   getSoapGapsCandidates,
   isSoapGapsRequest,
-  MAX_QUESTIONS,
+  MAX_PRIORITIZED_GAPS,
   mergeGapLists,
   prioritizeGaps,
   toGap,
@@ -56,7 +54,9 @@ describe("detectGaps: insufficient_reasoning", () => {
     const candidates = [
       candidate({ category: "A", draftText: "リスクが高い" }),
     ];
-    const gaps = detectGaps(candidates);
+    const gaps = detectGaps(candidates).filter(
+      (g) => g.gapType === "insufficient_reasoning",
+    );
     expect(gaps).toHaveLength(1);
     expect(gaps[0]).toMatchObject({
       gapType: "insufficient_reasoning",
@@ -78,7 +78,72 @@ describe("detectGaps: insufficient_reasoning", () => {
   });
 
   test("A が無ければ検出しない", () => {
-    expect(detectGaps([candidate({ category: "S" })])).toHaveLength(0);
+    expect(
+      detectGaps([candidate({ category: "S" })]).filter(
+        (g) => g.gapType === "insufficient_reasoning",
+      ),
+    ).toHaveLength(0);
+  });
+});
+
+describe("detectGaps: missing_assessment / missing_plan（SOAPの完成度）", () => {
+  const missingA = (gaps: Gap[]) =>
+    gaps.filter(
+      (g) => g.gapType === "missing_required" && g.soapCategory === "A",
+    );
+  const missingP = (gaps: Gap[]) =>
+    gaps.filter(
+      (g) => g.gapType === "missing_required" && g.soapCategory === "P",
+    );
+
+  test("S/O はあるが A が無ければ、Aの不足として検出する", () => {
+    const candidates = [
+      candidate({ category: "S" }),
+      candidate({ category: "O" }),
+    ];
+    const gaps = missingA(detectGaps(candidates));
+    expect(gaps).toHaveLength(1);
+    expect(gaps[0]?.skippable).toBe(false);
+  });
+
+  test("A があれば、Aの不足としては検出しない", () => {
+    expect(missingA(detectGaps([candidate({ category: "A" })]))).toHaveLength(
+      0,
+    );
+  });
+
+  test("S/O も A も無ければ、Aの不足としては検出しない（そもそも根拠が無い）", () => {
+    const candidates = [
+      candidate({
+        category: "P",
+        draftText: "本人の希望を尊重する方針とする。",
+        evidenceQuote: "本人の希望を尊重する方針とする",
+      }),
+    ];
+    expect(missingA(detectGaps(candidates))).toHaveLength(0);
+  });
+
+  test("P が無ければ、A が未作成でも P の不足として検出する", () => {
+    const gaps = missingP(detectGaps([candidate({ category: "S" })]));
+    expect(gaps).toHaveLength(1);
+    expect(gaps[0]?.skippable).toBe(false);
+  });
+
+  test("P があれば、Pの不足としては検出しない", () => {
+    const candidates = [
+      candidate({
+        category: "P",
+        draftText: "本人の希望を尊重する方針とする。",
+        evidenceQuote: "本人の希望を尊重する方針とする",
+      }),
+    ];
+    expect(missingP(detectGaps(candidates))).toHaveLength(0);
+  });
+
+  test("S/O も A も無ければ、Pの不足としては検出しない", () => {
+    expect(
+      missingP(detectGaps([candidate({ category: "UNCLASSIFIED" })])),
+    ).toHaveLength(0);
   });
 });
 
@@ -234,11 +299,11 @@ describe("prioritizeGaps", () => {
     ]);
   });
 
-  test("limit で上位件数だけに絞る（既定値は MAX_QUESTIONS）", () => {
-    const gaps = Array.from({ length: MAX_QUESTIONS + 5 }, () =>
+  test("limit で上位件数だけに絞る（既定値は MAX_PRIORITIZED_GAPS）", () => {
+    const gaps = Array.from({ length: MAX_PRIORITIZED_GAPS + 5 }, () =>
       GAP_BY_TYPE("review_recommended"),
     );
-    expect(prioritizeGaps(gaps)).toHaveLength(MAX_QUESTIONS);
+    expect(prioritizeGaps(gaps)).toHaveLength(MAX_PRIORITIZED_GAPS);
     expect(prioritizeGaps(gaps, 2)).toHaveLength(2);
   });
 });
@@ -293,30 +358,5 @@ describe("mergeGapLists", () => {
       detail: "AI が別の言い回しで検出した同じ不足。",
     };
     expect(mergeGapLists([RULE_GAP], [duplicate])).toEqual([RULE_GAP]);
-  });
-});
-
-describe("fallbackQuestionText / buildFallbackQuestion", () => {
-  test("gapType のラベルと detail を含む質問文を組み立てる", () => {
-    const gap: Gap = {
-      gapType: "insufficient_reasoning",
-      soapCategory: "A",
-      targetItem: "リスクが高い",
-      detail: "アセスメントの根拠が不足しています。",
-      relatedEvidenceQuotes: ["リスクが高い"],
-      skippable: false,
-    };
-    const text = fallbackQuestionText(gap);
-    expect(text).toContain("判断根拠が不足しています");
-    expect(text).toContain(gap.detail);
-
-    const question = buildFallbackQuestion(gap);
-    expect(question).toEqual({
-      gapType: gap.gapType,
-      soapCategory: gap.soapCategory,
-      targetItem: gap.targetItem,
-      questionText: text,
-      skippable: gap.skippable,
-    });
   });
 });

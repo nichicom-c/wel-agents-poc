@@ -20,8 +20,9 @@ import {
 } from "../domain/session.ts";
 import { isSoapDraftRequest } from "../domain/soap-draft.ts";
 import { isSoapGapsRequest } from "../domain/soap-gaps.ts";
+import { isSoapGapsChatRequest } from "../domain/soap-gaps-chat.ts";
 import { type Config, configFromEnv, missingConfig } from "../infra/config.ts";
-import { ConversationMemory, type MemoryStore } from "../infra/memory.ts";
+import type { MemoryStore } from "../infra/memory.ts";
 import {
   buildExerciseFeedbackResponse,
   type ExerciseFeedbackDeps,
@@ -31,9 +32,18 @@ import {
   type SoapDraftDeps,
 } from "./build-soap-draft-response.ts";
 import {
+  buildSoapGapsChatResponse,
+  type SoapGapsChatDeps,
+} from "./build-soap-gaps-chat-response.ts";
+import {
   buildSoapGapsResponse,
   type SoapGapsDeps,
 } from "./build-soap-gaps-response.ts";
+import {
+  recentHistoryBestEffort,
+  resolveMemory,
+  saveTurnBestEffort,
+} from "./memory-turn.ts";
 import { extractText } from "./message-text.ts";
 import { type AgentDeps, buildSupervisor } from "./supervisor-agent.ts";
 
@@ -51,6 +61,7 @@ export type RuntimeDeps = {
   warn?: (message: string) => void;
 } & SoapDraftDeps &
   SoapGapsDeps &
+  SoapGapsChatDeps &
   ExerciseFeedbackDeps;
 
 /** 必須設定が欠けているときに返すエラー応答。 */
@@ -59,10 +70,6 @@ export function configError(missing: string[]): RuntimeResponse {
     status: "error",
     error: `Missing required configuration: ${missing.join(", ")}`,
   };
-}
-
-function stringifyError(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
 }
 
 /** config から本物の supervisor を生成し、回答テキストを返す runner。 */
@@ -78,12 +85,14 @@ function defaultSupervisorRunner(config: Config): SupervisorRunner {
  *
  * `payload.type === "soap_draft"` のときは chat（supervisor）を経由せず
  * {@link buildSoapDraftResponse} に、`payload.type === "soap_gaps"` のときは
- * {@link buildSoapGapsResponse} に、`payload.type === "exercise_feedback"` のときは
+ * {@link buildSoapGapsResponse} に、`payload.type === "soap_gaps_chat"` のときは
+ * {@link buildSoapGapsChatResponse} に、`payload.type === "exercise_feedback"` のときは
  * {@link buildExerciseFeedbackResponse} に委譲する。それ以外（省略含む）は従来どおり chat
  * として扱う。
  *
  * chat の流れ: 設定解決 → 必須チェック → 直近履歴取得（best-effort）→ supervisor 実行 →
- * 今回ターンの保存（best-effort）→ 応答整形。
+ * 今回ターンの保存（best-effort）→ 応答整形。Memory の読み書きは `memory-turn.ts` に集約し、
+ * `soap_gaps_chat` と共有する。
  */
 export async function buildResponse(
   payload: RuntimeRequest,
@@ -94,6 +103,9 @@ export async function buildResponse(
   }
   if (isSoapGapsRequest(payload)) {
     return buildSoapGapsResponse(payload, deps);
+  }
+  if (isSoapGapsChatRequest(payload)) {
+    return buildSoapGapsChatResponse(payload, deps);
   }
   if (isExerciseFeedbackRequest(payload)) {
     return buildExerciseFeedbackResponse(payload, deps);
@@ -116,21 +128,13 @@ export async function buildResponse(
   const sessionId = getSessionId(payload);
   const warn = deps.warn ?? ((message: string) => console.warn(message));
 
-  let memory = deps.memory;
-  if (memory === undefined) {
-    memory = config.memoryId
-      ? new ConversationMemory(config.memoryId, { region: config.region })
-      : null;
-  }
-
-  let history = "";
-  if (memory) {
-    try {
-      history = await memory.recentHistory(actorId, sessionId);
-    } catch (error) {
-      warn(`[WARNING] memory recentHistory failed: ${stringifyError(error)}`);
-    }
-  }
+  const memory = resolveMemory(config, deps.memory);
+  const history = await recentHistoryBestEffort(
+    memory,
+    actorId,
+    sessionId,
+    warn,
+  );
 
   const runSupervisor =
     deps.supervisorRunner ?? defaultSupervisorRunner(config);
@@ -141,13 +145,7 @@ export async function buildResponse(
     warn("[WARNING] supervisor returned an empty response");
   }
 
-  if (memory) {
-    try {
-      await memory.saveTurn(actorId, sessionId, prompt, answer);
-    } catch (error) {
-      warn(`[WARNING] memory saveTurn failed: ${stringifyError(error)}`);
-    }
-  }
+  await saveTurnBestEffort(memory, actorId, sessionId, prompt, answer, warn);
 
   return {
     status: "success",

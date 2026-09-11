@@ -18,16 +18,14 @@ import {
   withStatus,
 } from "../../features/soap-draft/index.ts";
 import {
-  fromApiQuestions,
+  appendAssistantMessage,
+  appendUserMessage,
+  type ChatMessage,
   type GapApiItem,
-  type GapQuestionItem,
   gapTypeLabel,
-  groupByGapType,
-  markAnswered,
-  markSkipped,
+  latestAssistantSuggestions,
   postSoapGaps,
-  withDraftAnswer,
-  withDraftSkipReason,
+  postSoapGapsChat,
 } from "../../features/soap-gaps/index.ts";
 import {
   postSoapRecord,
@@ -52,15 +50,27 @@ const STATUS_LABELS: Record<SoapCandidateStatus, string> = {
   deferred: "後で確認",
 };
 
-const QUESTION_STATUS_LABELS: Record<GapQuestionItem["status"], string> = {
-  pending: "未対応",
-  answered: "回答済み",
-  skipped: "スキップ",
-};
-
 type AnalyzeStatus = "idle" | "loading" | "error";
 type GapsStatus = "idle" | "loading" | "error";
+type ChatStatus = "idle" | "loading" | "error";
 type SaveStatus = "idle" | "loading" | "error";
+
+/** ルールベースで検出した不足の同一性キー（`resolvedGapKeys` の判定に使う）。 */
+function gapKey(gap: GapApiItem): string {
+  return `${gap.gapType}:${gap.soapCategory}:${gap.targetItem}:${gap.detail}`;
+}
+
+function toApiCandidates(candidates: SoapDraftCandidate[]) {
+  return candidates.map(
+    ({ category, draftText, evidenceQuote, reasoning, confidence }) => ({
+      category,
+      draftText,
+      evidenceQuote,
+      reasoning,
+      confidence,
+    }),
+  );
+}
 
 export type SoapStudioViewProps = {
   /** Voice Capture など他画面から引き継ぐ入力素材テキスト。渡されると textarea に反映する。 */
@@ -87,14 +97,28 @@ export function SoapStudioView({
   const [error, setError] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingText, setEditingText] = useState("");
-  const [gaps, setGaps] = useState<GapApiItem[] | null>(null);
-  const [questions, setQuestions] = useState<GapQuestionItem[] | null>(null);
+  const [gapQueue, setGapQueue] = useState<GapApiItem[] | null>(null);
+  const [resolvedGapKeys, setResolvedGapKeys] = useState<Set<string>>(
+    new Set(),
+  );
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [chatConversationId, setChatConversationId] = useState<
+    string | undefined
+  >(undefined);
+  const [chatInputText, setChatInputText] = useState("");
   const [gapsStatus, setGapsStatus] = useState<GapsStatus>("idle");
   const [gapsError, setGapsError] = useState("");
+  const [chatStatus, setChatStatus] = useState<ChatStatus>("idle");
+  const [chatError, setChatError] = useState("");
   const [savedRecordIds, setSavedRecordIds] = useState<SavedRecordIds>({});
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
   const [saveError, setSaveError] = useState("");
   const [saveNotice, setSaveNotice] = useState("");
+
+  /** キュー中、まだ resolvedGapKeys に含まれない最初の不足（無ければ全件対応済み）。 */
+  const activeGap = (gapQueue ?? []).find(
+    (gap) => !resolvedGapKeys.has(gapKey(gap)),
+  );
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: seedText の到着だけを検知したい（onSeedConsumed/seedSourceLabel は同時に渡される値）。
   useEffect(() => {
@@ -112,10 +136,15 @@ export function SoapStudioView({
     }
     setAnalyzeStatus("loading");
     setError("");
-    setGaps(null);
-    setQuestions(null);
+    setGapQueue(null);
+    setResolvedGapKeys(new Set());
+    setChatMessages([]);
+    setChatConversationId(undefined);
+    setChatInputText("");
     setGapsStatus("idle");
     setGapsError("");
+    setChatStatus("idle");
+    setChatError("");
     try {
       const result = await postSoapDraft({ text });
       setCandidates(fromApiCandidates(result.candidates));
@@ -129,53 +158,158 @@ export function SoapStudioView({
     }
   }
 
-  async function handleCheckGaps() {
+  /**
+   * 不足確認チャットの1ターンを実行する。resolved になれば（候補があれば採用し）次の未解決の
+   * 不足を自動で提示し続ける（AI主導）。すべて解決したら完了メッセージを表示する。
+   * `queue`/`currentCandidates`/`resolvedKeys` は React state の非同期反映に左右されないよう、
+   * 呼び出し元から明示的に受け取って引き回す。
+   */
+  async function runChatTurn(
+    queue: GapApiItem[],
+    currentCandidates: SoapDraftCandidate[],
+    gap: GapApiItem,
+    conversationId: string | undefined,
+    resolvedKeys: Set<string>,
+    message?: string,
+  ) {
+    setChatStatus("loading");
+    setChatError("");
+    try {
+      const result = await postSoapGapsChat({
+        candidates: toApiCandidates(currentCandidates),
+        conversationId,
+        gap,
+        message,
+      });
+      setChatConversationId(result.conversationId);
+      setChatMessages((prev) =>
+        appendAssistantMessage(prev, result.message, result.suggestions),
+      );
+
+      if (!result.resolved) {
+        setChatStatus("idle");
+        return;
+      }
+
+      const nextResolvedKeys = new Set(resolvedKeys);
+      nextResolvedKeys.add(gapKey(gap));
+      setResolvedGapKeys(nextResolvedKeys);
+
+      let nextCandidates = currentCandidates;
+      if (result.candidateText) {
+        nextCandidates = addManualCandidate(currentCandidates, {
+          category: gap.soapCategory,
+          draftText: result.candidateText,
+          evidenceQuote: result.candidateText,
+          reasoning: `不足確認チャット「${gap.detail}」への回答として追加。`,
+          confidence: 1,
+        });
+        setCandidates(nextCandidates);
+      }
+
+      const nextGap = queue.find((item) => !nextResolvedKeys.has(gapKey(item)));
+      if (nextGap) {
+        await runChatTurn(
+          queue,
+          nextCandidates,
+          nextGap,
+          result.conversationId,
+          nextResolvedKeys,
+        );
+        return;
+      }
+
+      setChatMessages((prev) =>
+        appendAssistantMessage(
+          prev,
+          "不足確認はこれで完了です。内容を確認し、正式記録として保存してください。",
+        ),
+      );
+      setChatStatus("idle");
+    } catch (caught) {
+      setChatStatus("error");
+      setChatError(caught instanceof Error ? caught.message : String(caught));
+    }
+  }
+
+  async function handleStartGapChat() {
     if (!candidates || candidates.length === 0 || gapsStatus === "loading") {
       return;
     }
     setGapsStatus("loading");
     setGapsError("");
+    setChatMessages([]);
+    setChatConversationId(undefined);
+    setChatInputText("");
+    setResolvedGapKeys(new Set());
+    setChatError("");
     try {
-      const apiCandidates = candidates.map(
-        ({ category, draftText, evidenceQuote, reasoning, confidence }) => ({
-          category,
-          draftText,
-          evidenceQuote,
-          reasoning,
-          confidence,
-        }),
-      );
-      const result = await postSoapGaps({ candidates: apiCandidates });
-      setGaps(result.gaps);
-      setQuestions(fromApiQuestions(result.questions));
+      const result = await postSoapGaps({
+        candidates: toApiCandidates(candidates),
+      });
+      setGapQueue(result.gaps);
       setGapsStatus("idle");
+      if (result.gaps.length === 0) {
+        setChatMessages(
+          appendAssistantMessage(
+            [],
+            "不足は見つかりませんでした。このまま正式記録として保存できます。",
+          ),
+        );
+        return;
+      }
+      const firstGap = result.gaps[0];
+      if (firstGap) {
+        await runChatTurn(
+          result.gaps,
+          candidates,
+          firstGap,
+          undefined,
+          new Set(),
+        );
+      }
     } catch (caught) {
       setGapsStatus("error");
       setGapsError(caught instanceof Error ? caught.message : String(caught));
     }
   }
 
-  function handleAnswerQuestion(question: GapQuestionItem) {
-    const trimmed = question.answerText.trim();
-    if (!trimmed) {
+  function handleSendChatMessage() {
+    const trimmed = chatInputText.trim();
+    if (!activeGap || !trimmed || !candidates || chatStatus === "loading") {
       return;
     }
-    setCandidates((prev) =>
-      prev
-        ? addManualCandidate(prev, {
-            category: question.soapCategory,
-            draftText: trimmed,
-            evidenceQuote: trimmed,
-            reasoning: `不足確認「${question.questionText}」への回答として追加。`,
-            confidence: 1,
-          })
-        : prev,
+    setChatMessages((prev) => appendUserMessage(prev, trimmed));
+    setChatInputText("");
+    void runChatTurn(
+      gapQueue ?? [],
+      candidates,
+      activeGap,
+      chatConversationId,
+      resolvedGapKeys,
+      trimmed,
     );
-    setQuestions((prev) => (prev ? markAnswered(prev, question.id) : prev));
   }
 
-  function handleSkipQuestion(question: GapQuestionItem) {
-    setQuestions((prev) => (prev ? markSkipped(prev, question.id) : prev));
+  function handleSkipCurrentGap() {
+    if (!activeGap?.skippable || !candidates || chatStatus === "loading") {
+      return;
+    }
+    const skipText = "スキップします。";
+    setChatMessages((prev) => appendUserMessage(prev, skipText));
+    void runChatTurn(
+      gapQueue ?? [],
+      candidates,
+      activeGap,
+      chatConversationId,
+      resolvedGapKeys,
+      skipText,
+    );
+  }
+
+  /** 提案チップは即送信ではなく、編集してから送れるよう入力欄へ挿入するだけにする。 */
+  function handleSuggestionClick(suggestion: string) {
+    setChatInputText(suggestion);
   }
 
   function handleStatusChange(id: string, next: SoapCandidateStatus) {
@@ -452,144 +586,123 @@ export function SoapStudioView({
         <section
           className="soap-gaps-section"
           aria-label="不足確認"
-          aria-busy={gapsStatus === "loading"}
+          aria-busy={gapsStatus === "loading" || chatStatus === "loading"}
         >
           <h3>不足確認</h3>
+          <p className="workbench-main-description">
+            検出した不足を優先度順にAIとチャットで1件ずつ埋め、SOAPを完成させます。
+          </p>
           <button
             type="button"
             className="soap-gaps-check-button"
             disabled={gapsStatus === "loading"}
-            onClick={() => void handleCheckGaps()}
+            onClick={() => void handleStartGapChat()}
           >
-            {gapsStatus === "loading" ? "確認中…" : "不足を確認"}
+            {gapsStatus === "loading" ? "確認中…" : "不足をチャットで確認"}
           </button>
           {gapsStatus === "error" ? (
             <p className="soap-draft-error">{gapsError}</p>
           ) : null}
 
-          {gaps ? (
-            <div className="soap-gaps-summary">
-              <h4>不足一覧</h4>
-              {gaps.length === 0 ? (
-                <p className="workbench-main-description">
-                  不足は見つかりませんでした。
-                </p>
-              ) : (
-                groupByGapType(gaps).map((group) => (
-                  <div key={group.gapType} className="soap-gaps-group">
-                    <h5>{gapTypeLabel(group.gapType)}</h5>
-                    <ul className="soap-gaps-list">
-                      {group.items.map((gap) => (
-                        <li
-                          key={`${gap.gapType}:${gap.soapCategory}:${gap.targetItem}:${gap.detail}`}
-                          className="soap-gap-item"
-                        >
-                          <span
-                            className="soap-gap-category"
-                            data-category={gap.soapCategory}
-                          >
-                            {CATEGORY_LABELS[gap.soapCategory]}
-                          </span>
-                          <p className="soap-gap-detail">{gap.detail}</p>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                ))
-              )}
-            </div>
-          ) : null}
+          {chatMessages.length > 0 ? (
+            <div
+              className="soap-gaps-chat-thread"
+              role="log"
+              aria-label="不足確認チャット"
+            >
+              <ul className="soap-gaps-chat-message-list">
+                {chatMessages.map((message) => (
+                  <li
+                    key={message.id}
+                    className="soap-gaps-chat-message"
+                    data-role={message.role}
+                  >
+                    <p className="soap-gaps-chat-message-text">
+                      {message.text}
+                    </p>
+                  </li>
+                ))}
+              </ul>
 
-          {questions ? (
-            <div className="soap-gaps-questions">
-              <h4>確認質問</h4>
-              {questions.length === 0 ? (
-                <p className="workbench-main-description">
-                  確認が必要な質問はありません。
-                </p>
-              ) : (
-                <ul className="soap-gaps-question-list">
-                  {questions.map((question) => (
-                    <li
-                      key={question.id}
-                      className="soap-gaps-question"
-                      data-status={question.status}
+              {activeGap ? (
+                <>
+                  {latestAssistantSuggestions(chatMessages).length > 0 ? (
+                    <div className="soap-gaps-chat-suggestions">
+                      {latestAssistantSuggestions(chatMessages).map(
+                        (suggestion) => (
+                          <button
+                            type="button"
+                            key={suggestion}
+                            className="soap-gaps-chat-suggestion-chip"
+                            onClick={() => handleSuggestionClick(suggestion)}
+                          >
+                            {suggestion}
+                          </button>
+                        ),
+                      )}
+                    </div>
+                  ) : null}
+
+                  <div
+                    className="soap-gaps-chat-input-row"
+                    data-category={activeGap.soapCategory}
+                  >
+                    <span
+                      className="soap-gap-type-badge"
+                      title={activeGap.detail}
                     >
-                      <div className="soap-gaps-question-header">
-                        <span className="soap-gap-type-badge">
-                          {gapTypeLabel(question.gapType)}
-                        </span>
-                        <span
-                          className="soap-gap-category"
-                          data-category={question.soapCategory}
-                        >
-                          {CATEGORY_LABELS[question.soapCategory]}
-                        </span>
-                        <span className="soap-candidate-status">
-                          {QUESTION_STATUS_LABELS[question.status]}
-                        </span>
-                      </div>
-                      <p className="soap-gaps-question-text">
-                        {question.questionText}
-                      </p>
-                      <textarea
-                        className="soap-gaps-answer-input"
-                        aria-label="回答"
-                        placeholder="補足情報を入力してください"
-                        value={question.answerText}
-                        onChange={(event) =>
-                          setQuestions((prev) =>
-                            prev
-                              ? withDraftAnswer(
-                                  prev,
-                                  question.id,
-                                  event.target.value,
-                                )
-                              : prev,
-                          )
+                      {gapTypeLabel(activeGap.gapType)} ／{" "}
+                      {CATEGORY_LABELS[activeGap.soapCategory]}
+                    </span>
+                    <textarea
+                      className="soap-gaps-chat-input"
+                      aria-label="チャットへの返信"
+                      placeholder="回答を入力してください"
+                      value={chatInputText}
+                      disabled={chatStatus === "loading"}
+                      onChange={(event) => setChatInputText(event.target.value)}
+                    />
+                    <div className="soap-draft-candidate-actions">
+                      <button
+                        type="button"
+                        disabled={
+                          !chatInputText.trim() || chatStatus === "loading"
                         }
-                      />
-                      <div className="soap-draft-candidate-actions">
+                        onClick={handleSendChatMessage}
+                      >
+                        送信
+                      </button>
+                      {activeGap.skippable ? (
                         <button
                           type="button"
-                          disabled={!question.answerText.trim()}
-                          onClick={() => handleAnswerQuestion(question)}
+                          className="secondary-button"
+                          disabled={chatStatus === "loading"}
+                          onClick={handleSkipCurrentGap}
                         >
-                          回答して下書きに反映
+                          スキップ
                         </button>
-                        {question.skippable ? (
-                          <>
-                            <input
-                              className="soap-gaps-skip-reason-input"
-                              aria-label="スキップ理由"
-                              placeholder="スキップ理由（任意）"
-                              value={question.skipReason}
-                              onChange={(event) =>
-                                setQuestions((prev) =>
-                                  prev
-                                    ? withDraftSkipReason(
-                                        prev,
-                                        question.id,
-                                        event.target.value,
-                                      )
-                                    : prev,
-                                )
-                              }
-                            />
-                            <button
-                              type="button"
-                              className="secondary-button"
-                              onClick={() => handleSkipQuestion(question)}
-                            >
-                              スキップ
-                            </button>
-                          </>
-                        ) : null}
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              )}
+                      ) : null}
+                    </div>
+                  </div>
+                </>
+              ) : null}
+
+              {chatStatus === "loading" ? (
+                <p
+                  className="soap-draft-progress"
+                  role="status"
+                  aria-live="polite"
+                >
+                  <span
+                    className="soap-draft-progress-pulse"
+                    aria-hidden="true"
+                  />
+                  返信を作成中…
+                </p>
+              ) : null}
+              {chatStatus === "error" ? (
+                <p className="soap-draft-error">{chatError}</p>
+              ) : null}
             </div>
           ) : null}
         </section>

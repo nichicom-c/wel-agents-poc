@@ -29,6 +29,7 @@ import {
   type ListSessions,
 } from "../application/handle-sessions-request.ts";
 import { handleSoapDraftRequest } from "../application/handle-soap-draft-request.ts";
+import { handleSoapGapsChatRequest } from "../application/handle-soap-gaps-chat-request.ts";
 import { handleSoapGapsRequest } from "../application/handle-soap-gaps-request.ts";
 import { handleSoapKnowledgeBaseRequest } from "../application/handle-soap-knowledge-base-request.ts";
 import { handleSoapMappingRequest } from "../application/handle-soap-mapping-request.ts";
@@ -40,7 +41,10 @@ import {
   handleWsUrlRequest,
 } from "../application/handle-ws-url-request.ts";
 import type { KnowledgeBaseIds } from "../contracts/knowledge-base-detail.ts";
-import { ALWAYS_INCLUDED_KNOWLEDGE_CATEGORIES } from "../contracts/soap-knowledge-base.ts";
+import {
+  ALWAYS_INCLUDED_KNOWLEDGE_CATEGORIES,
+  SOAP_GAP_RULE_CONFIG_ITEM_KEY,
+} from "../contracts/soap-knowledge-base.ts";
 import { authContextFromJwtClaims } from "../domain/auth.ts";
 import {
   type AgentCoreRuntimeClientDeps,
@@ -374,6 +378,27 @@ export async function handleLambdaEvent(
 
   if (path === "/api/soap-gaps") {
     return handleSoapGapsRequest(
+      {
+        body: event.body,
+        isBase64Encoded: event.isBase64Encoded,
+        method,
+        path,
+      },
+      {
+        actorId: config.actorId,
+        getKnowledgeContext: knowledgeContextFetcher(config),
+        getGapRuleConfig: gapRuleConfigFetcher(config),
+        invokeRuntime: (runtimeSessionId, payload) =>
+          invokeAgentCoreRuntime(config, runtimeSessionId, payload, deps),
+        logError:
+          deps.logError ??
+          ((message, detail) => console.error(message, detail)),
+      },
+    );
+  }
+
+  if (path === "/api/soap-gaps-chat") {
+    return handleSoapGapsChatRequest(
       {
         body: event.body,
         isBase64Encoded: event.isBase64Encoded,
@@ -1119,5 +1144,41 @@ function knowledgeContextFetcher(config: LambdaConfig) {
       content: item.content,
       title: item.title,
     }));
+  };
+}
+
+/**
+ * `soap_gaps` のルールベース不足検出設定（`DOMAIN_RULE` カテゴリ、
+ * `SOAP_GAP_RULE_CONFIG_ITEM_KEY`）を取得し JSON.parse する。Training Data Store 未設定、
+ * 該当項目が無い、JSON が不正、のいずれでも undefined を返す（best-effort、呼び出し元でも
+ * failure を握りつぶす。AgentCore 側が既定値へフォールバックする）。
+ */
+function gapRuleConfigFetcher(config: LambdaConfig) {
+  return async () => {
+    if (
+      !config.trainingDataClusterArn ||
+      !config.trainingDataDatabaseName ||
+      !config.trainingDataSecretArn
+    ) {
+      return undefined;
+    }
+    const storeConfig = {
+      clusterArn: config.trainingDataClusterArn,
+      database: config.trainingDataDatabaseName,
+      region: config.region,
+      secretArn: config.trainingDataSecretArn,
+    };
+    const items = await getActiveKnowledgeItems(storeConfig, ["DOMAIN_RULE"]);
+    const item = items.find(
+      (candidate) => candidate.itemKey === SOAP_GAP_RULE_CONFIG_ITEM_KEY,
+    );
+    if (!item) {
+      return undefined;
+    }
+    try {
+      return JSON.parse(item.content);
+    } catch {
+      return undefined;
+    }
   };
 }

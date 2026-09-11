@@ -83,6 +83,10 @@ export function buildWorkbenchViteConfig(
       changeOrigin: true,
       target: config.bffUrl,
     },
+    "/api/soap-gaps-chat": {
+      changeOrigin: true,
+      target: config.bffUrl,
+    },
     "/api/soap-knowledge-base": {
       changeOrigin: true,
       target: config.bffUrl,
