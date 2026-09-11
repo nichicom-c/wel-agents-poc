@@ -8,6 +8,10 @@
 import { Agent, type Model } from "@strands-agents/sdk";
 import type { SoapRecordType } from "../contracts/soap-draft.ts";
 import { soapDraftOutputSchema } from "../contracts/soap-draft.ts";
+import {
+  formatKnowledgeContext,
+  type KnowledgeContextItem,
+} from "../domain/knowledge-context.ts";
 import { makeBedrockModel } from "../infra/model.ts";
 import type { AgentDeps } from "./agent-deps.ts";
 
@@ -107,12 +111,22 @@ function resolveSoapDraftModel(deps: AgentDeps): Model {
   });
 }
 
-/** SOAP 下書き生成用の Agent を生成する。structuredOutputSchema で候補配列を型付きで受け取る。 */
-export function buildSoapDraftAgent(deps: AgentDeps): Agent {
+/**
+ * SOAP 下書き生成用の Agent を生成する。structuredOutputSchema で候補配列を型付きで受け取る。
+ *
+ * `knowledgeContext`（保健師SOAP_KB_詳細設計書_v2 の knowledge_item、BFF が active な
+ * SOAP_RULE/SAFETY/FEEDBACK_POLICY を取得して渡す）が与えられれば、ハードコードされた
+ * `SOAP_DRAFT_SYSTEM_PROMPT` を置き換えず、末尾に補足コンテキストとして追記する。
+ */
+export function buildSoapDraftAgent(
+  deps: AgentDeps,
+  knowledgeContext: KnowledgeContextItem[] = [],
+): Agent {
   return new Agent({
     name: SOAP_DRAFT_AGENT_NAME,
     model: resolveSoapDraftModel(deps),
-    systemPrompt: SOAP_DRAFT_SYSTEM_PROMPT,
+    systemPrompt:
+      SOAP_DRAFT_SYSTEM_PROMPT + formatKnowledgeContext(knowledgeContext),
     structuredOutputSchema: soapDraftOutputSchema,
     printer: false,
   });

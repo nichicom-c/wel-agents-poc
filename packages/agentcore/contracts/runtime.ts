@@ -10,7 +10,9 @@ import type { Gap, GapQuestion } from "./soap-gaps.ts";
  * 出力する（個々の候補ではない）。`candidates` は `type: "soap_gaps"` のときだけ使い、
  * 既存の SOAP 下書き候補（`soap_draft` の出力）を不足確認の対象として渡す。`exercise_case` /
  * `exercise_answers` は `type: "exercise_feedback"`（issue #9 の演習フィードバック生成）の
- * ときだけ使う。
+ * ときだけ使う。`knowledge_context` は `type: "soap_draft"` / `"soap_gaps"` のときに BFF が
+ * 保健師SOAP_KB_詳細設計書_v2 の `knowledge_item`（SOAP_RULE/SAFETY/FEEDBACK_POLICY）から
+ * 組み立てて渡す補足コンテキスト（省略可、`domain/knowledge-context.ts` が抽出する）。
  */
 export type RuntimeRequest = {
   prompt?: unknown;
@@ -22,6 +24,7 @@ export type RuntimeRequest = {
   candidates?: unknown;
   exercise_case?: unknown;
   exercise_answers?: unknown;
+  knowledge_context?: unknown;
 };
 
 /** AgentCore Runtime からの出力 JSON。 */

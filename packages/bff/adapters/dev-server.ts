@@ -17,6 +17,7 @@ import {
 import { handleMaterialCandidateRequest } from "../application/handle-material-candidate-request.ts";
 import { handleMaterialRequest } from "../application/handle-material-request.ts";
 import { handleProfessionalCommentRequest } from "../application/handle-professional-comment-request.ts";
+import { handlePromptTemplateRequest } from "../application/handle-prompt-template-request.ts";
 import { handleQualityMetricsRequest } from "../application/handle-quality-metrics-request.ts";
 import { handleReferenceKnowledgeRequest } from "../application/handle-reference-knowledge-request.ts";
 import { handleBffRequest } from "../application/handle-request.ts";
@@ -28,6 +29,7 @@ import {
 } from "../application/handle-sessions-request.ts";
 import { handleSoapDraftRequest } from "../application/handle-soap-draft-request.ts";
 import { handleSoapGapsRequest } from "../application/handle-soap-gaps-request.ts";
+import { handleSoapKnowledgeBaseRequest } from "../application/handle-soap-knowledge-base-request.ts";
 import { handleSoapMappingRequest } from "../application/handle-soap-mapping-request.ts";
 import { handleSoapRecordRequest } from "../application/handle-soap-record-request.ts";
 import { handleTrainingDataClusterRequest } from "../application/handle-training-data-cluster-request.ts";
@@ -36,6 +38,7 @@ import { handleWsUrlRequest } from "../application/handle-ws-url-request.ts";
 import { runtimeInvokeResultFromResponse } from "../application/runtime-response.ts";
 import type { KnowledgeBaseIds } from "../contracts/knowledge-base-detail.ts";
 import type { RuntimePayload } from "../contracts/runtime.ts";
+import { ALWAYS_INCLUDED_KNOWLEDGE_CATEGORIES } from "../contracts/soap-knowledge-base.ts";
 import { authContextFromJwtClaims } from "../domain/auth.ts";
 import { listAgentCoreSessions } from "../infra/agentcore-sessions-client.ts";
 import { buildDevInfo } from "../infra/dev-info.ts";
@@ -71,6 +74,10 @@ import {
   createProfessionalComment,
   listCommentsForVersion,
 } from "../infra/professional-comment-store.ts";
+import {
+  createPromptTemplate,
+  listPromptTemplates,
+} from "../infra/prompt-template-store.ts";
 import { listQualityMetrics } from "../infra/quality-metrics-store.ts";
 import { listReferenceKnowledge } from "../infra/reference-knowledge-store.ts";
 import {
@@ -80,8 +87,17 @@ import {
 import {
   createRubric,
   listRubrics,
-  setRubricReviewStatus,
+  setRubricActive,
 } from "../infra/rubric-store.ts";
+import {
+  createKnowledgeBase,
+  createKnowledgeItem,
+  getActiveKnowledgeItems,
+  listKnowledgeBases,
+  listKnowledgeItems,
+  setKnowledgeBaseStatus,
+  setKnowledgeItemActive,
+} from "../infra/soap-knowledge-base-store.ts";
 import {
   createSoapMappingVersion,
   listSoapMappingVersions,
@@ -358,6 +374,7 @@ export async function handleBffDevRequest(
       },
       {
         actorId: config.actorId,
+        getKnowledgeContext: knowledgeContextFetcher(config),
         invokeRuntime: (_runtimeSessionId, payload) =>
           invokeLocalRuntime(config, payload, fetchFn),
         logError: (message, detail) => console.error(message, detail),
@@ -484,6 +501,7 @@ export async function handleBffDevRequest(
       },
       {
         actorId: config.actorId,
+        getKnowledgeContext: knowledgeContextFetcher(config),
         invokeRuntime: (_runtimeSessionId, payload) =>
           invokeLocalRuntime(config, payload, fetchFn),
         logError: (message, detail) => console.error(message, detail),
@@ -687,7 +705,83 @@ export async function handleBffDevRequest(
         createRubric: (input) => createRubric(storeConfig, input),
         listRubrics: () => listRubrics(storeConfig),
         logError: (message, detail) => console.error(message, detail),
-        setReviewStatus: (input) => setRubricReviewStatus(storeConfig, input),
+        setActive: (input) => setRubricActive(storeConfig, input),
+        trainingDataConfigured: Boolean(
+          config.trainingDataClusterArn &&
+            config.trainingDataDatabaseName &&
+            config.trainingDataSecretArn,
+        ),
+      },
+    );
+
+    return responseFromBff(bffResponse);
+  }
+
+  if (
+    url.pathname === "/api/soap-knowledge-base" ||
+    url.pathname.startsWith("/api/soap-knowledge-base/") ||
+    url.pathname.startsWith("/api/soap-knowledge-base-items/")
+  ) {
+    const storeConfig = {
+      clusterArn: config.trainingDataClusterArn ?? "",
+      database: config.trainingDataDatabaseName ?? "",
+      region: config.region,
+      secretArn: config.trainingDataSecretArn ?? "",
+    };
+
+    const bffResponse = await handleSoapKnowledgeBaseRequest(
+      {
+        body,
+        method: request.method,
+        path: url.pathname,
+        query: queryFromUrl(url),
+      },
+      {
+        authContext: authContextForConfig(config),
+        createKnowledgeBase: (input) => createKnowledgeBase(storeConfig, input),
+        createKnowledgeItem: (input) => createKnowledgeItem(storeConfig, input),
+        listKnowledgeBases: () => listKnowledgeBases(storeConfig),
+        listKnowledgeItems: (input) => listKnowledgeItems(storeConfig, input),
+        logError: (message, detail) => console.error(message, detail),
+        setKnowledgeBaseStatus: (input) =>
+          setKnowledgeBaseStatus(
+            storeConfig,
+            input as { id: string; status: "draft" | "active" | "archived" },
+          ),
+        setKnowledgeItemActive: (input) =>
+          setKnowledgeItemActive(storeConfig, input),
+        trainingDataConfigured: Boolean(
+          config.trainingDataClusterArn &&
+            config.trainingDataDatabaseName &&
+            config.trainingDataSecretArn,
+        ),
+      },
+    );
+
+    return responseFromBff(bffResponse);
+  }
+
+  if (url.pathname === "/api/prompt-templates") {
+    const storeConfig = {
+      clusterArn: config.trainingDataClusterArn ?? "",
+      database: config.trainingDataDatabaseName ?? "",
+      region: config.region,
+      secretArn: config.trainingDataSecretArn ?? "",
+    };
+
+    const bffResponse = await handlePromptTemplateRequest(
+      {
+        body,
+        method: request.method,
+        path: url.pathname,
+        query: queryFromUrl(url),
+      },
+      {
+        authContext: authContextForConfig(config),
+        createPromptTemplate: (input) =>
+          createPromptTemplate(storeConfig, input),
+        listPromptTemplates: () => listPromptTemplates(storeConfig),
+        logError: (message, detail) => console.error(message, detail),
         trainingDataConfigured: Boolean(
           config.trainingDataClusterArn &&
             config.trainingDataDatabaseName &&
@@ -931,6 +1025,37 @@ function authContextForConfig(config: BffDevConfig) {
   return config.authMode === "dev" && config.devUserId
     ? authContextFromJwtClaims({ sub: config.devUserId })
     : undefined;
+}
+
+/**
+ * soap_draft / soap_gaps が AgentCore へ渡す Knowledge Base 補足コンテキストを取得する。
+ * Training Data Store 未設定なら空配列を返す（best-effort、呼び出し元でも failure を握りつぶす）。
+ */
+function knowledgeContextFetcher(config: BffDevConfig) {
+  return async () => {
+    if (
+      !config.trainingDataClusterArn ||
+      !config.trainingDataDatabaseName ||
+      !config.trainingDataSecretArn
+    ) {
+      return [];
+    }
+    const storeConfig = {
+      clusterArn: config.trainingDataClusterArn,
+      database: config.trainingDataDatabaseName,
+      region: config.region,
+      secretArn: config.trainingDataSecretArn,
+    };
+    const items = await getActiveKnowledgeItems(
+      storeConfig,
+      ALWAYS_INCLUDED_KNOWLEDGE_CATEGORIES,
+    );
+    return items.map((item) => ({
+      category: item.category,
+      content: item.content,
+      title: item.title,
+    }));
+  };
 }
 
 function knowledgeBaseIdsFromEnv(env: NodeJS.ProcessEnv): KnowledgeBaseIds {

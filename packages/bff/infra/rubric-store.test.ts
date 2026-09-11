@@ -1,10 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import {
-  createRubric,
-  listRubrics,
-  setRubricReviewStatus,
-} from "./rubric-store.ts";
+import { createRubric, listRubrics, setRubricActive } from "./rubric-store.ts";
 
 const CONFIG = {
   clusterArn: "arn:aws:rds:ap-northeast-1:123456789012:cluster:training-data",
@@ -14,21 +10,45 @@ const CONFIG = {
     "arn:aws:secretsmanager:ap-northeast-1:123456789012:secret:rds!cluster-x",
 };
 
+const KNOWLEDGE_BASE_ID = "10000000-0000-0000-0000-000000000001";
+
+const RUBRIC_LEVELS = [
+  {
+    criteria: ["a"],
+    definition: "定義1",
+    level: 1 as const,
+    levelName: "要支援",
+  },
+  {
+    criteria: ["b"],
+    definition: "定義2",
+    level: 2 as const,
+    levelName: "基礎",
+  },
+  {
+    criteria: ["c"],
+    definition: "定義3",
+    level: 3 as const,
+    levelName: "自立",
+  },
+  {
+    criteria: ["d"],
+    definition: "定義4",
+    level: 4 as const,
+    levelName: "熟達",
+  },
+];
+
 const RUBRIC_ROW = {
+  code: "ASSESSMENT",
   created_at: "2026-07-18T09:00:00.000Z",
-  created_by: "11111111-1111-1111-1111-111111111111",
   id: "rubric-1",
-  items: JSON.stringify([
-    {
-      criterionName: "根拠の明確さ",
-      description: "S/O が A を支えているか。",
-      id: "item-1",
-    },
-  ]),
-  name: "支援方針アセスメントルーブリック",
-  review_status: "expert_review_required",
-  target_type: "exercise_feedback",
-  version_no: 1,
+  is_active: true,
+  knowledge_base_id: KNOWLEDGE_BASE_ID,
+  levels: JSON.stringify(RUBRIC_LEVELS),
+  name: "アセスメント",
+  objective: "S/Oを根拠に評価できる",
+  sort_order: 40,
 };
 
 type RecordedCall = { name: string; sql?: string };
@@ -64,27 +84,21 @@ class FakeRdsDataClient {
       throw new Error("simulated failure");
     }
 
-    if (sql.includes("insert into app_users")) {
-      return { formattedRecords: "[]" };
-    }
-    if (sql.includes("insert into rubrics")) {
-      return {
-        formattedRecords: JSON.stringify([{ ...RUBRIC_ROW, items: [] }]),
-      };
-    }
-    if (sql.includes("update rubrics")) {
+    if (sql.includes("insert into rubric ")) {
       return { formattedRecords: JSON.stringify([{ id: "rubric-1" }]) };
     }
-    if (sql.includes("from rubrics r") && sql.includes("where r.id")) {
-      return {
-        formattedRecords: JSON.stringify([
-          { ...RUBRIC_ROW, review_status: "confirmed" },
-        ]),
-      };
+    if (sql.includes("insert into rubric_level")) {
+      return { formattedRecords: "[]" };
+    }
+    if (sql.includes("update rubric ")) {
+      return { formattedRecords: JSON.stringify([{ id: "rubric-1" }]) };
+    }
+    if (sql.includes("from rubric r") && sql.includes("where r.id")) {
+      return { formattedRecords: JSON.stringify([RUBRIC_ROW]) };
     }
     if (
-      sql.includes("from rubrics r") &&
-      sql.includes("order by r.created_at")
+      sql.includes("from rubric r") &&
+      sql.includes("order by r.sort_order")
     ) {
       return { formattedRecords: JSON.stringify([RUBRIC_ROW]) };
     }
@@ -94,50 +108,54 @@ class FakeRdsDataClient {
 }
 
 describe("listRubrics", () => {
-  test("items を JSON 文字列から配列に変換する", async () => {
+  test("levels を JSON 文字列から配列に変換する", async () => {
     const client = new FakeRdsDataClient();
     const result = await listRubrics(CONFIG, { client: client as never });
 
     expect(result).toHaveLength(1);
-    expect(result[0]?.items).toEqual([
-      {
-        criterionName: "根拠の明確さ",
-        description: "S/O が A を支えているか。",
-        id: "item-1",
-      },
-    ]);
+    expect(result[0]?.levels).toEqual(RUBRIC_LEVELS);
+    expect(result[0]?.isActive).toBe(true);
   });
 });
 
 describe("createRubric", () => {
-  test("review_status: expert_review_required, version 1, items: [] で作る", async () => {
+  test("rubric と4レベルを作り、作成後のルーブリックを返す", async () => {
     const client = new FakeRdsDataClient();
     const result = await createRubric(
       CONFIG,
       {
-        createdBy: "11111111-1111-1111-1111-111111111111",
-        name: "支援方針アセスメントルーブリック",
-        targetType: "exercise_feedback",
+        code: "ASSESSMENT",
+        knowledgeBaseId: KNOWLEDGE_BASE_ID,
+        levels: RUBRIC_LEVELS,
+        name: "アセスメント",
+        objective: "S/Oを根拠に評価できる",
+        sortOrder: 40,
       },
       { client: client as never },
     );
 
-    expect(result.reviewStatus).toBe("expert_review_required");
-    expect(result.versionNo).toBe(1);
-    expect(result.items).toEqual([]);
+    expect(result.id).toBe("rubric-1");
+    expect(result.levels).toEqual(RUBRIC_LEVELS);
+
+    const levelInserts = client.calls.filter((call) =>
+      call.sql?.includes("insert into rubric_level"),
+    );
+    expect(levelInserts).toHaveLength(4);
   });
 
   test("途中で失敗したらロールバックして例外を投げる", async () => {
     const client = new FakeRdsDataClient();
-    client.failOnSql = "insert into rubrics";
+    client.failOnSql = "insert into rubric ";
 
     await expect(
       createRubric(
         CONFIG,
         {
-          createdBy: "11111111-1111-1111-1111-111111111111",
+          code: "ASSESSMENT",
+          knowledgeBaseId: KNOWLEDGE_BASE_ID,
+          levels: RUBRIC_LEVELS,
           name: "x",
-          targetType: "exercise_feedback",
+          objective: "y",
         },
         { client: client as never },
       ),
@@ -149,15 +167,15 @@ describe("createRubric", () => {
   });
 });
 
-describe("setRubricReviewStatus", () => {
-  test("review_status を更新し、更新後のルーブリックを返す", async () => {
+describe("setRubricActive", () => {
+  test("is_active を更新し、更新後のルーブリックを返す", async () => {
     const client = new FakeRdsDataClient();
-    const result = await setRubricReviewStatus(
+    const result = await setRubricActive(
       CONFIG,
-      { id: "rubric-1", nextStatus: "confirmed" },
+      { id: "rubric-1", isActive: false },
       { client: client as never },
     );
 
-    expect(result.reviewStatus).toBe("confirmed");
+    expect(result.id).toBe("rubric-1");
   });
 });

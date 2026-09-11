@@ -1,7 +1,7 @@
 /**
- * 評価ルーブリック（保健師SOAP_KB_詳細設計書_v2 の rubric / rubric_level）。
- * BFF `/api/rubrics`（Aurora Serverless v2 + RDS Data API）から取得する。
- * 旧 issue #10 ベースの review_status による承認フローは無く、is_active のみを持つ。
+ * 評価ルーブリック（保健師SOAP_KB_詳細設計書_v2 の rubric / rubric_level）の contract。
+ * DB スキーマは `terraform/aws/bff/migrations/0004_create_knowledge_base.sql` に対応する。
+ * 旧 issue #10 ベースの `rubrics` / `rubric_items`（review_status による承認フロー）を置き換える。
  */
 
 export const RUBRIC_LEVEL_NUMBERS = [1, 2, 3, 4] as const;
@@ -36,9 +36,18 @@ export type Rubric = {
   createdAt: string;
 };
 
-export function rubricLevelByNumber(
-  rubric: Rubric,
-  level: RubricLevelNumber,
-): RubricLevel | undefined {
-  return rubric.levels.find((entry) => entry.level === level);
-}
+export type CreateRubricLevelInput = {
+  level: RubricLevelNumber;
+  levelName: string;
+  definition: string;
+  criteria?: string[];
+};
+
+export type CreateRubricInput = {
+  knowledgeBaseId: string;
+  code: string;
+  name: string;
+  objective: string;
+  sortOrder?: number;
+  levels: CreateRubricLevelInput[];
+};

@@ -11,6 +11,10 @@
 
 import { Agent, type Model } from "@strands-agents/sdk";
 import { aiGapDetectionOutputSchema } from "../contracts/soap-gaps.ts";
+import {
+  formatKnowledgeContext,
+  type KnowledgeContextItem,
+} from "../domain/knowledge-context.ts";
 import { makeBedrockModel } from "../infra/model.ts";
 import type { AgentDeps } from "./agent-deps.ts";
 
@@ -86,12 +90,23 @@ function resolveSoapGapsDetectionModel(deps: AgentDeps): Model {
   });
 }
 
-/** 意味的な不足検出用の Agent を生成する。structuredOutputSchema で不足配列を型付きで受け取る。 */
-export function buildSoapGapsDetectionAgent(deps: AgentDeps): Agent {
+/**
+ * 意味的な不足検出用の Agent を生成する。structuredOutputSchema で不足配列を型付きで受け取る。
+ *
+ * `knowledgeContext`（保健師SOAP_KB_詳細設計書_v2 の knowledge_item、BFF が active な
+ * SOAP_RULE/SAFETY/FEEDBACK_POLICY を取得して渡す）が与えられれば、末尾に補足コンテキスト
+ * として追記する（soap-draft-agent.ts と同じ方針）。
+ */
+export function buildSoapGapsDetectionAgent(
+  deps: AgentDeps,
+  knowledgeContext: KnowledgeContextItem[] = [],
+): Agent {
   return new Agent({
     name: SOAP_GAPS_DETECTION_AGENT_NAME,
     model: resolveSoapGapsDetectionModel(deps),
-    systemPrompt: SOAP_GAPS_DETECTION_SYSTEM_PROMPT,
+    systemPrompt:
+      SOAP_GAPS_DETECTION_SYSTEM_PROMPT +
+      formatKnowledgeContext(knowledgeContext),
     structuredOutputSchema: aiGapDetectionOutputSchema,
     printer: false,
   });

@@ -27,9 +27,10 @@ import {
  * 演習ケース（issue #9）の永続化層。issue #10 の `materials`
  * （`material_type: teaching_case`）の1:1拡張である `exercise_cases` を主に、追加質問
  * （`exercise_followup_questions`）・模範回答（`exercise_model_answers`）・評価観点
- * （`exercise_case_rubrics` 経由の `rubric_items.criterion_name`）を `json_agg` で1回の
- * select に埋め込んで返す。受講者（trainee）が見る一覧は公開済み（`publication_status: published`）
- * だけに絞る。`createExerciseCase` は既存の `teaching_case` 教材から演習ケースを作る（更新 UI は無い）。
+ * （`exercise_case_rubrics` 経由の、保健師SOAP_KB_詳細設計書_v2 の `rubric`/`rubric_level`）を
+ * `json_agg` で1回の select に埋め込んで返す。受講者（trainee）が見る一覧は公開済み
+ * （`publication_status: published`）だけに絞る。`createExerciseCase` は既存の
+ * `teaching_case` 教材から演習ケースを作る（更新 UI は無い）。
  */
 
 type RawEmbeddedFollowupQuestion = ExerciseFollowupQuestion;
@@ -55,9 +56,20 @@ const EXERCISE_CASE_SELECT = `
          ec.initial_presentation, ec.constraints_text, ec.expected_work_scene,
          ec.required_institutional_knowledge,
          coalesce((
-           select json_agg(ri.criterion_name order by ri.order_no)
+           select json_agg(
+             r.name || '（' || r.objective || '）: ' || coalesce(rl.levels_text, '')
+             order by r.sort_order
+           )
            from exercise_case_rubrics ecr
-           join rubric_items ri on ri.rubric_id = ecr.rubric_id
+           join rubric r on r.id = ecr.rubric_id
+           left join lateral (
+             select string_agg(
+               'レベル' || lv.level || ' ' || lv.level_name || ': ' || lv.definition,
+               ' / ' order by lv.level
+             ) as levels_text
+             from rubric_level lv
+             where lv.rubric_id = r.id
+           ) rl on true
            where ecr.exercise_case_material_id = ec.material_id
          ), '[]'::json) as evaluation_criteria,
          coalesce((

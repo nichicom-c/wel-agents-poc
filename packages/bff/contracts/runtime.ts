@@ -25,6 +25,8 @@ export type RuntimePayload = {
   exercise_case?: unknown;
   /** type: "exercise_feedback" のときの受講者の提出物。 */
   exercise_answers?: unknown;
+  /** type: "soap_draft" / "soap_gaps" のときの Knowledge Base 補足コンテキスト。 */
+  knowledge_context?: { category: string; title: string; content: string }[];
 };
 
 /** Runtime invoke の成否を BFF core が扱いやすい形に正規化した結果。 */

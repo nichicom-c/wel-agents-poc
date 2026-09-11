@@ -11,15 +11,23 @@ const AUTH_CONTEXT = {
   userId: "11111111-1111-1111-1111-111111111111",
 };
 
+const SAMPLE_LEVELS = [
+  { criteria: [], definition: "定義1", level: 1 as const, levelName: "要支援" },
+  { criteria: [], definition: "定義2", level: 2 as const, levelName: "基礎" },
+  { criteria: [], definition: "定義3", level: 3 as const, levelName: "自立" },
+  { criteria: [], definition: "定義4", level: 4 as const, levelName: "熟達" },
+];
+
 const SAMPLE_RUBRIC = {
+  code: "ASSESSMENT",
   createdAt: "2026-07-18T09:00:00.000Z",
-  createdBy: AUTH_CONTEXT.userId,
   id: "rubric-1",
-  items: [],
-  name: "name text",
-  reviewStatus: "expert_review_required" as const,
-  targetType: "exercise_feedback" as const,
-  versionNo: 1,
+  isActive: true,
+  knowledgeBaseId: "10000000-0000-0000-0000-000000000001",
+  levels: SAMPLE_LEVELS,
+  name: "アセスメント",
+  objective: "S/Oを根拠に評価できる",
+  sortOrder: 40,
 };
 
 function baseOptions(
@@ -29,10 +37,7 @@ function baseOptions(
     authContext: AUTH_CONTEXT,
     createRubric: async () => SAMPLE_RUBRIC,
     listRubrics: async () => [],
-    setReviewStatus: async () => ({
-      ...SAMPLE_RUBRIC,
-      reviewStatus: "confirmed",
-    }),
+    setActive: async () => ({ ...SAMPLE_RUBRIC, isActive: false }),
     trainingDataConfigured: true,
     ...overrides,
   };
@@ -72,13 +77,17 @@ describe("handleRubricRequest", () => {
   });
 
   describe("POST /api/rubrics", () => {
-    test("有効な body でルーブリックを作り、authContext から createdBy を使う", async () => {
+    test("有効な body でルーブリックを作る", async () => {
       let capturedInput: unknown;
       const response = await handleRubricRequest(
         {
           body: JSON.stringify({
-            name: "name text",
-            targetType: "exercise_feedback",
+            code: "ASSESSMENT",
+            knowledgeBaseId: "10000000-0000-0000-0000-000000000001",
+            levels: SAMPLE_LEVELS,
+            name: "アセスメント",
+            objective: "S/Oを根拠に評価できる",
+            sortOrder: 40,
           }),
           method: "POST",
           path: "/api/rubrics",
@@ -93,17 +102,43 @@ describe("handleRubricRequest", () => {
 
       expect(response.statusCode).toBe(200);
       expect(capturedInput).toEqual({
-        createdBy: AUTH_CONTEXT.userId,
-        createdByDisplayName: AUTH_CONTEXT.displayName,
-        name: "name text",
-        targetType: "exercise_feedback",
+        code: "ASSESSMENT",
+        knowledgeBaseId: "10000000-0000-0000-0000-000000000001",
+        levels: SAMPLE_LEVELS,
+        name: "アセスメント",
+        objective: "S/Oを根拠に評価できる",
+        sortOrder: 40,
       });
     });
 
-    test("targetType が不正なら 400 を返す", async () => {
+    test("levels が空なら 400 を返す", async () => {
       const response = await handleRubricRequest(
         {
-          body: JSON.stringify({ name: "name text", targetType: "x" }),
+          body: JSON.stringify({
+            code: "ASSESSMENT",
+            knowledgeBaseId: "10000000-0000-0000-0000-000000000001",
+            levels: [],
+            name: "アセスメント",
+            objective: "S/Oを根拠に評価できる",
+          }),
+          method: "POST",
+          path: "/api/rubrics",
+        },
+        baseOptions(),
+      );
+      expect(response.statusCode).toBe(400);
+    });
+
+    test("level が範囲外なら 400 を返す", async () => {
+      const response = await handleRubricRequest(
+        {
+          body: JSON.stringify({
+            code: "ASSESSMENT",
+            knowledgeBaseId: "10000000-0000-0000-0000-000000000001",
+            levels: [{ definition: "x", level: 5, levelName: "invalid" }],
+            name: "アセスメント",
+            objective: "S/Oを根拠に評価できる",
+          }),
           method: "POST",
           path: "/api/rubrics",
         },
@@ -113,36 +148,33 @@ describe("handleRubricRequest", () => {
     });
   });
 
-  describe("PATCH /api/rubrics/:id/review-status", () => {
-    test("有効な body で review status を変更する", async () => {
+  describe("PATCH /api/rubrics/:id/active", () => {
+    test("有効な body で is_active を変更する", async () => {
       let capturedInput: unknown;
       const response = await handleRubricRequest(
         {
-          body: JSON.stringify({ reviewStatus: "confirmed" }),
+          body: JSON.stringify({ isActive: false }),
           method: "PATCH",
-          path: "/api/rubrics/rubric-1/review-status",
+          path: "/api/rubrics/rubric-1/active",
         },
         baseOptions({
-          setReviewStatus: async (input) => {
+          setActive: async (input) => {
             capturedInput = input;
-            return { ...SAMPLE_RUBRIC, reviewStatus: "confirmed" };
+            return { ...SAMPLE_RUBRIC, isActive: false };
           },
         }),
       );
 
       expect(response.statusCode).toBe(200);
-      expect(capturedInput).toEqual({
-        id: "rubric-1",
-        nextStatus: "confirmed",
-      });
+      expect(capturedInput).toEqual({ id: "rubric-1", isActive: false });
     });
 
-    test("不正な reviewStatus は 400 を返す", async () => {
+    test("isActive が boolean でなければ 400 を返す", async () => {
       const response = await handleRubricRequest(
         {
-          body: JSON.stringify({ reviewStatus: "x" }),
+          body: JSON.stringify({ isActive: "x" }),
           method: "PATCH",
-          path: "/api/rubrics/rubric-1/review-status",
+          path: "/api/rubrics/rubric-1/active",
         },
         baseOptions(),
       );

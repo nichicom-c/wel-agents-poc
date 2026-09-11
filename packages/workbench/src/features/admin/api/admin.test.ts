@@ -12,7 +12,7 @@ import {
   listRequiredItems,
   listRubrics,
   listSoapMappingVersions,
-  setRubricStatus,
+  setRubricActive,
 } from "./admin.ts";
 
 const SAMPLE_MATERIAL = {
@@ -36,14 +36,17 @@ const SAMPLE_MATERIAL = {
 };
 
 const SAMPLE_RUBRIC = {
+  code: "ASSESSMENT",
   createdAt: "2026-07-18T09:00:00.000Z",
-  createdBy: "11111111-1111-1111-1111-111111111111",
   id: "rubric-1",
-  items: [{ criterionName: "根拠の明確さ", description: "desc", id: "item-1" }],
+  isActive: true,
+  knowledgeBaseId: "10000000-0000-0000-0000-000000000001",
+  levels: [
+    { criteria: [], definition: "根拠が明確", level: 1, levelName: "要支援" },
+  ],
   name: "name text",
-  reviewStatus: "expert_review_required",
-  targetType: "exercise_feedback",
-  versionNo: 1,
+  objective: "S/Oを根拠に評価できる",
+  sortOrder: 40,
 };
 
 describe("listMaterials", () => {
@@ -121,28 +124,28 @@ describe("addMaterial", () => {
 });
 
 describe("listRubrics", () => {
-  test("BFF /api/rubrics を呼び、items を含めて返す", async () => {
+  test("BFF /api/rubrics を呼び、levels を含めて返す", async () => {
     const fetchFn = async () => Response.json({ rubrics: [SAMPLE_RUBRIC] });
 
     const result = await listRubrics(fetchFn);
 
     expect(result).toHaveLength(1);
-    expect(result[0]?.items).toHaveLength(1);
+    expect(result[0]?.levels).toHaveLength(1);
   });
 });
 
-describe("setRubricStatus", () => {
-  test("id を path に、reviewStatus を body に含めて PATCH する", async () => {
+describe("setRubricActive", () => {
+  test("id を path に、isActive を body に含めて PATCH する", async () => {
     let requestedUrl: string | URL | Request | undefined;
     const fetchFn = async (input: string | URL | Request) => {
       requestedUrl = input;
-      return Response.json({ ...SAMPLE_RUBRIC, reviewStatus: "confirmed" });
+      return Response.json({ ...SAMPLE_RUBRIC, isActive: false });
     };
 
-    const result = await setRubricStatus("rubric-1", "confirmed", fetchFn);
+    const result = await setRubricActive("rubric-1", false, fetchFn);
 
-    expect(requestedUrl).toBe("/api/rubrics/rubric-1/review-status");
-    expect(result.reviewStatus).toBe("confirmed");
+    expect(requestedUrl).toBe("/api/rubrics/rubric-1/active");
+    expect(result.isActive).toBe(false);
   });
 });
 
@@ -151,7 +154,13 @@ describe("addRubric", () => {
     const fetchFn = async () => Response.json(SAMPLE_RUBRIC);
 
     const result = await addRubric(
-      { name: "name text", targetType: "exercise_feedback" },
+      {
+        code: "ASSESSMENT",
+        knowledgeBaseId: "10000000-0000-0000-0000-000000000001",
+        levels: [{ definition: "根拠が明確", level: 1, levelName: "要支援" }],
+        name: "name text",
+        objective: "S/Oを根拠に評価できる",
+      },
       fetchFn,
     );
 

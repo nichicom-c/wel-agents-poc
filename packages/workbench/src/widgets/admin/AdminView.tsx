@@ -4,19 +4,31 @@ import {
   ADMIN_DEMO_ROLES,
   type AdminDemoRole,
   addMaterial,
+  addPromptTemplate,
   addRequiredItem,
   addRubric,
+  addSoapKnowledgeBase,
+  addSoapKnowledgeItem,
   addSoapMappingVersion,
   adminDemoRoleLabel,
   canViewAdmin,
   changeMaterialStatus,
   currentVersionForRecordType,
   getTrainingDataClusterStatus,
+  KNOWLEDGE_BASE_STATUSES,
+  KNOWLEDGE_ITEM_CATEGORIES,
+  type KnowledgeBaseStatus,
+  type KnowledgeItemCategory,
+  knowledgeBaseStatusLabel,
+  knowledgeItemCategoryLabel,
   listMaterials,
+  listPromptTemplates,
   listQualityMetrics,
   listReferenceKnowledge,
   listRequiredItems,
   listRubrics,
+  listSoapKnowledgeBases,
+  listSoapKnowledgeItems,
   listSoapMappingVersions,
   MAPPING_CATEGORIES,
   MATERIAL_TYPES,
@@ -25,6 +37,7 @@ import {
   type MaterialFilters,
   type MaterialType,
   materialTypeLabel,
+  type PromptTemplate,
   PUBLICATION_STATUSES,
   type PublicationStatus,
   publicationStatusLabel,
@@ -34,15 +47,17 @@ import {
   type RequiredItemFilters,
   type RequiredRecommendedItem,
   type RequirementLevel,
-  RUBRIC_TARGET_TYPES,
+  RUBRIC_LEVEL_NUMBERS,
   type Rubric,
-  type RubricReviewStatus,
-  type RubricTargetType,
+  type RubricLevelNumber,
   referenceKnowledgeSourceTypeLabel,
   requirementLevelLabel,
-  rubricTargetTypeLabel,
+  type SoapKnowledgeBase,
+  type SoapKnowledgeItem,
   type SoapMappingVersion,
-  setRubricStatus,
+  setRubricActive,
+  setSoapKnowledgeBaseStatus,
+  setSoapKnowledgeItemActive,
   startTrainingDataCluster,
 } from "../../features/admin/index.ts";
 import {
@@ -65,7 +80,9 @@ import {
 
 type AdminTab =
   | "materials"
+  | "knowledge-base"
   | "rubrics"
+  | "prompt-templates"
   | "reference-knowledge"
   | "soap-mapping"
   | "required-items"
@@ -73,7 +90,9 @@ type AdminTab =
 
 const ADMIN_TABS: ReadonlyArray<{ id: AdminTab; label: string }> = [
   { id: "materials", label: "教材" },
+  { id: "knowledge-base", label: "Knowledge Base" },
   { id: "rubrics", label: "ルーブリック" },
+  { id: "prompt-templates", label: "Prompt Template" },
   { id: "reference-knowledge", label: "参照知識" },
   { id: "soap-mapping", label: "SOAP マッピング" },
   { id: "required-items", label: "必須・推奨項目" },
@@ -89,8 +108,8 @@ export function AdminView() {
     <>
       <h2>Admin</h2>
       <p className="workbench-main-description">
-        教材・評価ルーブリック・参照知識・マスタ対応を管理する作業画面（issue
-        #10）
+        教材・Knowledge Base・評価ルーブリック・Prompt
+        Template・参照知識・マスタ対応を管理する作業画面
       </p>
 
       <fieldset className="knowledge-review-role-select">
@@ -133,8 +152,12 @@ export function AdminView() {
 
           {activeTab === "materials" ? (
             <MaterialsTab />
+          ) : activeTab === "knowledge-base" ? (
+            <KnowledgeBaseTab />
           ) : activeTab === "rubrics" ? (
             <RubricsTab />
+          ) : activeTab === "prompt-templates" ? (
+            <PromptTemplatesTab />
           ) : activeTab === "reference-knowledge" ? (
             <ReferenceKnowledgeTab />
           ) : activeTab === "soap-mapping" ? (
@@ -804,44 +827,89 @@ function ExerciseCaseCreateForm({ materialId }: { materialId: string }) {
   );
 }
 
+/** 新規ルーブリック作成フォームの4レベル分の入力状態。 */
+type NewRubricLevelDraft = {
+  levelName: string;
+  definition: string;
+  criteriaText: string;
+};
+
+function emptyLevelDrafts(): Record<RubricLevelNumber, NewRubricLevelDraft> {
+  return {
+    1: { criteriaText: "", definition: "", levelName: "" },
+    2: { criteriaText: "", definition: "", levelName: "" },
+    3: { criteriaText: "", definition: "", levelName: "" },
+    4: { criteriaText: "", definition: "", levelName: "" },
+  };
+}
+
 function RubricsTab() {
+  const [knowledgeBases, setKnowledgeBases] = useState<SoapKnowledgeBase[]>([]);
   const [rubrics, setRubrics] = useState<Rubric[] | null>(null);
+  const [selectedKnowledgeBaseId, setSelectedKnowledgeBaseId] = useState("");
+  const [newCode, setNewCode] = useState("");
   const [newName, setNewName] = useState("");
-  const [newTargetType, setNewTargetType] = useState<RubricTargetType>(
-    RUBRIC_TARGET_TYPES[0],
-  );
+  const [newObjective, setNewObjective] = useState("");
+  const [newLevels, setNewLevels] = useState(emptyLevelDrafts());
+
+  async function reloadRubrics() {
+    setRubrics(await listRubrics());
+  }
 
   useEffect(() => {
     let cancelled = false;
-    listRubrics().then((result) => {
-      if (!cancelled) {
-        setRubrics(result);
-      }
-    });
+    Promise.all([listSoapKnowledgeBases(), listRubrics()]).then(
+      ([kbResult, rubricResult]) => {
+        if (cancelled) {
+          return;
+        }
+        setKnowledgeBases(kbResult);
+        setSelectedKnowledgeBaseId(
+          (current) => current || kbResult[0]?.id || "",
+        );
+        setRubrics(rubricResult);
+      },
+    );
     return () => {
       cancelled = true;
     };
   }, []);
 
-  async function toggleStatus(rubric: Rubric) {
-    const next: RubricReviewStatus =
-      rubric.reviewStatus === "confirmed"
-        ? "expert_review_required"
-        : "confirmed";
-    await setRubricStatus(rubric.id, next);
-    setRubrics(await listRubrics());
+  async function toggleActive(rubric: Rubric) {
+    await setRubricActive(rubric.id, !rubric.isActive);
+    await reloadRubrics();
   }
 
   async function handleAddRubric() {
-    if (!newName.trim()) {
+    if (
+      !selectedKnowledgeBaseId ||
+      !newCode.trim() ||
+      !newName.trim() ||
+      !newObjective.trim() ||
+      RUBRIC_LEVEL_NUMBERS.some((level) => !newLevels[level].levelName.trim())
+    ) {
       return;
     }
     await addRubric({
+      code: newCode.trim(),
+      knowledgeBaseId: selectedKnowledgeBaseId,
+      levels: RUBRIC_LEVEL_NUMBERS.map((level) => ({
+        criteria: newLevels[level].criteriaText
+          .split(",")
+          .map((entry) => entry.trim())
+          .filter(Boolean),
+        definition: newLevels[level].definition.trim(),
+        level,
+        levelName: newLevels[level].levelName.trim(),
+      })),
       name: newName.trim(),
-      targetType: newTargetType,
+      objective: newObjective.trim(),
     });
+    setNewCode("");
     setNewName("");
-    setRubrics(await listRubrics());
+    setNewObjective("");
+    setNewLevels(emptyLevelDrafts());
+    await reloadRubrics();
   }
 
   return (
@@ -851,44 +919,41 @@ function RubricsTab() {
           <li
             key={rubric.id}
             className="knowledge-review-candidate"
-            data-status={rubric.reviewStatus}
+            data-status={rubric.isActive ? "active" : "inactive"}
           >
             <div className="knowledge-review-candidate-header">
-              <h4>{rubric.name}</h4>
+              <h4>
+                {rubric.code} — {rubric.name}
+              </h4>
               <span
                 className="knowledge-review-status-badge"
-                data-status={rubric.reviewStatus}
+                data-status={rubric.isActive ? "active" : "inactive"}
               >
-                {rubric.reviewStatus === "confirmed"
-                  ? "確認済み"
-                  : "有識者確認前"}
+                {rubric.isActive ? "有効" : "無効"}
               </span>
             </div>
-            <div className="knowledge-review-tag-row">
-              <span>{rubricTargetTypeLabel(rubric.targetType)}</span>
-              <span>version {rubric.versionNo}</span>
-            </div>
-            {rubric.items.length > 0 ? (
+            <p className="soap-draft-text">{rubric.objective}</p>
+            {rubric.levels.length > 0 ? (
               <ul className="knowledge-review-comment-list">
-                {rubric.items.map((item) => (
-                  <li key={item.id} className="knowledge-review-comment">
+                {rubric.levels.map((level) => (
+                  <li key={level.level} className="knowledge-review-comment">
                     <div className="knowledge-review-comment-header">
-                      <span>{item.criterionName}</span>
+                      <span>
+                        レベル{level.level}: {level.levelName}
+                      </span>
                     </div>
-                    <p className="soap-draft-text">{item.description}</p>
+                    <p className="soap-draft-text">{level.definition}</p>
                   </li>
                 ))}
               </ul>
             ) : (
               <p className="workbench-main-description">
-                評価項目は未登録です。
+                レベル定義は未登録です。
               </p>
             )}
             <div className="soap-draft-candidate-actions">
-              <button type="button" onClick={() => void toggleStatus(rubric)}>
-                {rubric.reviewStatus === "confirmed"
-                  ? "未確認に戻す"
-                  : "確認済みにする"}
+              <button type="button" onClick={() => void toggleActive(rubric)}>
+                {rubric.isActive ? "無効にする" : "有効にする"}
               </button>
             </div>
           </li>
@@ -897,32 +962,432 @@ function RubricsTab() {
 
       <div className="knowledge-review-create-form">
         <h5>新規ルーブリックの登録</h5>
+        <label>
+          Knowledge Base
+          <select
+            value={selectedKnowledgeBaseId}
+            onChange={(event) => setSelectedKnowledgeBaseId(event.target.value)}
+          >
+            {knowledgeBases.map((kb) => (
+              <option key={kb.id} value={kb.id}>
+                {kb.name} ({kb.version})
+              </option>
+            ))}
+          </select>
+        </label>
+        <input
+          placeholder="コード（例: ASSESSMENT）"
+          value={newCode}
+          onChange={(event) => setNewCode(event.target.value)}
+        />
         <input
           placeholder="ルーブリック名"
           value={newName}
           onChange={(event) => setNewName(event.target.value)}
         />
-        <label>
-          対象
-          <select
-            value={newTargetType}
-            onChange={(event) =>
-              setNewTargetType(
-                event.target.value as (typeof RUBRIC_TARGET_TYPES)[number],
-              )
-            }
+        <input
+          placeholder="評価目的"
+          value={newObjective}
+          onChange={(event) => setNewObjective(event.target.value)}
+        />
+        {RUBRIC_LEVEL_NUMBERS.map((level) => (
+          <fieldset key={level}>
+            <legend>レベル{level}</legend>
+            <input
+              placeholder="レベル名（例: 要支援）"
+              value={newLevels[level].levelName}
+              onChange={(event) =>
+                setNewLevels((prev) => ({
+                  ...prev,
+                  [level]: { ...prev[level], levelName: event.target.value },
+                }))
+              }
+            />
+            <input
+              placeholder="定義"
+              value={newLevels[level].definition}
+              onChange={(event) =>
+                setNewLevels((prev) => ({
+                  ...prev,
+                  [level]: { ...prev[level], definition: event.target.value },
+                }))
+              }
+            />
+          </fieldset>
+        ))}
+        <button
+          type="button"
+          disabled={
+            !selectedKnowledgeBaseId || !newCode.trim() || !newName.trim()
+          }
+          onClick={() => void handleAddRubric()}
+        >
+          登録
+        </button>
+      </div>
+    </section>
+  );
+}
+
+function KnowledgeBaseTab() {
+  const [knowledgeBases, setKnowledgeBases] = useState<SoapKnowledgeBase[]>([]);
+  const [selectedId, setSelectedId] = useState("");
+  const [items, setItems] = useState<SoapKnowledgeItem[]>([]);
+  const [newCode, setNewCode] = useState("");
+  const [newName, setNewName] = useState("");
+  const [newVersion, setNewVersion] = useState("1.0");
+  const [newItemCategory, setNewItemCategory] = useState<KnowledgeItemCategory>(
+    KNOWLEDGE_ITEM_CATEGORIES[0],
+  );
+  const [newItemKey, setNewItemKey] = useState("");
+  const [newItemTitle, setNewItemTitle] = useState("");
+  const [newItemContent, setNewItemContent] = useState("");
+
+  async function reloadKnowledgeBases() {
+    const result = await listSoapKnowledgeBases();
+    setKnowledgeBases(result);
+    setSelectedId((current) => current || result[0]?.id || "");
+    return result;
+  }
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: 初回マウント時に一度だけ読み込む。
+  useEffect(() => {
+    void reloadKnowledgeBases();
+  }, []);
+
+  useEffect(() => {
+    if (!selectedId) {
+      setItems([]);
+      return;
+    }
+    let cancelled = false;
+    listSoapKnowledgeItems(selectedId).then((result) => {
+      if (!cancelled) {
+        setItems(result);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedId]);
+
+  async function handleAddKnowledgeBase() {
+    if (!newCode.trim() || !newName.trim() || !newVersion.trim()) {
+      return;
+    }
+    const created = await addSoapKnowledgeBase({
+      code: newCode.trim(),
+      name: newName.trim(),
+      version: newVersion.trim(),
+    });
+    setNewCode("");
+    setNewName("");
+    setNewVersion("1.0");
+    await reloadKnowledgeBases();
+    setSelectedId(created.id);
+  }
+
+  async function handleSetStatus(
+    kb: SoapKnowledgeBase,
+    status: KnowledgeBaseStatus,
+  ) {
+    await setSoapKnowledgeBaseStatus(kb.id, status);
+    await reloadKnowledgeBases();
+  }
+
+  async function handleAddItem() {
+    if (
+      !selectedId ||
+      !newItemKey.trim() ||
+      !newItemTitle.trim() ||
+      !newItemContent.trim()
+    ) {
+      return;
+    }
+    await addSoapKnowledgeItem(selectedId, {
+      category: newItemCategory,
+      content: newItemContent.trim(),
+      itemKey: newItemKey.trim(),
+      title: newItemTitle.trim(),
+    });
+    setNewItemKey("");
+    setNewItemTitle("");
+    setNewItemContent("");
+    setItems(await listSoapKnowledgeItems(selectedId));
+  }
+
+  async function toggleItemActive(item: SoapKnowledgeItem) {
+    await setSoapKnowledgeItemActive(item.id, !item.isActive);
+    setItems(await listSoapKnowledgeItems(selectedId));
+  }
+
+  return (
+    <section aria-label="Knowledge Base 一覧">
+      <ul className="knowledge-review-candidate-list">
+        {knowledgeBases.map((kb) => (
+          <li
+            key={kb.id}
+            className="knowledge-review-candidate"
+            data-status={kb.status}
+            data-selected={kb.id === selectedId}
           >
-            {RUBRIC_TARGET_TYPES.map((type) => (
-              <option key={type} value={type}>
-                {rubricTargetTypeLabel(type)}
+            <div className="knowledge-review-candidate-header">
+              <h4>
+                {kb.code} — {kb.name}
+              </h4>
+              <span
+                className="knowledge-review-status-badge"
+                data-status={kb.status}
+              >
+                {knowledgeBaseStatusLabel(kb.status)}
+              </span>
+            </div>
+            <p className="soap-draft-text">
+              version {kb.version}
+              {kb.description ? ` / ${kb.description}` : ""}
+            </p>
+            <div className="soap-draft-candidate-actions">
+              <button type="button" onClick={() => setSelectedId(kb.id)}>
+                項目を表示
+              </button>
+              {KNOWLEDGE_BASE_STATUSES.filter(
+                (status) => status !== kb.status,
+              ).map((status) => (
+                <button
+                  type="button"
+                  key={status}
+                  onClick={() => void handleSetStatus(kb, status)}
+                >
+                  {knowledgeBaseStatusLabel(status)}にする
+                </button>
+              ))}
+            </div>
+          </li>
+        ))}
+      </ul>
+
+      <div className="knowledge-review-create-form">
+        <h5>新規 Knowledge Base の登録</h5>
+        <input
+          placeholder="コード（例: PHN_SOAP_TRAINING）"
+          value={newCode}
+          onChange={(event) => setNewCode(event.target.value)}
+        />
+        <input
+          placeholder="名称"
+          value={newName}
+          onChange={(event) => setNewName(event.target.value)}
+        />
+        <input
+          placeholder="バージョン（例: 1.0）"
+          value={newVersion}
+          onChange={(event) => setNewVersion(event.target.value)}
+        />
+        <button
+          type="button"
+          disabled={!newCode.trim() || !newName.trim() || !newVersion.trim()}
+          onClick={() => void handleAddKnowledgeBase()}
+        >
+          登録
+        </button>
+      </div>
+
+      {selectedId ? (
+        <section aria-label="知識項目一覧">
+          <h5>知識項目（SOAP_RULE / SAFETY / FEEDBACK_POLICY 等）</h5>
+          <ul className="knowledge-review-comment-list">
+            {items.map((item) => (
+              <li key={item.id} className="knowledge-review-comment">
+                <div className="knowledge-review-comment-header">
+                  <span>
+                    [{knowledgeItemCategoryLabel(item.category)}] {item.title}
+                  </span>
+                </div>
+                <p className="soap-draft-text">{item.content}</p>
+                <div className="soap-draft-candidate-actions">
+                  <button
+                    type="button"
+                    onClick={() => void toggleItemActive(item)}
+                  >
+                    {item.isActive ? "無効にする" : "有効にする"}
+                  </button>
+                </div>
+              </li>
+            ))}
+          </ul>
+
+          <div className="knowledge-review-create-form">
+            <h5>知識項目の追加</h5>
+            <label>
+              カテゴリ
+              <select
+                value={newItemCategory}
+                onChange={(event) =>
+                  setNewItemCategory(
+                    event.target.value as KnowledgeItemCategory,
+                  )
+                }
+              >
+                {KNOWLEDGE_ITEM_CATEGORIES.map((category) => (
+                  <option key={category} value={category}>
+                    {knowledgeItemCategoryLabel(category)}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <input
+              placeholder="項目キー"
+              value={newItemKey}
+              onChange={(event) => setNewItemKey(event.target.value)}
+            />
+            <input
+              placeholder="表示名"
+              value={newItemTitle}
+              onChange={(event) => setNewItemTitle(event.target.value)}
+            />
+            <textarea
+              placeholder="本文（Prompt投入可能な内容）"
+              value={newItemContent}
+              onChange={(event) => setNewItemContent(event.target.value)}
+            />
+            <button
+              type="button"
+              disabled={
+                !newItemKey.trim() ||
+                !newItemTitle.trim() ||
+                !newItemContent.trim()
+              }
+              onClick={() => void handleAddItem()}
+            >
+              追加
+            </button>
+          </div>
+        </section>
+      ) : null}
+    </section>
+  );
+}
+
+function PromptTemplatesTab() {
+  const [knowledgeBases, setKnowledgeBases] = useState<SoapKnowledgeBase[]>([]);
+  const [templates, setTemplates] = useState<PromptTemplate[] | null>(null);
+  const [selectedKnowledgeBaseId, setSelectedKnowledgeBaseId] = useState("");
+  const [newCode, setNewCode] = useState("");
+  const [newName, setNewName] = useState("");
+  const [newSystemPrompt, setNewSystemPrompt] = useState("");
+  const [newUserPromptTemplate, setNewUserPromptTemplate] = useState("");
+
+  async function reloadTemplates() {
+    setTemplates(await listPromptTemplates());
+  }
+
+  useEffect(() => {
+    let cancelled = false;
+    Promise.all([listSoapKnowledgeBases(), listPromptTemplates()]).then(
+      ([kbResult, templateResult]) => {
+        if (cancelled) {
+          return;
+        }
+        setKnowledgeBases(kbResult);
+        setSelectedKnowledgeBaseId(
+          (current) => current || kbResult[0]?.id || "",
+        );
+        setTemplates(templateResult);
+      },
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  async function handleAdd() {
+    if (
+      !selectedKnowledgeBaseId ||
+      !newCode.trim() ||
+      !newName.trim() ||
+      !newSystemPrompt.trim() ||
+      !newUserPromptTemplate.trim()
+    ) {
+      return;
+    }
+    await addPromptTemplate({
+      code: newCode.trim(),
+      knowledgeBaseId: selectedKnowledgeBaseId,
+      name: newName.trim(),
+      systemPrompt: newSystemPrompt.trim(),
+      userPromptTemplate: newUserPromptTemplate.trim(),
+    });
+    setNewCode("");
+    setNewName("");
+    setNewSystemPrompt("");
+    setNewUserPromptTemplate("");
+    await reloadTemplates();
+  }
+
+  return (
+    <section aria-label="Prompt Template 一覧">
+      <p className="workbench-main-description">
+        現時点では AgentCore
+        の実行には未接続で、管理・保管のみを行う（将来対応）。
+      </p>
+      <ul className="knowledge-review-candidate-list">
+        {(templates ?? []).map((template) => (
+          <li key={template.id} className="knowledge-review-candidate">
+            <div className="knowledge-review-candidate-header">
+              <h4>
+                {template.code} — {template.name}
+              </h4>
+              <span className="knowledge-review-status-badge">
+                version {template.version}
+              </span>
+            </div>
+            <p className="soap-draft-text">{template.systemPrompt}</p>
+            <p className="soap-draft-text">{template.userPromptTemplate}</p>
+          </li>
+        ))}
+      </ul>
+
+      <div className="knowledge-review-create-form">
+        <h5>新規 Prompt Template の登録</h5>
+        <label>
+          Knowledge Base
+          <select
+            value={selectedKnowledgeBaseId}
+            onChange={(event) => setSelectedKnowledgeBaseId(event.target.value)}
+          >
+            {knowledgeBases.map((kb) => (
+              <option key={kb.id} value={kb.id}>
+                {kb.name} ({kb.version})
               </option>
             ))}
           </select>
         </label>
+        <input
+          placeholder="コード"
+          value={newCode}
+          onChange={(event) => setNewCode(event.target.value)}
+        />
+        <input
+          placeholder="名称"
+          value={newName}
+          onChange={(event) => setNewName(event.target.value)}
+        />
+        <textarea
+          placeholder="System Prompt"
+          value={newSystemPrompt}
+          onChange={(event) => setNewSystemPrompt(event.target.value)}
+        />
+        <textarea
+          placeholder="User Prompt Template"
+          value={newUserPromptTemplate}
+          onChange={(event) => setNewUserPromptTemplate(event.target.value)}
+        />
         <button
           type="button"
-          disabled={!newName.trim()}
-          onClick={() => void handleAddRubric()}
+          disabled={
+            !selectedKnowledgeBaseId || !newCode.trim() || !newName.trim()
+          }
+          onClick={() => void handleAdd()}
         >
           登録
         </button>

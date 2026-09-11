@@ -66,54 +66,10 @@ export type MaterialFilters = {
   publicationStatus?: PublicationStatus;
 };
 
-// --- 評価ルーブリック（rubrics / rubric_items） ------------------------------
-
-export const RUBRIC_REVIEW_STATUSES = [
-  "expert_review_required",
-  "confirmed",
-] as const;
-
-export type RubricReviewStatus = (typeof RUBRIC_REVIEW_STATUSES)[number];
-
-export function isRubricReviewStatus(
-  value: unknown,
-): value is RubricReviewStatus {
-  return (
-    typeof value === "string" &&
-    (RUBRIC_REVIEW_STATUSES as readonly string[]).includes(value)
-  );
-}
-
-export const RUBRIC_TARGET_TYPES = [
-  "exercise_feedback",
-  "material_review",
-] as const;
-
-export type RubricTargetType = (typeof RUBRIC_TARGET_TYPES)[number];
-
-export function isRubricTargetType(value: unknown): value is RubricTargetType {
-  return (
-    typeof value === "string" &&
-    (RUBRIC_TARGET_TYPES as readonly string[]).includes(value)
-  );
-}
-
-export type RubricItem = {
-  id: string;
-  criterionName: string;
-  description?: string;
-};
-
-export type Rubric = {
-  id: string;
-  name: string;
-  targetType: RubricTargetType;
-  reviewStatus: RubricReviewStatus;
-  versionNo: number;
-  items: RubricItem[];
-  createdBy: string;
-  createdAt: string;
-};
+// --- 評価ルーブリック ---------------------------------------------------------
+//
+// 保健師SOAP_KB_詳細設計書_v2 の rubric / rubric_level（8軸×4レベル）へ移行済み。
+// 型定義は `./rubric.ts` を参照。
 
 // --- 参照知識（reference_knowledge、read-only） ------------------------------
 

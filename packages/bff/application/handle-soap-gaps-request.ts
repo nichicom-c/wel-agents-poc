@@ -14,6 +14,14 @@ export type HandleSoapGapsOptions = {
   logError?: (message: string, detail: Record<string, unknown>) => void;
   /** runtime session ID 生成（テスト用。省略時は randomUUID）。 */
   createSessionId?: () => string;
+  /**
+   * 保健師SOAP_KB_詳細設計書_v2 の active な Knowledge Base 項目（SOAP_RULE/SAFETY/
+   * FEEDBACK_POLICY）を取得する。Training Data Store 未設定時や取得失敗時は省略してよい
+   * （best-effort）。
+   */
+  getKnowledgeContext?: () => Promise<
+    { category: string; title: string; content: string }[]
+  >;
 };
 
 const SOAP_CATEGORIES = ["S", "O", "A", "P", "UNCLASSIFIED"];
@@ -47,12 +55,16 @@ export async function handleSoapGapsRequest(
     }
 
     const sessionId = (options.createSessionId ?? randomUUID)();
+    const knowledgeContext = await fetchKnowledgeContext(options);
 
     const runtimePayload: RuntimePayload = {
       actor_id: options.actorId,
       type: "soap_gaps",
       candidates,
       session_id: sessionId,
+      ...(knowledgeContext.length > 0
+        ? { knowledge_context: knowledgeContext }
+        : {}),
     };
 
     const runtimeResponse = await options.invokeRuntime(
@@ -105,6 +117,26 @@ export async function handleSoapGapsRequest(
             ? "AgentCore invoke timed out"
             : "internal server error",
     });
+  }
+}
+
+/**
+ * Knowledge Base 補足コンテキストを best-effort で取得する。未設定・失敗時は空配列にして
+ * AgentCore 呼び出し自体は継続する（`options.logError` があれば記録する）。
+ */
+async function fetchKnowledgeContext(
+  options: HandleSoapGapsOptions,
+): Promise<{ category: string; title: string; content: string }[]> {
+  if (!options.getKnowledgeContext) {
+    return [];
+  }
+  try {
+    return await options.getKnowledgeContext();
+  } catch (error) {
+    options.logError?.("failed to fetch knowledge context", {
+      message: error instanceof Error ? error.message : String(error),
+    });
+    return [];
   }
 }
 

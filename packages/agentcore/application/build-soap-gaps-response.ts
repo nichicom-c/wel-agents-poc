@@ -21,6 +21,7 @@ import type {
   Gap,
   GapQuestion,
 } from "../contracts/soap-gaps.ts";
+import { getKnowledgeContext } from "../domain/knowledge-context.ts";
 import { getActorId, getSessionId } from "../domain/session.ts";
 import {
   buildFallbackQuestion,
@@ -58,9 +59,10 @@ export type SoapGapsDeps = {
 /** config から本物の意味的な不足検出 agent を生成し、構造化出力をそのまま返す runner。 */
 function defaultSoapGapsDetectionRunner(
   config: Config,
+  knowledgeContext: ReturnType<typeof getKnowledgeContext>,
 ): SoapGapsDetectionRunner {
   const deps: AgentDeps = { config };
-  const agent = buildSoapGapsDetectionAgent(deps);
+  const agent = buildSoapGapsDetectionAgent(deps, knowledgeContext);
   return async (message) => {
     const result = await agent.invoke(message);
     const structuredOutput = result.structuredOutput as
@@ -182,7 +184,8 @@ export async function buildSoapGapsResponse(
 
   const ruleBasedGaps = detectGaps(candidates);
   const runDetection =
-    deps.soapGapsDetectionRunner ?? defaultSoapGapsDetectionRunner(config);
+    deps.soapGapsDetectionRunner ??
+    defaultSoapGapsDetectionRunner(config, getKnowledgeContext(payload));
   const semanticGaps = await detectSemanticGaps(candidates, runDetection);
   const gaps = mergeGapLists(ruleBasedGaps, semanticGaps);
   const prioritized = prioritizeGaps(gaps);

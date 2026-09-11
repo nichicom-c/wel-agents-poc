@@ -55,6 +55,10 @@ export function buildWorkbenchViteConfig(
       changeOrigin: true,
       target: config.bffUrl,
     },
+    "/api/prompt-templates": {
+      changeOrigin: true,
+      target: config.bffUrl,
+    },
     "/api/quality-metrics": {
       changeOrigin: true,
       target: config.bffUrl,
@@ -76,6 +80,14 @@ export function buildWorkbenchViteConfig(
       target: config.bffUrl,
     },
     "/api/soap-gaps": {
+      changeOrigin: true,
+      target: config.bffUrl,
+    },
+    "/api/soap-knowledge-base": {
+      changeOrigin: true,
+      target: config.bffUrl,
+    },
+    "/api/soap-knowledge-base-items": {
       changeOrigin: true,
       target: config.bffUrl,
     },

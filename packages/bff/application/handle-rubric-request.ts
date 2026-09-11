@@ -1,34 +1,19 @@
-import type {
-  Rubric,
-  RubricReviewStatus,
-  RubricTargetType,
-} from "../contracts/admin.ts";
-import {
-  isRubricReviewStatus,
-  isRubricTargetType,
-} from "../contracts/admin.ts";
 import type { BffHttpRequest, BffHttpResponse } from "../contracts/http.ts";
 import { BFF_JSON_HEADERS } from "../contracts/http.ts";
+import type { CreateRubricInput, Rubric } from "../contracts/rubric.ts";
+import { isRubricLevelNumber } from "../contracts/rubric.ts";
 import type { AuthenticatedUserContext } from "../domain/auth.ts";
 
 const COLLECTION_PATH = "/api/rubrics";
-const REVIEW_STATUS_PATH_PATTERN = /^\/api\/rubrics\/([^/]+)\/review-status$/;
+const ACTIVE_PATH_PATTERN = /^\/api\/rubrics\/([^/]+)\/active$/;
 
 /** BFF core の依存。adapter ごとに RDS Data API 呼び出しの実装を注入する。 */
 export type HandleRubricOptions = {
-  /** JWT claims から導出した認証済み user context。無ければ 401（`created_by` に必要）。 */
+  /** JWT claims から導出した認証済み user context。無ければ 401。 */
   authContext?: AuthenticatedUserContext;
   listRubrics: () => Promise<Rubric[]>;
-  createRubric: (input: {
-    name: string;
-    targetType: RubricTargetType;
-    createdBy: string;
-    createdByDisplayName?: string;
-  }) => Promise<Rubric>;
-  setReviewStatus: (input: {
-    id: string;
-    nextStatus: RubricReviewStatus;
-  }) => Promise<Rubric>;
+  createRubric: (input: CreateRubricInput) => Promise<Rubric>;
+  setActive: (input: { id: string; isActive: boolean }) => Promise<Rubric>;
   /** 想定外 error の記録先。省略時は握りつぶして構造化 response のみ返す。 */
   logError?: (message: string, detail: Record<string, unknown>) => void;
   /** Training Data Store（Aurora）が設定済みかどうか。未設定なら 503 を返す。 */
@@ -36,10 +21,9 @@ export type HandleRubricOptions = {
 };
 
 /**
- * 評価ルーブリック（issue #10）の BFF handler。
+ * 評価ルーブリック（保健師SOAP_KB_詳細設計書_v2 の rubric / rubric_level）の BFF handler。
  *
- * `GET /api/rubrics` + `POST /api/rubrics` + `PATCH /api/rubrics/{id}/review-status` を担う。
- * 有識者確認前と確認済みを区別する（issue #10 の Technical Approach）。
+ * `GET /api/rubrics` + `POST /api/rubrics` + `PATCH /api/rubrics/{id}/active` を担う。
  */
 export async function handleRubricRequest(
   request: BffHttpRequest,
@@ -61,8 +45,6 @@ export async function handleRubricRequest(
     return response(401, { error: "authentication required" });
   }
 
-  const authContext = options.authContext;
-
   try {
     if (request.method === "GET" && request.path === COLLECTION_PATH) {
       const rubrics = await options.listRubrics();
@@ -70,16 +52,12 @@ export async function handleRubricRequest(
     }
 
     if (request.method === "POST" && request.path === COLLECTION_PATH) {
-      return await handleCreate(request, authContext, options);
+      return await handleCreate(request, options);
     }
 
-    const reviewStatusRubricId = reviewStatusRubricIdFromPath(request.path);
-    if (reviewStatusRubricId && request.method === "PATCH") {
-      return await handleSetReviewStatus(
-        request,
-        reviewStatusRubricId,
-        options,
-      );
+    const activeRubricId = activeRubricIdFromPath(request.path);
+    if (activeRubricId && request.method === "PATCH") {
+      return await handleSetActive(request, activeRubricId, options);
     }
 
     return response(404, { error: "not found" });
@@ -103,56 +81,107 @@ export async function handleRubricRequest(
 
 async function handleCreate(
   request: BffHttpRequest,
-  authContext: AuthenticatedUserContext,
   options: HandleRubricOptions,
 ): Promise<BffHttpResponse> {
   const body = parseJsonBody(request);
+
+  const knowledgeBaseId = textField(body.knowledgeBaseId);
+  if (!knowledgeBaseId) {
+    throw new BadRequestError("knowledgeBaseId is required");
+  }
+
+  const code = textField(body.code);
+  if (!code) {
+    throw new BadRequestError("code is required");
+  }
 
   const name = textField(body.name);
   if (!name) {
     throw new BadRequestError("name is required");
   }
 
-  const targetType = body.targetType;
-  if (!isRubricTargetType(targetType)) {
-    throw new BadRequestError("targetType must be a valid rubric target type");
+  const objective = textField(body.objective);
+  if (!objective) {
+    throw new BadRequestError("objective is required");
   }
 
+  const sortOrder =
+    typeof body.sortOrder === "number" ? body.sortOrder : undefined;
+
+  const levels = parseLevels(body.levels);
+
   const rubric = await options.createRubric({
-    createdBy: authContext.userId,
-    createdByDisplayName: authContext.displayName,
+    code,
+    knowledgeBaseId,
+    levels,
     name,
-    targetType,
+    objective,
+    sortOrder,
   });
 
   return response(200, rubric);
 }
 
-async function handleSetReviewStatus(
+function parseLevels(value: unknown): CreateRubricInput["levels"] {
+  if (!Array.isArray(value) || value.length === 0) {
+    throw new BadRequestError("levels must be a non-empty array");
+  }
+
+  return value.map((entry) => {
+    if (!entry || typeof entry !== "object") {
+      throw new BadRequestError("each level must be an object");
+    }
+    const record = entry as Record<string, unknown>;
+
+    if (!isRubricLevelNumber(record.level)) {
+      throw new BadRequestError("level must be an integer between 1 and 4");
+    }
+
+    const levelName = textField(record.levelName);
+    if (!levelName) {
+      throw new BadRequestError("levelName is required for each level");
+    }
+
+    const definition = textField(record.definition);
+    if (!definition) {
+      throw new BadRequestError("definition is required for each level");
+    }
+
+    const criteria = Array.isArray(record.criteria)
+      ? record.criteria.filter(
+          (item): item is string => typeof item === "string",
+        )
+      : [];
+
+    return { criteria, definition, level: record.level, levelName };
+  });
+}
+
+async function handleSetActive(
   request: BffHttpRequest,
   rubricId: string,
   options: HandleRubricOptions,
 ): Promise<BffHttpResponse> {
   const body = parseJsonBody(request);
 
-  const nextStatus = body.reviewStatus;
-  if (!isRubricReviewStatus(nextStatus)) {
-    throw new BadRequestError(
-      "reviewStatus must be one of expert_review_required, confirmed",
-    );
+  if (typeof body.isActive !== "boolean") {
+    throw new BadRequestError("isActive must be a boolean");
   }
 
-  const rubric = await options.setReviewStatus({ id: rubricId, nextStatus });
+  const rubric = await options.setActive({
+    id: rubricId,
+    isActive: body.isActive,
+  });
 
   return response(200, rubric);
 }
 
 function isRubricPath(path: string): boolean {
-  return path === COLLECTION_PATH || REVIEW_STATUS_PATH_PATTERN.test(path);
+  return path === COLLECTION_PATH || ACTIVE_PATH_PATTERN.test(path);
 }
 
-function reviewStatusRubricIdFromPath(path: string): string | undefined {
-  const match = REVIEW_STATUS_PATH_PATTERN.exec(path);
+function activeRubricIdFromPath(path: string): string | undefined {
+  const match = ACTIVE_PATH_PATTERN.exec(path);
   const rubricId = match?.[1];
   return rubricId ? decodeURIComponent(rubricId) : undefined;
 }

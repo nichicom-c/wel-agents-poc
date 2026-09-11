@@ -3,6 +3,14 @@ import {
   type SoapRecordType,
 } from "../../soap-draft/index.ts";
 import {
+  KNOWLEDGE_BASE_STATUSES,
+  KNOWLEDGE_ITEM_CATEGORIES,
+  type KnowledgeBaseStatus,
+  type KnowledgeItemCategory,
+  type SoapKnowledgeBase,
+  type SoapKnowledgeItem,
+} from "../model/knowledge-base.ts";
+import {
   MATERIAL_TYPES,
   type Material,
   type MaterialFilters,
@@ -11,6 +19,7 @@ import {
   PUBLICATION_STATUSES,
   type PublicationStatus,
 } from "../model/materials.ts";
+import type { PromptTemplate } from "../model/prompt-templates.ts";
 import type { QualityMetricDefinition } from "../model/quality-metrics.ts";
 import type {
   ReferenceKnowledge,
@@ -24,12 +33,9 @@ import {
   type RequirementLevel,
 } from "../model/required-items.ts";
 import {
-  RUBRIC_REVIEW_STATUSES,
-  RUBRIC_TARGET_TYPES,
+  isRubricLevelNumber,
   type Rubric,
-  type RubricItem,
-  type RubricReviewStatus,
-  type RubricTargetType,
+  type RubricLevel,
 } from "../model/rubrics.ts";
 import {
   MAPPING_CATEGORIES,
@@ -38,14 +44,19 @@ import {
 } from "../model/soap-mapping.ts";
 
 /**
- * 管理画面（issue #10。`docs/notes/2026-07-30-training-materials-db-schema-and-aws-infra.md`
- * 参照）が使う BFF `/api/materials*` / `/api/rubrics*` / `/api/reference-knowledge` /
- * `/api/soap-mapping-versions` / `/api/required-items` / `/api/quality-metrics`
- * （Aurora Serverless v2 + RDS Data API）を呼ぶ。
+ * 管理画面が使う BFF `/api/materials*` / `/api/rubrics*` / `/api/soap-knowledge-base*` /
+ * `/api/prompt-templates` / `/api/reference-knowledge` / `/api/soap-mapping-versions` /
+ * `/api/required-items` / `/api/quality-metrics`（Aurora Serverless v2 + RDS Data API）を
+ * 呼ぶ。ルーブリック・Knowledge Base・Prompt Template は保健師SOAP_KB_詳細設計書_v2 の
+ * スキーマ、それ以外は issue #10
+ * （`docs/notes/2026-07-30-training-materials-db-schema-and-aws-infra.md` 参照）のスキーマ。
  */
 
 const MATERIALS_ENDPOINT = "/api/materials";
 const RUBRICS_ENDPOINT = "/api/rubrics";
+const SOAP_KNOWLEDGE_BASE_ENDPOINT = "/api/soap-knowledge-base";
+const SOAP_KNOWLEDGE_BASE_ITEMS_ENDPOINT = "/api/soap-knowledge-base-items";
+const PROMPT_TEMPLATES_ENDPOINT = "/api/prompt-templates";
 const REFERENCE_KNOWLEDGE_ENDPOINT = "/api/reference-knowledge";
 const SOAP_MAPPING_VERSIONS_ENDPOINT = "/api/soap-mapping-versions";
 const REQUIRED_ITEMS_ENDPOINT = "/api/required-items";
@@ -141,7 +152,7 @@ export async function addMaterial(
   return material;
 }
 
-// --- 評価ルーブリック ----------------------------------------------------
+// --- 評価ルーブリック（保健師SOAP_KB_詳細設計書_v2 の rubric / rubric_level） -------------
 
 export async function listRubrics(fetchFn: FetchFn = fetch): Promise<Rubric[]> {
   const response = await fetchFn(RUBRICS_ENDPOINT);
@@ -154,15 +165,15 @@ export async function listRubrics(fetchFn: FetchFn = fetch): Promise<Rubric[]> {
   return normalizeRubrics(payload.rubrics);
 }
 
-export async function setRubricStatus(
+export async function setRubricActive(
   id: string,
-  nextStatus: RubricReviewStatus,
+  isActive: boolean,
   fetchFn: FetchFn = fetch,
 ): Promise<Rubric> {
   const response = await fetchFn(
-    `${RUBRICS_ENDPOINT}/${encodeURIComponent(id)}/review-status`,
+    `${RUBRICS_ENDPOINT}/${encodeURIComponent(id)}/active`,
     {
-      body: JSON.stringify({ reviewStatus: nextStatus }),
+      body: JSON.stringify({ isActive }),
       headers: { "content-type": "application/json" },
       method: "PATCH",
     },
@@ -175,14 +186,25 @@ export async function setRubricStatus(
 
   const rubric = normalizeRubric(payload);
   if (!rubric) {
-    throw new Error("invalid response from /api/rubrics/:id/review-status");
+    throw new Error("invalid response from /api/rubrics/:id/active");
   }
   return rubric;
 }
 
+export type NewRubricLevelInput = {
+  level: RubricLevel["level"];
+  levelName: string;
+  definition: string;
+  criteria?: string[];
+};
+
 export type NewRubricInput = {
+  knowledgeBaseId: string;
+  code: string;
   name: string;
-  targetType: RubricTargetType;
+  objective: string;
+  sortOrder?: number;
+  levels: NewRubricLevelInput[];
 };
 
 export async function addRubric(
@@ -205,6 +227,201 @@ export async function addRubric(
     throw new Error("invalid response from /api/rubrics");
   }
   return rubric;
+}
+
+// --- Knowledge Base（保健師SOAP_KB_詳細設計書_v2 の knowledge_base / knowledge_item） -----
+
+export async function listSoapKnowledgeBases(
+  fetchFn: FetchFn = fetch,
+): Promise<SoapKnowledgeBase[]> {
+  const response = await fetchFn(SOAP_KNOWLEDGE_BASE_ENDPOINT);
+  const payload = await readJson(response);
+
+  if (!response.ok) {
+    throw new Error(trimmedText(payload.error) || `HTTP ${response.status}`);
+  }
+
+  return normalizeKnowledgeBases(payload.knowledgeBases);
+}
+
+export type NewSoapKnowledgeBaseInput = {
+  code: string;
+  name: string;
+  description?: string;
+  version: string;
+  status?: KnowledgeBaseStatus;
+};
+
+export async function addSoapKnowledgeBase(
+  input: NewSoapKnowledgeBaseInput,
+  fetchFn: FetchFn = fetch,
+): Promise<SoapKnowledgeBase> {
+  const response = await fetchFn(SOAP_KNOWLEDGE_BASE_ENDPOINT, {
+    body: JSON.stringify(input),
+    headers: { "content-type": "application/json" },
+    method: "POST",
+  });
+  const payload = await readJson(response);
+
+  if (!response.ok) {
+    throw new Error(trimmedText(payload.error) || `HTTP ${response.status}`);
+  }
+
+  const knowledgeBase = normalizeKnowledgeBase(payload);
+  if (!knowledgeBase) {
+    throw new Error("invalid response from /api/soap-knowledge-base");
+  }
+  return knowledgeBase;
+}
+
+export async function setSoapKnowledgeBaseStatus(
+  id: string,
+  status: KnowledgeBaseStatus,
+  fetchFn: FetchFn = fetch,
+): Promise<SoapKnowledgeBase> {
+  const response = await fetchFn(
+    `${SOAP_KNOWLEDGE_BASE_ENDPOINT}/${encodeURIComponent(id)}/status`,
+    {
+      body: JSON.stringify({ status }),
+      headers: { "content-type": "application/json" },
+      method: "PATCH",
+    },
+  );
+  const payload = await readJson(response);
+
+  if (!response.ok) {
+    throw new Error(trimmedText(payload.error) || `HTTP ${response.status}`);
+  }
+
+  const knowledgeBase = normalizeKnowledgeBase(payload);
+  if (!knowledgeBase) {
+    throw new Error(
+      "invalid response from /api/soap-knowledge-base/:id/status",
+    );
+  }
+  return knowledgeBase;
+}
+
+export async function listSoapKnowledgeItems(
+  knowledgeBaseId: string,
+  fetchFn: FetchFn = fetch,
+): Promise<SoapKnowledgeItem[]> {
+  const response = await fetchFn(
+    `${SOAP_KNOWLEDGE_BASE_ENDPOINT}/${encodeURIComponent(knowledgeBaseId)}/items`,
+  );
+  const payload = await readJson(response);
+
+  if (!response.ok) {
+    throw new Error(trimmedText(payload.error) || `HTTP ${response.status}`);
+  }
+
+  return normalizeKnowledgeItems(payload.items);
+}
+
+export type NewSoapKnowledgeItemInput = {
+  category: KnowledgeItemCategory;
+  itemKey: string;
+  title: string;
+  content: string;
+};
+
+export async function addSoapKnowledgeItem(
+  knowledgeBaseId: string,
+  input: NewSoapKnowledgeItemInput,
+  fetchFn: FetchFn = fetch,
+): Promise<SoapKnowledgeItem> {
+  const response = await fetchFn(
+    `${SOAP_KNOWLEDGE_BASE_ENDPOINT}/${encodeURIComponent(knowledgeBaseId)}/items`,
+    {
+      body: JSON.stringify(input),
+      headers: { "content-type": "application/json" },
+      method: "POST",
+    },
+  );
+  const payload = await readJson(response);
+
+  if (!response.ok) {
+    throw new Error(trimmedText(payload.error) || `HTTP ${response.status}`);
+  }
+
+  const item = normalizeKnowledgeItem(payload);
+  if (!item) {
+    throw new Error("invalid response from /api/soap-knowledge-base/:id/items");
+  }
+  return item;
+}
+
+export async function setSoapKnowledgeItemActive(
+  id: string,
+  isActive: boolean,
+  fetchFn: FetchFn = fetch,
+): Promise<SoapKnowledgeItem> {
+  const response = await fetchFn(
+    `${SOAP_KNOWLEDGE_BASE_ITEMS_ENDPOINT}/${encodeURIComponent(id)}/active`,
+    {
+      body: JSON.stringify({ isActive }),
+      headers: { "content-type": "application/json" },
+      method: "PATCH",
+    },
+  );
+  const payload = await readJson(response);
+
+  if (!response.ok) {
+    throw new Error(trimmedText(payload.error) || `HTTP ${response.status}`);
+  }
+
+  const item = normalizeKnowledgeItem(payload);
+  if (!item) {
+    throw new Error(
+      "invalid response from /api/soap-knowledge-base-items/:id/active",
+    );
+  }
+  return item;
+}
+
+// --- Prompt Template（保健師SOAP_KB_詳細設計書_v2 の prompt_template、CRUDのみ） ---------
+
+export async function listPromptTemplates(
+  fetchFn: FetchFn = fetch,
+): Promise<PromptTemplate[]> {
+  const response = await fetchFn(PROMPT_TEMPLATES_ENDPOINT);
+  const payload = await readJson(response);
+
+  if (!response.ok) {
+    throw new Error(trimmedText(payload.error) || `HTTP ${response.status}`);
+  }
+
+  return normalizePromptTemplates(payload.promptTemplates);
+}
+
+export type NewPromptTemplateInput = {
+  knowledgeBaseId: string;
+  code: string;
+  name: string;
+  systemPrompt: string;
+  userPromptTemplate: string;
+};
+
+export async function addPromptTemplate(
+  input: NewPromptTemplateInput,
+  fetchFn: FetchFn = fetch,
+): Promise<PromptTemplate> {
+  const response = await fetchFn(PROMPT_TEMPLATES_ENDPOINT, {
+    body: JSON.stringify(input),
+    headers: { "content-type": "application/json" },
+    method: "POST",
+  });
+  const payload = await readJson(response);
+
+  if (!response.ok) {
+    throw new Error(trimmedText(payload.error) || `HTTP ${response.status}`);
+  }
+
+  const promptTemplate = normalizePromptTemplate(payload);
+  if (!promptTemplate) {
+    throw new Error("invalid response from /api/prompt-templates");
+  }
+  return promptTemplate;
 }
 
 // --- 参照知識（read-only） ------------------------------------------------
@@ -484,60 +701,183 @@ function normalizeRubrics(value: unknown): Rubric[] {
 
 function normalizeRubric(record: Record<string, unknown>): Rubric | undefined {
   const id = trimmedText(record.id);
+  const knowledgeBaseId = trimmedText(record.knowledgeBaseId);
+  const code = trimmedText(record.code);
   const name = trimmedText(record.name);
-  const targetType = record.targetType;
-  const reviewStatus = record.reviewStatus;
-  const versionNo = numberOrZero(record.versionNo);
-  const createdBy = trimmedText(record.createdBy);
+  const objective = trimmedText(record.objective);
+  const createdAt = trimmedText(record.createdAt);
+
+  if (!id || !knowledgeBaseId || !code || !name || !objective || !createdAt) {
+    return undefined;
+  }
+
+  return {
+    code,
+    createdAt,
+    id,
+    isActive: record.isActive === true,
+    knowledgeBaseId,
+    levels: normalizeRubricLevels(record.levels),
+    name,
+    objective,
+    sortOrder: numberOrZero(record.sortOrder),
+  };
+}
+
+function normalizeRubricLevels(value: unknown): RubricLevel[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value
+    .map((entry) => normalizeRubricLevel(asRecord(entry)))
+    .filter((level): level is RubricLevel => level !== undefined);
+}
+
+function normalizeRubricLevel(
+  record: Record<string, unknown>,
+): RubricLevel | undefined {
+  const level = record.level;
+  const levelName = trimmedText(record.levelName);
+  const definition = trimmedText(record.definition);
+
+  if (!isRubricLevelNumber(level) || !levelName || !definition) {
+    return undefined;
+  }
+
+  return {
+    criteria: stringArray(record.criteria),
+    definition,
+    level,
+    levelName,
+  };
+}
+
+function normalizeKnowledgeBases(value: unknown): SoapKnowledgeBase[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value
+    .map((entry) => normalizeKnowledgeBase(asRecord(entry)))
+    .filter((kb): kb is SoapKnowledgeBase => kb !== undefined);
+}
+
+function normalizeKnowledgeBase(
+  record: Record<string, unknown>,
+): SoapKnowledgeBase | undefined {
+  const id = trimmedText(record.id);
+  const code = trimmedText(record.code);
+  const name = trimmedText(record.name);
+  const version = trimmedText(record.version);
+  const status = record.status;
   const createdAt = trimmedText(record.createdAt);
 
   if (
     !id ||
+    !code ||
     !name ||
-    !isOneOf(RUBRIC_TARGET_TYPES, targetType) ||
-    !isOneOf(RUBRIC_REVIEW_STATUSES, reviewStatus) ||
-    versionNo <= 0 ||
-    !createdBy ||
+    !version ||
+    !isOneOf(KNOWLEDGE_BASE_STATUSES, status) ||
     !createdAt
   ) {
     return undefined;
   }
 
   return {
+    code,
     createdAt,
-    createdBy,
+    description: trimmedText(record.description) || undefined,
     id,
-    items: normalizeRubricItems(record.items),
     name,
-    reviewStatus,
-    targetType,
-    versionNo,
+    status,
+    version,
   };
 }
 
-function normalizeRubricItems(value: unknown): RubricItem[] {
+function normalizeKnowledgeItems(value: unknown): SoapKnowledgeItem[] {
   if (!Array.isArray(value)) {
     return [];
   }
   return value
-    .map((entry) => normalizeRubricItem(asRecord(entry)))
-    .filter((item): item is RubricItem => item !== undefined);
+    .map((entry) => normalizeKnowledgeItem(asRecord(entry)))
+    .filter((item): item is SoapKnowledgeItem => item !== undefined);
 }
 
-function normalizeRubricItem(
+function normalizeKnowledgeItem(
   record: Record<string, unknown>,
-): RubricItem | undefined {
+): SoapKnowledgeItem | undefined {
   const id = trimmedText(record.id);
-  const criterionName = trimmedText(record.criterionName);
+  const knowledgeBaseId = trimmedText(record.knowledgeBaseId);
+  const category = record.category;
+  const itemKey = trimmedText(record.itemKey);
+  const title = trimmedText(record.title);
+  const content = trimmedText(record.content);
 
-  if (!id || !criterionName) {
+  if (
+    !id ||
+    !knowledgeBaseId ||
+    !isOneOf(KNOWLEDGE_ITEM_CATEGORIES, category) ||
+    !itemKey ||
+    !title ||
+    !content
+  ) {
     return undefined;
   }
 
   return {
-    criterionName,
-    description: trimmedText(record.description) || undefined,
+    category,
+    content,
     id,
+    isActive: record.isActive === true,
+    itemKey,
+    knowledgeBaseId,
+    title,
+  };
+}
+
+function normalizePromptTemplates(value: unknown): PromptTemplate[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value
+    .map((entry) => normalizePromptTemplate(asRecord(entry)))
+    .filter((template): template is PromptTemplate => template !== undefined);
+}
+
+function normalizePromptTemplate(
+  record: Record<string, unknown>,
+): PromptTemplate | undefined {
+  const id = trimmedText(record.id);
+  const knowledgeBaseId = trimmedText(record.knowledgeBaseId);
+  const code = trimmedText(record.code);
+  const name = trimmedText(record.name);
+  const systemPrompt = trimmedText(record.systemPrompt);
+  const userPromptTemplate = trimmedText(record.userPromptTemplate);
+  const version = trimmedText(record.version);
+  const createdAt = trimmedText(record.createdAt);
+
+  if (
+    !id ||
+    !knowledgeBaseId ||
+    !code ||
+    !name ||
+    !systemPrompt ||
+    !userPromptTemplate ||
+    !version ||
+    !createdAt
+  ) {
+    return undefined;
+  }
+
+  return {
+    code,
+    createdAt,
+    id,
+    isActive: record.isActive === true,
+    knowledgeBaseId,
+    name,
+    systemPrompt,
+    userPromptTemplate,
+    version,
   };
 }
 

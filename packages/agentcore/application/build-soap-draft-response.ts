@@ -10,6 +10,7 @@ import { StructuredOutputError } from "@strands-agents/sdk";
 
 import type { RuntimeRequest, RuntimeResponse } from "../contracts/runtime.ts";
 import type { SoapDraftOutput } from "../contracts/soap-draft.ts";
+import { getKnowledgeContext } from "../domain/knowledge-context.ts";
 import { getActorId, getSessionId } from "../domain/session.ts";
 import { getSoapDraftText } from "../domain/soap-draft.ts";
 import { type Config, configFromEnv } from "../infra/config.ts";
@@ -36,9 +37,12 @@ function stringifyError(error: unknown): string {
 }
 
 /** config から本物の SOAP 下書き agent を生成し、構造化出力をそのまま返す runner。 */
-function defaultSoapDraftRunner(config: Config): SoapDraftRunner {
+function defaultSoapDraftRunner(
+  config: Config,
+  knowledgeContext: ReturnType<typeof getKnowledgeContext>,
+): SoapDraftRunner {
   const deps: AgentDeps = { config };
-  const agent = buildSoapDraftAgent(deps);
+  const agent = buildSoapDraftAgent(deps, knowledgeContext);
   return async (message) => {
     const result = await agent.invoke(message);
     // AgentResult.structuredOutput は SDK 側で z.output<z.ZodType> としか型付けされておらず
@@ -78,7 +82,9 @@ export async function buildSoapDraftResponse(
   const sessionId = getSessionId(payload);
   const message = `入力テキスト:\n${text}`;
 
-  const runSoapDraft = deps.soapDraftRunner ?? defaultSoapDraftRunner(config);
+  const runSoapDraft =
+    deps.soapDraftRunner ??
+    defaultSoapDraftRunner(config, getKnowledgeContext(payload));
 
   let output: SoapDraftOutput;
   try {

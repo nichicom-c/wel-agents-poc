@@ -1,24 +1,48 @@
 export type {
   NewMaterialInput,
+  NewPromptTemplateInput,
   NewRequiredItemInput,
   NewRubricInput,
+  NewRubricLevelInput,
+  NewSoapKnowledgeBaseInput,
+  NewSoapKnowledgeItemInput,
 } from "./api/admin.ts";
 export {
   addMaterial,
+  addPromptTemplate,
   addRequiredItem,
   addRubric,
+  addSoapKnowledgeBase,
+  addSoapKnowledgeItem,
   addSoapMappingVersion,
   changeMaterialStatus,
   getTrainingDataClusterStatus,
   listMaterials,
+  listPromptTemplates,
   listQualityMetrics,
   listReferenceKnowledge,
   listRequiredItems,
   listRubrics,
+  listSoapKnowledgeBases,
+  listSoapKnowledgeItems,
   listSoapMappingVersions,
-  setRubricStatus,
+  setRubricActive,
+  setSoapKnowledgeBaseStatus,
+  setSoapKnowledgeItemActive,
   startTrainingDataCluster,
 } from "./api/admin.ts";
+export type {
+  KnowledgeBaseStatus,
+  KnowledgeItemCategory,
+  SoapKnowledgeBase,
+  SoapKnowledgeItem,
+} from "./model/knowledge-base.ts";
+export {
+  KNOWLEDGE_BASE_STATUSES,
+  KNOWLEDGE_ITEM_CATEGORIES,
+  knowledgeBaseStatusLabel,
+  knowledgeItemCategoryLabel,
+} from "./model/knowledge-base.ts";
 export type {
   Material,
   MaterialFilters,
@@ -32,6 +56,7 @@ export {
   PUBLICATION_STATUSES,
   publicationStatusLabel,
 } from "./model/materials.ts";
+export type { PromptTemplate } from "./model/prompt-templates.ts";
 export type { QualityMetricDefinition } from "./model/quality-metrics.ts";
 export type {
   ReferenceKnowledge,
@@ -55,16 +80,10 @@ export {
 } from "./model/roles.ts";
 export type {
   Rubric,
-  RubricItem,
-  RubricReviewStatus,
-  RubricTargetType,
+  RubricLevel,
+  RubricLevelNumber,
 } from "./model/rubrics.ts";
-export {
-  RUBRIC_REVIEW_STATUSES,
-  RUBRIC_TARGET_TYPES,
-  rubricReviewStatusLabel,
-  rubricTargetTypeLabel,
-} from "./model/rubrics.ts";
+export { isRubricLevelNumber, RUBRIC_LEVEL_NUMBERS } from "./model/rubrics.ts";
 export type {
   MappingCategory,
   MappingDefinition,
