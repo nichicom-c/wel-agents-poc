@@ -92,6 +92,6 @@ export function buildSoapGapsChatAgent(
     systemPrompt:
       SOAP_GAPS_CHAT_SYSTEM_PROMPT + formatKnowledgeContext(knowledgeContext),
     structuredOutputSchema: soapGapsChatOutputSchema,
-    printer: true,
+    printer: false,
   });
 }
