@@ -13,7 +13,7 @@
       "Resource": "*"
     },
     {
-      "Sid": "IamRoleManagement",
+      "Sid": "IamRole",
       "Effect": "Allow",
       "Action": [
         "iam:CreateRole",
@@ -58,7 +58,11 @@
     {
       "Sid": "LogsRead",
       "Effect": "Allow",
-      "Action": "logs:FilterLogEvents",
+      "Action": [
+        "logs:GetLogEvents",
+        "logs:FilterLogEvents",
+        "logs:DescribeLogStreams"
+      ],
       "Resource": "arn:aws:logs:*:*:log-group:/aws/bedrock-agentcore/runtimes/*"
     },
     {
@@ -92,7 +96,7 @@
       "Resource": "*"
     },
     {
-      "Sid": "S3BucketManagement",
+      "Sid": "S3Bucket",
       "Effect": "Allow",
       "Action": [
         "s3:CreateBucket",
@@ -110,7 +114,7 @@
       "Resource": "arn:aws:s3:::wel-agents-rag-*"
     },
     {
-      "Sid": "S3ObjectManagement",
+      "Sid": "S3Object",
       "Effect": "Allow",
       "Action": [
         "s3:PutObject",
@@ -137,7 +141,7 @@
       "Resource": "*"
     },
     {
-      "Sid": "BedrockKnowledgeBase",
+      "Sid": "BedrockKb",
       "Effect": "Allow",
       "Action": [
         "bedrock:CreateKnowledgeBase",
@@ -186,7 +190,7 @@
       "Resource": "*"
     },
     {
-      "Sid": "OpenSearchServerless",
+      "Sid": "Aoss",
       "Effect": "Allow",
       "Action": [
         "aoss:CreateCollection",
