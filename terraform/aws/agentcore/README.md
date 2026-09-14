@@ -158,6 +158,17 @@ mise exec -- terraform -chdir=terraform/aws/agentcore output -raw invoke_command
 
 この `invoke_command` は `POST /invocations` の non-streaming smoke test 用。Chat UI の本線である WebSocket streaming は、`terraform/aws/bff` が `POST /api/ws-url` で発行する presigned `/ws` URL から接続して確認する。この module は runtime / endpoint / request header allowlist を管理し、browser 向けの URL 署名と JWT user context 導出は BFF module が担う。
 
+### 6. Runtime のログを確認する
+
+各 agent の `printer: true`（例: `packages/agentcore/application/soap-gaps-chat-agent.ts`）は Strands SDK が runtime コンテナの stdout に直接書き込む。`AgentResult` には含まれず BFF / Chat UI にも渡らないため、確認するには CloudWatch Logs を直接見る。ロググループは Bedrock AgentCore Runtime が自動作成するもので Terraform 管理外だが、名前は `agent_runtime_id` から決定的に決まるため `log_group_name` / `default_log_group_name` output で参照できる。
+
+```bash
+mise exec -- terraform -chdir=terraform/aws/agentcore output -raw tail_logs_command
+# 出力された aws logs tail ... --follow を実行しながら invoke_command / Chat UI からリクエストを送る
+```
+
+呼び出し元 IAM に `logs:FilterLogEvents`（`aws logs tail` が内部で使う）が無いと `AccessDeniedException` になる。これは runtime 実行ロール（`aws_iam_role.runtime`、`logs:PutLogEvents` 等は付与済み）とは別の、人間の IAM user/role 側の権限であり本 module の管理対象外。付与されていない場合は権限管理担当に依頼するか、権限を持つ profile / role に切り替える。
+
 ## このモジュールが作るリソース
 
 - `aws_ecr_repository.this`（runtime コンテナイメージ）

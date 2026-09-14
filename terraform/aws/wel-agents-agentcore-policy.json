@@ -56,6 +56,12 @@
       "Resource": "*"
     },
     {
+      "Sid": "LogsRead",
+      "Effect": "Allow",
+      "Action": "logs:FilterLogEvents",
+      "Resource": "arn:aws:logs:*:*:log-group:/aws/bedrock-agentcore/runtimes/*"
+    },
+    {
       "Sid": "Ecr",
       "Effect": "Allow",
       "Action": [

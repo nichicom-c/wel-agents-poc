@@ -87,6 +87,26 @@ output "agent_runtime_endpoint_arn" {
   value       = aws_bedrockagentcore_agent_runtime_endpoint.sample.agent_runtime_endpoint_arn
 }
 
+output "log_group_name" {
+  description = "sample endpoint 経由の invoke で runtime の stdout（`printer: true` の Strands Agent 出力を含む）が書き込まれる CloudWatch Logs ロググループ名。Bedrock AgentCore Runtime が自動作成するため Terraform 管理リソースではなく、この output は agent_runtime_id から名前を導出しているだけ（実体の作成/削除は行わない）。"
+  value       = "/aws/bedrock-agentcore/runtimes/${aws_bedrockagentcore_agent_runtime.this.agent_runtime_id}-${aws_bedrockagentcore_agent_runtime_endpoint.sample.name}"
+}
+
+output "default_log_group_name" {
+  description = "DEFAULT qualifier（sample endpoint 作成前から存在する既定 endpoint）向け CloudWatch Logs ロググループ名。用途は log_group_name と同様、名前の導出のみ。"
+  value       = "/aws/bedrock-agentcore/runtimes/${aws_bedrockagentcore_agent_runtime.this.agent_runtime_id}-DEFAULT"
+}
+
+output "tail_logs_command" {
+  description = "sample endpoint 経由の runtime stdout（printer:true 含む）を live tail する AWS CLI コマンド例。呼び出し元 IAM に logs:FilterLogEvents（aws logs tail が内部で使う）が別途必要。"
+  value = join(" ", [
+    "aws logs tail",
+    "'/aws/bedrock-agentcore/runtimes/${aws_bedrockagentcore_agent_runtime.this.agent_runtime_id}-${aws_bedrockagentcore_agent_runtime_endpoint.sample.name}'",
+    "--follow",
+    "--region ${data.aws_region.current.region}",
+  ])
+}
+
 output "build_push_commands" {
   description = "Dockerfile.agentcore を build し ECR へ push する手順（リポジトリルートで実行。apply 前に必要）。"
   value = [
