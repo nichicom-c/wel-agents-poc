@@ -595,10 +595,12 @@ export function SoapStudioView({
           <button
             type="button"
             className="soap-gaps-check-button"
-            disabled={gapsStatus === "loading"}
+            disabled={gapsStatus === "loading" || chatStatus === "loading"}
             onClick={() => void handleStartGapChat()}
           >
-            {gapsStatus === "loading" ? "確認中…" : "不足をチャットで確認"}
+            {gapsStatus === "loading" || chatStatus === "loading"
+              ? "確認中…"
+              : "不足をチャットで確認"}
           </button>
           {gapsStatus === "error" ? (
             <p className="soap-draft-error">{gapsError}</p>
@@ -624,7 +626,7 @@ export function SoapStudioView({
                 ))}
               </ul>
 
-              {activeGap ? (
+              {activeGap && chatStatus !== "loading" ? (
                 <>
                   {latestAssistantSuggestions(chatMessages).length > 0 ? (
                     <div className="soap-gaps-chat-suggestions">
@@ -659,15 +661,12 @@ export function SoapStudioView({
                       aria-label="チャットへの返信"
                       placeholder="回答を入力してください"
                       value={chatInputText}
-                      disabled={chatStatus === "loading"}
                       onChange={(event) => setChatInputText(event.target.value)}
                     />
                     <div className="soap-draft-candidate-actions">
                       <button
                         type="button"
-                        disabled={
-                          !chatInputText.trim() || chatStatus === "loading"
-                        }
+                        disabled={!chatInputText.trim()}
                         onClick={handleSendChatMessage}
                       >
                         送信
@@ -676,7 +675,6 @@ export function SoapStudioView({
                         <button
                           type="button"
                           className="secondary-button"
-                          disabled={chatStatus === "loading"}
                           onClick={handleSkipCurrentGap}
                         >
                           スキップ
