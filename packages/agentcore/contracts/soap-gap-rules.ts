@@ -2,9 +2,8 @@ import { z } from "zod";
 
 /**
  * `domain/soap-gaps.ts` のルールベース不足検出が使う設定値。保健師業務のドメイン知識
- * （キーワード・閾値・パターン・文言テンプレート）であり、コード改修なしに BFF 経由の
- * `knowledge_item`（`DOMAIN_RULE` カテゴリ）から上書きできるよう、全フィールドに現行の
- * ハードコード値と同じデフォルトを持たせる（`content` が無い/壊れていても既定値で動く）。
+ * （キーワード・閾値・パターン・文言テンプレート）で、全フィールドをハードコードの
+ * デフォルト値として持つ（`DEFAULT_SOAP_GAP_RULE_CONFIG`）。
  *
  * `messages` のテンプレート文字列は `{draftText}` 等の単純なプレースホルダを
  * `domain/soap-gap-rules.ts` の `renderTemplate` で置換する。

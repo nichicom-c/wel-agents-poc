@@ -15,7 +15,6 @@ import type { RuntimeRequest, RuntimeResponse } from "../contracts/runtime.ts";
 import type { SoapDraftCandidate } from "../contracts/soap-draft.ts";
 import type { AiGapDetectionOutput } from "../contracts/soap-gaps.ts";
 import { getActorId, getSessionId } from "../domain/session.ts";
-import { getGapRuleConfig } from "../domain/soap-gap-rules.ts";
 import {
   detectGaps,
   getSoapGapsCandidates,
@@ -115,8 +114,7 @@ export async function buildSoapGapsResponse(
   const actorId = getActorId(payload);
   const sessionId = getSessionId(payload);
 
-  const ruleConfig = getGapRuleConfig(payload);
-  const ruleBasedGaps = detectGaps(candidates, ruleConfig);
+  const ruleBasedGaps = detectGaps(candidates);
   const runDetection =
     deps.soapGapsDetectionRunner ?? defaultSoapGapsDetectionRunner(config);
   const semanticGaps = await detectSemanticGaps(candidates, runDetection);

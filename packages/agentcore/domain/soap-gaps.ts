@@ -11,10 +11,8 @@
  * 「不足情報をチャットで埋めてSOAPを完成させる」という目的を満たせない。
  *
  * キーワード・閾値・パターン・文言テンプレートは `contracts/soap-gap-rules.ts` の
- * `SoapGapRuleConfig` として外部化してあり（`knowledge_item` の `DOMAIN_RULE` カテゴリから
- * BFF 経由で上書き可能）、各検出関数は既定値付きの `config` 引数として受け取る。
- * gapType の優先順位（`GAP_TYPE_PRIORITY`）とキュー上限（`MAX_PRIORITIZED_GAPS`）は
- * ドメイン知識というより提示順序・ページングという実装内部の制御値なので外部化の対象外とする。
+ * `SoapGapRuleConfig`（`DEFAULT_SOAP_GAP_RULE_CONFIG`）にまとめてあり、各検出関数は
+ * 既定値付きの `config` 引数として受け取る。
  */
 
 import type { RuntimeRequest } from "../contracts/runtime.ts";

@@ -22,12 +22,6 @@ export type HandleSoapGapsOptions = {
   getKnowledgeContext?: () => Promise<
     { category: string; title: string; content: string }[]
   >;
-  /**
-   * `knowledge_item`（`DOMAIN_RULE` カテゴリ）から読み出したルールベース不足検出設定
-   * （JSON.parse 済み）。未設定・取得失敗時は省略してよい（best-effort、AgentCore 側が
-   * 既定値へフォールバックする）。
-   */
-  getGapRuleConfig?: () => Promise<unknown>;
 };
 
 const SOAP_CATEGORIES = ["S", "O", "A", "P", "UNCLASSIFIED"];
@@ -62,7 +56,6 @@ export async function handleSoapGapsRequest(
 
     const sessionId = (options.createSessionId ?? randomUUID)();
     const knowledgeContext = await fetchKnowledgeContext(options);
-    const gapRuleConfig = await fetchGapRuleConfig(options);
 
     const runtimePayload: RuntimePayload = {
       actor_id: options.actorId,
@@ -71,9 +64,6 @@ export async function handleSoapGapsRequest(
       session_id: sessionId,
       ...(knowledgeContext.length > 0
         ? { knowledge_context: knowledgeContext }
-        : {}),
-      ...(gapRuleConfig !== undefined
-        ? { gap_rule_config: gapRuleConfig }
         : {}),
     };
 
@@ -146,26 +136,6 @@ async function fetchKnowledgeContext(
       message: error instanceof Error ? error.message : String(error),
     });
     return [];
-  }
-}
-
-/**
- * ルールベース不足検出設定を best-effort で取得する。未設定・失敗時は undefined にして
- * AgentCore 呼び出し自体は継続する（`options.logError` があれば記録する）。
- */
-async function fetchGapRuleConfig(
-  options: HandleSoapGapsOptions,
-): Promise<unknown> {
-  if (!options.getGapRuleConfig) {
-    return undefined;
-  }
-  try {
-    return await options.getGapRuleConfig();
-  } catch (error) {
-    options.logError?.("failed to fetch gap rule config", {
-      message: error instanceof Error ? error.message : String(error),
-    });
-    return undefined;
   }
 }
 

@@ -33,12 +33,6 @@ export type RuntimePayload = {
   exercise_answers?: unknown;
   /** type: "soap_draft" / "soap_gaps" / "soap_gaps_chat" のときの Knowledge Base 補足コンテキスト。 */
   knowledge_context?: { category: string; title: string; content: string }[];
-  /**
-   * type: "soap_gaps" のときのルールベース不足検出設定。`knowledge_item`
-   * （`DOMAIN_RULE` カテゴリ、`SOAP_GAP_RULE_CONFIG_ITEM_KEY`）の `content` を JSON.parse した
-   * ものをそのまま渡す（スキーマ検証は agentcore 側の責務）。取得できなければ省略する。
-   */
-  gap_rule_config?: unknown;
 };
 
 /** Runtime invoke の成否を BFF core が扱いやすい形に正規化した結果。 */

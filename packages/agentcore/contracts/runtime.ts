@@ -16,10 +16,7 @@ import type { Gap } from "./soap-gaps.ts";
  * ときだけ使う。`knowledge_context` は `type: "soap_draft"` / `"soap_gaps"` / `"soap_gaps_chat"`
  * のときに BFF が保健師SOAP_KB_詳細設計書_v2 の `knowledge_item`
  * （SOAP_RULE/SAFETY/FEEDBACK_POLICY）から組み立てて渡す補足コンテキスト（省略可、
- * `domain/knowledge-context.ts` が抽出する）。`gap_rule_config` は `type: "soap_gaps"` の
- * ときだけ使う: BFF が `knowledge_item`（`DOMAIN_RULE` カテゴリ、`soap_gap_detection_rules`）
- * から読み出したルール検出設定（`contracts/soap-gap-rules.ts` の `SoapGapRuleConfig`）を
- * そのまま渡す（省略可、`domain/soap-gap-rules.ts` が既定値へフォールバックする）。
+ * `domain/knowledge-context.ts` が抽出する）。
  */
 export type RuntimeRequest = {
   prompt?: unknown;
@@ -34,7 +31,6 @@ export type RuntimeRequest = {
   exercise_case?: unknown;
   exercise_answers?: unknown;
   knowledge_context?: unknown;
-  gap_rule_config?: unknown;
 };
 
 /** AgentCore Runtime からの出力 JSON。 */

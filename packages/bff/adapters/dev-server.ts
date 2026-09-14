@@ -39,10 +39,7 @@ import { handleWsUrlRequest } from "../application/handle-ws-url-request.ts";
 import { runtimeInvokeResultFromResponse } from "../application/runtime-response.ts";
 import type { KnowledgeBaseIds } from "../contracts/knowledge-base-detail.ts";
 import type { RuntimePayload } from "../contracts/runtime.ts";
-import {
-  ALWAYS_INCLUDED_KNOWLEDGE_CATEGORIES,
-  SOAP_GAP_RULE_CONFIG_ITEM_KEY,
-} from "../contracts/soap-knowledge-base.ts";
+import { ALWAYS_INCLUDED_KNOWLEDGE_CATEGORIES } from "../contracts/soap-knowledge-base.ts";
 import { authContextFromJwtClaims } from "../domain/auth.ts";
 import { listAgentCoreSessions } from "../infra/agentcore-sessions-client.ts";
 import { buildDevInfo } from "../infra/dev-info.ts";
@@ -506,7 +503,6 @@ export async function handleBffDevRequest(
       {
         actorId: config.actorId,
         getKnowledgeContext: knowledgeContextFetcher(config),
-        getGapRuleConfig: gapRuleConfigFetcher(config),
         invokeRuntime: (_runtimeSessionId, payload) =>
           invokeLocalRuntime(config, payload, fetchFn),
         logError: (message, detail) => console.error(message, detail),
@@ -1079,42 +1075,6 @@ function knowledgeContextFetcher(config: BffDevConfig) {
       content: item.content,
       title: item.title,
     }));
-  };
-}
-
-/**
- * `soap_gaps` のルールベース不足検出設定（`DOMAIN_RULE` カテゴリ、
- * `SOAP_GAP_RULE_CONFIG_ITEM_KEY`）を取得し JSON.parse する。Training Data Store 未設定、
- * 該当項目が無い、JSON が不正、のいずれでも undefined を返す（best-effort、呼び出し元でも
- * failure を握りつぶす。AgentCore 側が既定値へフォールバックする）。
- */
-function gapRuleConfigFetcher(config: BffDevConfig) {
-  return async () => {
-    if (
-      !config.trainingDataClusterArn ||
-      !config.trainingDataDatabaseName ||
-      !config.trainingDataSecretArn
-    ) {
-      return undefined;
-    }
-    const storeConfig = {
-      clusterArn: config.trainingDataClusterArn,
-      database: config.trainingDataDatabaseName,
-      region: config.region,
-      secretArn: config.trainingDataSecretArn,
-    };
-    const items = await getActiveKnowledgeItems(storeConfig, ["DOMAIN_RULE"]);
-    const item = items.find(
-      (candidate) => candidate.itemKey === SOAP_GAP_RULE_CONFIG_ITEM_KEY,
-    );
-    if (!item) {
-      return undefined;
-    }
-    try {
-      return JSON.parse(item.content);
-    } catch {
-      return undefined;
-    }
   };
 }
 
