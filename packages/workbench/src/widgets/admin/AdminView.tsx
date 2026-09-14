@@ -1203,7 +1203,9 @@ function KnowledgeBaseTab() {
                     [{knowledgeItemCategoryLabel(item.category)}] {item.title}
                   </span>
                 </div>
-                <p className="soap-draft-text">{item.content}</p>
+                <p className="soap-draft-text knowledge-item-content">
+                  {item.content}
+                </p>
                 <div className="soap-draft-candidate-actions">
                   <button
                     type="button"
