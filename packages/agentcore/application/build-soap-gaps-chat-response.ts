@@ -28,7 +28,10 @@ import {
   resolveMemory,
   saveTurnBestEffort,
 } from "./memory-turn.ts";
-import { buildSoapGapsChatAgent } from "./soap-gaps-chat-agent.ts";
+import {
+  buildSoapGapsChatAgent,
+  SOAP_GAPS_CHAT_AGENT_NAME,
+} from "./soap-gaps-chat-agent.ts";
 
 const FALLBACK_OUTPUT: SoapGapsChatOutput = {
   message: "うまく応答できませんでした。もう一度お試しください。",
@@ -64,6 +67,7 @@ function defaultSoapGapsChatRunner(
   const deps: AgentDeps = { config };
   const agent = buildSoapGapsChatAgent(deps, knowledgeContext);
   return async (message) => {
+    console.log(`[${SOAP_GAPS_CHAT_AGENT_NAME}] prompt:\n${message}`);
     const result = await agent.invoke(message);
     const structuredOutput = result.structuredOutput as
       | SoapGapsChatOutput

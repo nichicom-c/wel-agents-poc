@@ -2,7 +2,7 @@
   "Version": "2012-10-17",
   "Statement": [
     {
-      "Sid": "CommonReadAndBootstrap",
+      "Sid": "Bootstrap",
       "Effect": "Allow",
       "Action": [
         "sts:GetCallerIdentity",
@@ -27,7 +27,7 @@
       "Resource": "arn:aws:iam::*:role/wel-agents-rag-*"
     },
     {
-      "Sid": "IamPassRoleToServices",
+      "Sid": "IamPassRole",
       "Effect": "Allow",
       "Action": "iam:PassRole",
       "Resource": "arn:aws:iam::*:role/wel-agents-rag-*",
@@ -169,6 +169,7 @@
         "bedrock-agentcore:CreateAgentRuntimeEndpoint",
         "bedrock-agentcore:DeleteAgentRuntimeEndpoint",
         "bedrock-agentcore:GetAgentRuntimeEndpoint",
+        "bedrock-agentcore:UpdateAgentRuntimeEndpoint",
         "bedrock-agentcore:CreateMemory",
         "bedrock-agentcore:DeleteMemory",
         "bedrock-agentcore:GetMemory",
@@ -225,7 +226,7 @@
       "Resource": "*"
     },
     {
-      "Sid": "RedshiftServerlessEc2Discovery",
+      "Sid": "Ec2Discovery",
       "Effect": "Allow",
       "Action": [
         "ec2:DescribeAccountAttributes",
@@ -272,7 +273,7 @@
       "Resource": "*"
     },
     {
-      "Sid": "RedshiftAdminSecret",
+      "Sid": "RedshiftSecret",
       "Effect": "Allow",
       "Action": [
         "secretsmanager:CreateSecret",
