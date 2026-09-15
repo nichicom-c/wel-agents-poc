@@ -75,6 +75,23 @@ describe("buildSoapDraftAgent", () => {
     const model = agent.model as BedrockModel;
     expect(model.getConfig().modelId).toBe("jp.anthropic.claude-haiku-4-5");
   });
+
+  test("knowledgeContext のうち SOAP_RULE だけを systemPrompt 末尾に追記する", () => {
+    const deps: AgentDeps = { config: makeConfig() };
+    const agent = buildSoapDraftAgent(deps, [
+      { category: "SOAP_RULE", content: "Sは主観。", title: "S/O定義" },
+      { category: "SAFETY", content: "捏造禁止。", title: "事実の捏造禁止" },
+      {
+        category: "FEEDBACK_POLICY",
+        content: "良い点→改善点。",
+        title: "順序",
+      },
+    ]);
+
+    expect(String(agent.systemPrompt)).toContain("S/O定義");
+    expect(String(agent.systemPrompt)).not.toContain("事実の捏造禁止");
+    expect(String(agent.systemPrompt)).not.toContain("順序");
+  });
 });
 
 describe("recordTypeLabel", () => {

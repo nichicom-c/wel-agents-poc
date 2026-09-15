@@ -15,7 +15,10 @@ import { getActorId, getSessionId } from "../domain/session.ts";
 import { getSoapDraftText } from "../domain/soap-draft.ts";
 import { type Config, configFromEnv } from "../infra/config.ts";
 import type { AgentDeps } from "./agent-deps.ts";
-import { buildSoapDraftAgent } from "./soap-draft-agent.ts";
+import {
+  buildSoapDraftAgent,
+  SOAP_DRAFT_AGENT_NAME,
+} from "./soap-draft-agent.ts";
 
 const EMPTY_OUTPUT: SoapDraftOutput = {
   candidates: [],
@@ -43,6 +46,9 @@ function defaultSoapDraftRunner(
 ): SoapDraftRunner {
   const deps: AgentDeps = { config };
   const agent = buildSoapDraftAgent(deps, knowledgeContext);
+  console.log(
+    `[${SOAP_DRAFT_AGENT_NAME}] systemPrompt:\n${agent.systemPrompt}`,
+  );
   return async (message) => {
     const result = await agent.invoke(message);
     // AgentResult.structuredOutput は SDK 側で z.output<z.ZodType> としか型付けされておらず

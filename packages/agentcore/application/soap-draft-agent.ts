@@ -50,8 +50,11 @@ const RECORD_TYPE_DESCRIPTIONS_TEXT = Object.values(
 /**
  * SOAP_DRAFT_SYSTEM_PROMPT の要旨:
  *
- * 相談支援記録の下書き作成を支援するアシスタントとして、入力テキストを SOAP 形式
- * （S: 主観的情報 / O: 客観的情報 / A: アセスメント / P: 支援計画）の候補に分割する。
+ * 相談支援記録の下書き作成を支援するアシスタントとして、入力テキストを SOAP（S/O/A/P）の
+ * 候補に分割する。S/O/A/P 各カテゴリ自体の定義（何が S で何が O か等）はこのプロンプトには
+ * 含めず、KB の SOAP_RULE カテゴリ（`buildSoapDraftAgent` が末尾に追記する
+ * `knowledgeContext`）を唯一の定義元とする。SOAP_RULE が未取得（KB 未設定・取得失敗時）の
+ * 場合、この agent は S/O/A/P の定義を持たないまま分類することになる点に注意。
  * A（アセスメント）は、入力テキストに元々書かれている支援者自身の評価・判断の文だけを
  * 対象とする。複数の S/O を AI が統合・推論して新たに導き出した結論は「分類」ではなく
  * 「生成」であり、専門職の判断を AI が代弁してしまうリスクがあるため、A にはせず
@@ -65,9 +68,9 @@ const RECORD_TYPE_DESCRIPTIONS_TEXT = Object.values(
  */
 const SOAP_DRAFT_SYSTEM_PROMPT =
   "You are an assistant that helps draft support-record entries from free-text input. " +
-  "Split the input text into SOAP candidates: S (subjective information, typically the " +
-  "person's own words/feelings), O (objective information, observed facts), A (assessment), " +
-  "and P (support plan). " +
+  "Split the input text into SOAP candidates: S, O, A, and P. The definition of each of " +
+  "S/O/A/P is given to you separately as active SOAP_RULE knowledge base content appended " +
+  "below — follow that definition as the source of truth for what belongs in each category. " +
   "IMPORTANT constraint on A: only classify a passage as A when the input text ITSELF " +
   "already contains an explicit assessment or judgment written by the support worker — a " +
   "sentence stating their own evaluation, interpretation, or conclusion, not a bare recitation " +
@@ -115,18 +118,25 @@ function resolveSoapDraftModel(deps: AgentDeps): Model {
  * SOAP 下書き生成用の Agent を生成する。structuredOutputSchema で候補配列を型付きで受け取る。
  *
  * `knowledgeContext`（保健師SOAP_KB_詳細設計書_v2 の knowledge_item、BFF が active な
- * SOAP_RULE/SAFETY/FEEDBACK_POLICY を取得して渡す）が与えられれば、ハードコードされた
- * `SOAP_DRAFT_SYSTEM_PROMPT` を置き換えず、末尾に補足コンテキストとして追記する。
+ * SOAP_RULE/SAFETY/FEEDBACK_POLICY を取得して渡す）のうち、この agent は S/O/A/P の定義・
+ * 記録ルールである SOAP_RULE カテゴリだけを使う。SAFETY/FEEDBACK_POLICY は AI レビュー・
+ * フィードバック系の agent（soap-gaps-chat-agent.ts 等）向けのため、下書き分類には不要として
+ * 除外する。`SOAP_DRAFT_SYSTEM_PROMPT` 自体はもう S/O/A/P の定義を持たないため、SOAP_RULE が
+ * 末尾に補足コンテキストとして追記されることが実質的な定義元になる（SOAP_RULE が空の場合、
+ * この agent は定義を持たないまま分類する）。
  */
 export function buildSoapDraftAgent(
   deps: AgentDeps,
   knowledgeContext: KnowledgeContextItem[] = [],
 ): Agent {
+  const soapRuleContext = knowledgeContext.filter(
+    (item) => item.category === "SOAP_RULE",
+  );
   return new Agent({
     name: SOAP_DRAFT_AGENT_NAME,
     model: resolveSoapDraftModel(deps),
     systemPrompt:
-      SOAP_DRAFT_SYSTEM_PROMPT + formatKnowledgeContext(knowledgeContext),
+      SOAP_DRAFT_SYSTEM_PROMPT + formatKnowledgeContext(soapRuleContext),
     structuredOutputSchema: soapDraftOutputSchema,
     printer: false,
   });
