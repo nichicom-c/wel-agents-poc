@@ -129,6 +129,35 @@ describe("handleMaterialRequest", () => {
       });
     });
 
+    test("learningObjective / teachingPoints も createMaterial に渡す", async () => {
+      let capturedInput: unknown;
+      await handleMaterialRequest(
+        {
+          body: JSON.stringify({
+            learningObjective:
+              "不足情報を確認し、S/Oを関連付けてAssessmentできるようになる",
+            materialType: "teaching_case",
+            teachingPoints: ["単回の測定値だけで結論を出さない"],
+            title: "title text",
+          }),
+          method: "POST",
+          path: "/api/materials",
+        },
+        baseOptions({
+          createMaterial: async (input) => {
+            capturedInput = input;
+            return SAMPLE_MATERIAL;
+          },
+        }),
+      );
+
+      expect(capturedInput).toMatchObject({
+        learningObjective:
+          "不足情報を確認し、S/Oを関連付けてAssessmentできるようになる",
+        teachingPoints: ["単回の測定値だけで結論を出さない"],
+      });
+    });
+
     test("materialType が不正なら 400 を返す", async () => {
       const response = await handleMaterialRequest(
         {

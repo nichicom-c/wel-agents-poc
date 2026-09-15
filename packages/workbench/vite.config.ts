@@ -47,6 +47,10 @@ export function buildWorkbenchViteConfig(
       changeOrigin: true,
       target: config.bffUrl,
     },
+    "/api/material-chat": {
+      changeOrigin: true,
+      target: config.bffUrl,
+    },
     "/api/materials": {
       changeOrigin: true,
       target: config.bffUrl,

@@ -16,6 +16,7 @@ import {
   type KnowledgeBaseDetailProvider,
 } from "../application/handle-knowledge-base-detail-request.ts";
 import { handleMaterialCandidateRequest } from "../application/handle-material-candidate-request.ts";
+import { handleMaterialChatRequest } from "../application/handle-material-chat-request.ts";
 import { handleMaterialRequest } from "../application/handle-material-request.ts";
 import { handleProfessionalCommentRequest } from "../application/handle-professional-comment-request.ts";
 import { handlePromptTemplateRequest } from "../application/handle-prompt-template-request.ts";
@@ -351,6 +352,25 @@ export async function handleLambdaEvent(
         path,
       },
       instructorCommentOptions(config, event, deps),
+    );
+  }
+
+  if (path === "/api/material-chat") {
+    return handleMaterialChatRequest(
+      {
+        body: event.body,
+        isBase64Encoded: event.isBase64Encoded,
+        method,
+        path,
+      },
+      {
+        actorId: config.actorId,
+        invokeRuntime: (runtimeSessionId, payload) =>
+          invokeAgentCoreRuntime(config, runtimeSessionId, payload, deps),
+        logError:
+          deps.logError ??
+          ((message, detail) => console.error(message, detail)),
+      },
     );
   }
 

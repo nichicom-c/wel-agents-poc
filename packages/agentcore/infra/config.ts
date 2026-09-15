@@ -80,6 +80,11 @@ export type Config = {
    * を使う。`soapDraftModelId` と同様の方針。
    */
   readonly teachingMaterialModelId?: string;
+  /**
+   * Training 画面の教材チャット専用の Bedrock model ID（任意）。未設定なら `modelId` を使う。
+   * `soapDraftModelId` と同様の方針。
+   */
+  readonly materialChatModelId?: string;
 };
 
 /** trim 後に非空の値だけを返す（空文字・空白のみは未設定扱い）。 */
@@ -139,6 +144,7 @@ export function configFromEnv(env: EnvSource = process.env): Config {
     soapGapsModelId: nonEmpty(env.SOAP_GAPS_MODEL_ID),
     exerciseFeedbackModelId: nonEmpty(env.EXERCISE_FEEDBACK_MODEL_ID),
     teachingMaterialModelId: nonEmpty(env.TEACHING_MATERIAL_MODEL_ID),
+    materialChatModelId: nonEmpty(env.MATERIAL_CHAT_MODEL_ID),
   };
 }
 

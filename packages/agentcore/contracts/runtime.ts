@@ -5,20 +5,23 @@ import type { Gap } from "./soap-gaps.ts";
  * AgentCore Runtime への入力 JSON。
  *
  * `type` 省略時（または `"soap_draft"` / `"soap_gaps"` / `"soap_gaps_chat"` /
- * `"exercise_feedback"` / `"teaching_material"` 以外）は chat（supervisor）として扱う。
- * `text` は `type: "soap_draft"` / `"teaching_material"` のときだけ使う
- * （`teaching_material` では教材候補化したい専門職コメント本文）。記録種別は入力ではなく、
- * 分類後に入力全体に対する反映候補（`recommendedRecordTypes`）として model が出力する
+ * `"exercise_feedback"` / `"teaching_material"` / `"material_chat"` 以外）は
+ * chat（supervisor）として扱う。`text` は `type: "soap_draft"` / `"teaching_material"` のとき
+ * だけ使う（`teaching_material` では教材候補化したい専門職コメント本文）。記録種別は入力では
+ * なく、分類後に入力全体に対する反映候補（`recommendedRecordTypes`）として model が出力する
  * （個々の候補ではない）。`candidates` は `type: "soap_gaps"` / `"soap_gaps_chat"` のときに
- * 使い、既存の SOAP 下書き候補（`soap_draft` の出力）を渡す。`gap` / `message` は
- * `type: "soap_gaps_chat"` のときだけ使う: `gap` は呼び出し側（BFF/Workbench）が優先度順に
- * 選んだ「今回扱う1件の不足」（`soap_gaps` の出力の1要素）、`message` は利用者の今回の発言
- * （初回の提示ターンでは省略）。`exercise_case` / `exercise_answers` は
- * `type: "exercise_feedback"`（issue #9 の演習フィードバック生成）のときだけ使う。
- * `knowledge_context` は `type: "soap_draft"` / `"soap_gaps"` / `"soap_gaps_chat"` のときに
- * BFF が保健師SOAP_KB_詳細設計書_v2 の `knowledge_item`
- * （SOAP_RULE/SAFETY/FEEDBACK_POLICY）から組み立てて渡す補足コンテキスト（省略可、
- * `domain/knowledge-context.ts` が抽出する）。
+ * 使い、既存の SOAP 下書き候補（`soap_draft` の出力）を渡す。`gap` は `type: "soap_gaps_chat"`
+ * のときだけ使う（呼び出し側（BFF/Workbench）が優先度順に選んだ「今回扱う1件の不足」、
+ * `soap_gaps` の出力の1要素）。`message` は `type: "soap_gaps_chat"` / `"material_chat"` の
+ * ときに使う利用者の今回の発言（初回の提示ターンでは省略）。`exercise_case` /
+ * `exercise_answers` は `type: "exercise_feedback"`（issue #9 の演習フィードバック生成）の
+ * ときだけ使う。`material` / `history` は `type: "material_chat"`（Training 画面の教材
+ * チャット）のときだけ使う: `material` は対話対象の教材（title/learningObjective/
+ * teachingPoints）、`history` は client（workbench）が保持するこれまでの会話（AgentCore
+ * Memory を使わない stateless 設計のため、毎回全履歴を渡す）。`knowledge_context` は
+ * `type: "soap_draft"` / `"soap_gaps"` / `"soap_gaps_chat"` のときに BFF が
+ * 保健師SOAP_KB_詳細設計書_v2 の `knowledge_item`（SOAP_RULE/SAFETY/FEEDBACK_POLICY）から
+ * 組み立てて渡す補足コンテキスト（省略可、`domain/knowledge-context.ts` が抽出する）。
  */
 export type RuntimeRequest = {
   prompt?: unknown;
@@ -32,6 +35,8 @@ export type RuntimeRequest = {
   message?: unknown;
   exercise_case?: unknown;
   exercise_answers?: unknown;
+  material?: unknown;
+  history?: unknown;
   knowledge_context?: unknown;
 };
 
@@ -96,6 +101,15 @@ export type RuntimeResponse =
       title: string;
       learningObjective: string;
       teachingPoints: string[];
+      session_id: string;
+      actor_id: string;
+      model_id: string;
+    }
+  | {
+      status: "success";
+      type: "material_chat";
+      /** 利用者にそのまま表示するチャット発言。 */
+      message: string;
       session_id: string;
       actor_id: string;
       model_id: string;

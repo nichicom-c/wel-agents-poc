@@ -15,6 +15,7 @@ import {
   type KnowledgeBaseDetailProvider,
 } from "../application/handle-knowledge-base-detail-request.ts";
 import { handleMaterialCandidateRequest } from "../application/handle-material-candidate-request.ts";
+import { handleMaterialChatRequest } from "../application/handle-material-chat-request.ts";
 import { handleMaterialRequest } from "../application/handle-material-request.ts";
 import { handleProfessionalCommentRequest } from "../application/handle-professional-comment-request.ts";
 import { handlePromptTemplateRequest } from "../application/handle-prompt-template-request.ts";
@@ -377,6 +378,24 @@ export async function handleBffDevRequest(
       {
         actorId: config.actorId,
         getKnowledgeContext: knowledgeContextFetcher(config),
+        invokeRuntime: (_runtimeSessionId, payload) =>
+          invokeLocalRuntime(config, payload, fetchFn),
+        logError: (message, detail) => console.error(message, detail),
+      },
+    );
+
+    return responseFromBff(bffResponse);
+  }
+
+  if (url.pathname === "/api/material-chat") {
+    const bffResponse = await handleMaterialChatRequest(
+      {
+        body,
+        method: request.method,
+        path: url.pathname,
+      },
+      {
+        actorId: config.actorId,
         invokeRuntime: (_runtimeSessionId, payload) =>
           invokeLocalRuntime(config, payload, fetchFn),
         logError: (message, detail) => console.error(message, detail),

@@ -59,6 +59,14 @@ export type Material = {
   createdBy: string;
   createdAt: string;
   revisions: MaterialRevision[];
+  /**
+   * この教材で新人が身につけるべき学習目標（任意）。教材候補の承認・教材化（issue #8）で
+   * 引き継がれるか、Admin 画面の新規登録フォームで直接入力される。Training 画面の
+   * 教材チャットが会話の初期文脈として使う。
+   */
+  learningObjective?: string;
+  /** 指導のポイント(教えるべきこと)の一覧（任意）。`learningObjective` と同じ生成元。 */
+  teachingPoints?: string[];
 };
 
 export type MaterialFilters = {

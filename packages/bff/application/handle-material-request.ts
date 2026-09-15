@@ -25,6 +25,8 @@ export type HandleMaterialOptions = {
     difficultyId?: string;
     createdBy: string;
     createdByDisplayName?: string;
+    learningObjective?: string;
+    teachingPoints?: string[];
   }) => Promise<Material>;
   changeStatus: (input: {
     id: string;
@@ -129,9 +131,11 @@ async function handleCreate(
     createdBy: authContext.userId,
     createdByDisplayName: authContext.displayName,
     difficultyId: textField(body.difficultyId) || undefined,
+    learningObjective: textField(body.learningObjective) || undefined,
     learningThemeId: textField(body.learningThemeId) || undefined,
     materialType,
     specialtyId: textField(body.specialtyId) || undefined,
+    teachingPoints: stringArrayField(body.teachingPoints),
     title,
   });
 
@@ -208,6 +212,17 @@ function asRecord(value: unknown): Record<string, unknown> {
 
 function textField(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
+}
+
+/** `teachingPoints`（任意の文字列配列）を取り出す。空・未指定なら undefined。 */
+function stringArrayField(value: unknown): string[] | undefined {
+  if (!Array.isArray(value)) {
+    return undefined;
+  }
+  const entries = value
+    .map((entry) => (typeof entry === "string" ? entry.trim() : ""))
+    .filter((entry) => entry.length > 0);
+  return entries.length > 0 ? entries : undefined;
 }
 
 /** Lambda 互換の JSON response を組み立てる。 */

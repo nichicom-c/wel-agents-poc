@@ -447,6 +447,80 @@ describe("promoteMaterialCandidateToMaterial", () => {
     ).toBe(true);
   });
 
+  test("候補の learning_objective / teaching_points を教材に引き継ぐ", async () => {
+    class PromotedWithTeachingFieldsClient extends FakeRdsDataClient {
+      override async send(command: {
+        constructor: { name: string };
+        input?: Record<string, unknown>;
+      }): Promise<unknown> {
+        const sql =
+          typeof command.input?.sql === "string"
+            ? command.input.sql
+            : undefined;
+        if (
+          sql?.includes("from material_candidates mc") &&
+          sql.includes("where mc.id")
+        ) {
+          return {
+            formattedRecords: JSON.stringify([
+              { ...CANDIDATE_ROW, material_id: "material-new" },
+            ]),
+          };
+        }
+        if (
+          sql?.includes("select status, title, specialty_id") &&
+          sql.includes("learning_objective")
+        ) {
+          return {
+            formattedRecords: JSON.stringify([
+              {
+                difficulty_id: "intermediate",
+                learning_objective:
+                  "不足情報を確認し、S/Oを関連付けてAssessmentできるようになる",
+                learning_theme_id: "support-planning",
+                material_id: null,
+                specialty_id: "maternal-child",
+                status: "approved",
+                teaching_points: JSON.stringify([
+                  "単回の測定値だけで結論を出さない",
+                ]),
+                title: "title text",
+              },
+            ]),
+          };
+        }
+        return super.send(command);
+      }
+    }
+    const client = new PromotedWithTeachingFieldsClient();
+
+    await promoteMaterialCandidateToMaterial(
+      CONFIG,
+      { changedBy: "11111111-1111-1111-1111-111111111111", id: "candidate-1" },
+      { client: client as never },
+    );
+
+    const insertCall = client.calls.find((call) =>
+      call.sql?.includes("insert into materials"),
+    );
+    const parameters = insertCall?.parameters as
+      | { name: string; value: Record<string, unknown> }[]
+      | undefined;
+    const learningObjectiveParam = parameters?.find(
+      (param) => param.name === "learningObjective",
+    );
+    const teachingPointsParam = parameters?.find(
+      (param) => param.name === "teachingPoints",
+    );
+
+    expect(learningObjectiveParam?.value.stringValue).toBe(
+      "不足情報を確認し、S/Oを関連付けてAssessmentできるようになる",
+    );
+    expect(teachingPointsParam?.value.stringValue).toBe(
+      JSON.stringify(["単回の測定値だけで結論を出さない"]),
+    );
+  });
+
   test("承認済みでない候補は MaterialCandidateNotApprovedError を投げる", async () => {
     class CandidateOnlyClient extends FakeRdsDataClient {
       override async send(command: {

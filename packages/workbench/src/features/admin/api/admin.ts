@@ -127,6 +127,8 @@ export type NewMaterialInput = {
   specialtyId?: string;
   learningThemeId?: string;
   difficultyId?: string;
+  learningObjective?: string;
+  teachingPoints?: string[];
 };
 
 /** 新規教材を status: draft で作る（issue #8 の教材候補承認や手動登録の受け口）。 */
@@ -650,13 +652,22 @@ function normalizeMaterial(
     createdBy,
     difficultyId: trimmedText(record.difficultyId) || undefined,
     id,
+    learningObjective: trimmedText(record.learningObjective) || undefined,
     learningThemeId: trimmedText(record.learningThemeId) || undefined,
     materialType,
     publicationStatus,
     revisions: normalizeRevisions(record.revisions),
     specialtyId: trimmedText(record.specialtyId) || undefined,
+    teachingPoints: optionalStringArray(record.teachingPoints),
     title,
   };
+}
+
+function optionalStringArray(value: unknown): string[] | undefined {
+  const entries = stringArray(value)
+    .map((entry) => entry.trim())
+    .filter((entry) => entry.length > 0);
+  return entries.length > 0 ? entries : undefined;
 }
 
 function normalizeRevisions(value: unknown): MaterialRevision[] {

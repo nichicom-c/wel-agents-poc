@@ -4,12 +4,13 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { TrainingView } from "./TrainingView.tsx";
 
 describe("TrainingView", () => {
-  test("見出しとロール切り替え、既定ロール（新人保健師）での演習/学習履歴タブを描画する", () => {
+  test("見出しとロール切り替え、既定ロール（新人保健師）での演習/教材チャット/学習履歴タブを描画する", () => {
     const html = renderToStaticMarkup(<TrainingView />);
 
     expect(html).toContain("Training");
     expect(html).toContain("ロール（デモ用の切り替え");
     expect(html).toContain("演習");
+    expect(html).toContain("教材チャット");
     expect(html).toContain("学習履歴");
   });
 

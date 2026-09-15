@@ -11,6 +11,7 @@ import {
   beginTransaction,
   commitTransaction,
   execute,
+  jsonParam,
   nullableStringParam,
   parseJsonColumn,
   parseRows,
@@ -21,6 +22,13 @@ import {
   type TrainingDataStoreDeps,
   upsertAppUser,
 } from "./training-data-sql.ts";
+
+/** `teachingPoints`（任意の文字列配列）を jsonb param にする。未指定なら SQL NULL。 */
+function nullableJsonParam(name: string, value: unknown) {
+  return value === undefined
+    ? { name, value: { isNull: true } }
+    : jsonParam(name, value);
+}
 
 /**
  * 教材（issue #10）の永続化層。`materials` を主に、公開状態の変更履歴
@@ -41,12 +49,15 @@ type MaterialRow = {
   difficulty_id: string | null;
   created_by: string;
   created_at: string;
+  learning_objective: string | null;
+  teaching_points: string[] | string | null;
   revisions: RawRevision[] | string;
 };
 
 const MATERIAL_SELECT = `
   select m.id, m.material_type, m.title, m.publication_status, m.specialty_id,
          m.learning_theme_id, m.difficulty_id, m.created_by, m.created_at,
+         m.learning_objective, m.teaching_points,
          coalesce((
            select json_agg(json_build_object(
              'fromStatus', mr.from_status,
@@ -66,11 +77,15 @@ function mapMaterialRow(row: MaterialRow): Material {
     createdBy: row.created_by,
     difficultyId: row.difficulty_id ?? undefined,
     id: row.id,
+    learningObjective: row.learning_objective ?? undefined,
     learningThemeId: row.learning_theme_id ?? undefined,
     materialType: row.material_type,
     publicationStatus: row.publication_status,
     revisions: parseJsonColumn<RawRevision[]>(row.revisions, []),
     specialtyId: row.specialty_id ?? undefined,
+    teachingPoints: row.teaching_points
+      ? parseJsonColumn<string[]>(row.teaching_points, [])
+      : undefined,
     title: row.title,
   };
 }
@@ -128,6 +143,10 @@ export type CreateMaterialInput = {
   difficultyId?: string;
   createdBy: string;
   createdByDisplayName?: string;
+  /** この教材で新人が身につけるべき学習目標（任意）。Training 画面の教材チャットが使う。 */
+  learningObjective?: string;
+  /** 指導のポイント(教えるべきこと)の一覧（任意）。`learningObjective` と同じ生成元。 */
+  teachingPoints?: string[];
 };
 
 /** 新規教材を status: draft で作る（issue #8 の教材候補承認や手動登録の受け口）。 */
@@ -153,10 +172,11 @@ export async function createMaterial(
         config,
         `insert into materials
            (material_type, title, publication_status, specialty_id, learning_theme_id,
-            difficulty_id, created_by)
+            difficulty_id, created_by, learning_objective, teaching_points)
          values
            (:materialType::material_type, :title, 'draft'::publication_status, :specialtyId,
-            :learningThemeId, :difficultyId, :createdBy::uuid)
+            :learningThemeId, :difficultyId, :createdBy::uuid, :learningObjective,
+            :teachingPoints::jsonb)
          returning id`,
         [
           stringParam("materialType", input.materialType),
@@ -165,6 +185,8 @@ export async function createMaterial(
           nullableStringParam("learningThemeId", input.learningThemeId),
           nullableStringParam("difficultyId", input.difficultyId),
           stringParam("createdBy", input.createdBy),
+          nullableStringParam("learningObjective", input.learningObjective),
+          nullableJsonParam("teachingPoints", input.teachingPoints),
         ],
         transactionId,
       ),

@@ -422,7 +422,9 @@ export type PromoteMaterialCandidateInput = {
 /**
  * 承認済みの教材候補を issue #10 の `materials`（教材種別: `comment_derived_note`、
  * status: draft）に変換し、`material_candidates.material_id` で紐づける
- * （`materials` にはコメント欄が無いため `summary` / `record_type` は引き継がない）。
+ * （`materials` にはコメント欄が無いため `summary` / `record_type` は引き継がないが、
+ * Training 画面の教材チャットが会話の文脈として使う `learning_objective` / `teaching_points`
+ * は引き継ぐ）。
  */
 export async function promoteMaterialCandidateToMaterial(
   config: TrainingDataStoreConfig,
@@ -447,11 +449,14 @@ export async function promoteMaterialCandidateToMaterial(
       learning_theme_id: string | null;
       difficulty_id: string | null;
       material_id: string | null;
+      learning_objective: string | null;
+      teaching_points: string[] | string | null;
     }>(
       await execute(
         rdsClient,
         config,
-        `select status, title, specialty_id, learning_theme_id, difficulty_id, material_id
+        `select status, title, specialty_id, learning_theme_id, difficulty_id, material_id,
+                learning_objective, teaching_points
          from material_candidates where id = :id::uuid`,
         [stringParam("id", input.id)],
         transactionId,
@@ -472,16 +477,21 @@ export async function promoteMaterialCandidateToMaterial(
       );
     }
 
+    const candidateTeachingPoints = current.teaching_points
+      ? parseJsonColumn<string[]>(current.teaching_points, [])
+      : undefined;
+
     const materialRows = parseRows<{ id: string }>(
       await execute(
         rdsClient,
         config,
         `insert into materials
            (material_type, title, publication_status, specialty_id, learning_theme_id,
-            difficulty_id, created_by)
+            difficulty_id, created_by, learning_objective, teaching_points)
          values
            ('comment_derived_note'::material_type, :title, 'draft'::publication_status,
-            :specialtyId, :learningThemeId, :difficultyId, :createdBy::uuid)
+            :specialtyId, :learningThemeId, :difficultyId, :createdBy::uuid,
+            :learningObjective, :teachingPoints::jsonb)
          returning id`,
         [
           stringParam("title", current.title),
@@ -495,6 +505,11 @@ export async function promoteMaterialCandidateToMaterial(
             current.difficulty_id ?? undefined,
           ),
           stringParam("createdBy", input.changedBy),
+          nullableStringParam(
+            "learningObjective",
+            current.learning_objective ?? undefined,
+          ),
+          nullableJsonParam("teachingPoints", candidateTeachingPoints),
         ],
         transactionId,
       ),

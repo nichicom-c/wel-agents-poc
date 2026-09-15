@@ -1,5 +1,18 @@
 import { useEffect, useState } from "react";
 import {
+  listMaterials,
+  type Material,
+  materialTypeLabel,
+} from "../../features/admin/index.ts";
+import {
+  appendAssistantMessage,
+  appendUserMessage,
+  type ChatMessage,
+  type MaterialChatMaterial,
+  MessageMarkdown,
+  postMaterialChat,
+} from "../../features/chat/index.ts";
+import {
   DIFFICULTY_LEVELS,
   LEARNING_THEMES,
   SPECIALTIES,
@@ -36,7 +49,7 @@ const EMPTY_ANSWERS: ExerciseAttemptAnswers = {
   supportPlanText: "",
 };
 
-type TraineeTab = "exercise" | "history";
+type TraineeTab = "exercise" | "materials-chat" | "history";
 type LoadStatus = "idle" | "loading" | "error";
 
 export function TrainingView() {
@@ -96,6 +109,15 @@ function TraineeView() {
         <button
           type="button"
           role="tab"
+          aria-selected={activeTab === "materials-chat"}
+          data-active={activeTab === "materials-chat"}
+          onClick={() => setActiveTab("materials-chat")}
+        >
+          教材チャット
+        </button>
+        <button
+          type="button"
+          role="tab"
           aria-selected={activeTab === "history"}
           data-active={activeTab === "history"}
           onClick={() => setActiveTab("history")}
@@ -104,7 +126,13 @@ function TraineeView() {
         </button>
       </div>
 
-      {activeTab === "exercise" ? <ExerciseTab /> : <HistoryTab />}
+      {activeTab === "exercise" ? (
+        <ExerciseTab />
+      ) : activeTab === "materials-chat" ? (
+        <MaterialChatTab />
+      ) : (
+        <HistoryTab />
+      )}
     </>
   );
 }
@@ -448,6 +476,213 @@ function FeedbackPanel({
       ))}
     </div>
   );
+}
+
+/**
+ * 公開済み教材(status: published)を一覧し、選択した教材の内容(タイトル/学習目標/
+ * 指導のポイント)を文脈として BFF `/api/material-chat`(専用の教材チャット agent。
+ * supervisor の RAG ルーティングは経由しない)を起動する。AgentCore Memory は使わず、
+ * ここで保持している `messages` をそのまま毎回 `history` として送り直す。
+ */
+function MaterialChatTab() {
+  const [materials, setMaterials] = useState<Material[] | null>(null);
+  const [status, setStatus] = useState<LoadStatus>("idle");
+  const [error, setError] = useState("");
+  const [selectedMaterial, setSelectedMaterial] = useState<Material | null>(
+    null,
+  );
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [chatStatus, setChatStatus] = useState<LoadStatus>("idle");
+  const [chatError, setChatError] = useState("");
+  const [inputText, setInputText] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+    setStatus("loading");
+    listMaterials({ publicationStatus: "published" })
+      .then((result) => {
+        if (cancelled) {
+          return;
+        }
+        setMaterials(result);
+        setStatus("idle");
+      })
+      .catch((caught: unknown) => {
+        if (cancelled) {
+          return;
+        }
+        setStatus("error");
+        setError(caught instanceof Error ? caught.message : String(caught));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  async function handleSelectMaterial(material: Material) {
+    setSelectedMaterial(material);
+    setMessages([]);
+    setChatError("");
+    setChatStatus("loading");
+    try {
+      const message = await postMaterialChat({
+        history: [],
+        material: materialChatMaterial(material),
+      });
+      setMessages(appendAssistantMessage([], message));
+      setChatStatus("idle");
+    } catch (caught) {
+      setChatStatus("error");
+      setChatError(caught instanceof Error ? caught.message : String(caught));
+    }
+  }
+
+  async function handleSendMessage() {
+    const text = inputText.trim();
+    if (!text || !selectedMaterial) {
+      return;
+    }
+    const nextMessages = appendUserMessage(messages, text);
+    setMessages(nextMessages);
+    setInputText("");
+    setChatError("");
+    setChatStatus("loading");
+    try {
+      const message = await postMaterialChat({
+        history: messages.map((entry) => ({
+          role: entry.role,
+          text: entry.text,
+        })),
+        material: materialChatMaterial(selectedMaterial),
+        message: text,
+      });
+      setMessages(appendAssistantMessage(nextMessages, message));
+      setChatStatus("idle");
+    } catch (caught) {
+      setChatStatus("error");
+      setChatError(caught instanceof Error ? caught.message : String(caught));
+    }
+  }
+
+  return (
+    <section aria-label="教材チャット">
+      {status === "error" ? (
+        <p className="soap-draft-error">
+          公開教材の取得に失敗しました: {error}
+        </p>
+      ) : null}
+      {status === "idle" && (materials ?? []).length === 0 ? (
+        <p className="workbench-main-description">
+          公開済みの教材はまだありません。Admin 画面の「教材」タブで公開状態を
+          「公開済み」に変更すると、ここに表示されます。
+        </p>
+      ) : null}
+
+      <ul className="knowledge-review-candidate-list">
+        {(materials ?? []).map((material) => (
+          <li key={material.id} className="knowledge-review-candidate">
+            <div className="knowledge-review-candidate-header">
+              <h4>{material.title}</h4>
+            </div>
+            {material.learningObjective ? (
+              <p className="soap-draft-text">{material.learningObjective}</p>
+            ) : null}
+            <div className="knowledge-review-tag-row">
+              <span>{materialTypeLabel(material.materialType)}</span>
+              <span>
+                {material.specialtyId
+                  ? tagLabel(SPECIALTIES, material.specialtyId)
+                  : "未設定"}
+              </span>
+              <span>
+                {material.difficultyId
+                  ? tagLabel(DIFFICULTY_LEVELS, material.difficultyId)
+                  : "未設定"}
+              </span>
+              <span>
+                {material.learningThemeId
+                  ? tagLabel(LEARNING_THEMES, material.learningThemeId)
+                  : "未設定"}
+              </span>
+            </div>
+            <div className="soap-draft-candidate-actions">
+              <button
+                type="button"
+                onClick={() => void handleSelectMaterial(material)}
+              >
+                {selectedMaterial?.id === material.id
+                  ? "選択中"
+                  : "この教材についてチャットする"}
+              </button>
+            </div>
+          </li>
+        ))}
+      </ul>
+
+      {selectedMaterial ? (
+        <div className="knowledge-review-record-version">
+          <h4>{selectedMaterial.title} についてのチャット</h4>
+          {selectedMaterial.teachingPoints &&
+          selectedMaterial.teachingPoints.length > 0 ? (
+            <ul className="knowledge-review-status-history">
+              {selectedMaterial.teachingPoints.map((point) => (
+                <li key={point}>{point}</li>
+              ))}
+            </ul>
+          ) : null}
+
+          <ul className="knowledge-review-comment-list">
+            {messages.map((message) => (
+              <li key={message.id} className="knowledge-review-comment">
+                <div className="knowledge-review-comment-header">
+                  <span>
+                    {message.role === "user" ? "あなた" : "アシスタント"}
+                  </span>
+                </div>
+                {message.role === "assistant" ? (
+                  <MessageMarkdown text={message.text} />
+                ) : (
+                  <p className="soap-draft-text">{message.text}</p>
+                )}
+              </li>
+            ))}
+          </ul>
+
+          {chatStatus === "loading" ? (
+            <p className="workbench-main-description">応答を生成しています…</p>
+          ) : null}
+          {chatStatus === "error" ? (
+            <p className="soap-draft-error">
+              チャットに失敗しました: {chatError}
+            </p>
+          ) : null}
+
+          <div className="knowledge-review-comment-form">
+            <textarea
+              placeholder="質問や相談を入力してください"
+              value={inputText}
+              onChange={(event) => setInputText(event.target.value)}
+            />
+            <button
+              type="button"
+              disabled={!inputText.trim() || chatStatus === "loading"}
+              onClick={() => void handleSendMessage()}
+            >
+              送信
+            </button>
+          </div>
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
+function materialChatMaterial(material: Material): MaterialChatMaterial {
+  return {
+    learningObjective: material.learningObjective,
+    teachingPoints: material.teachingPoints,
+    title: material.title,
+  };
 }
 
 function HistoryTab() {

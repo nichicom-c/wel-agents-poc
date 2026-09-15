@@ -60,6 +60,13 @@ export type Material = {
   createdBy: string;
   createdAt: string;
   revisions: MaterialRevision[];
+  /**
+   * この教材で新人が身につけるべき学習目標（任意）。Training 画面の教材チャットが
+   * 会話の初期文脈として使う。
+   */
+  learningObjective?: string;
+  /** 指導のポイント(教えるべきこと)の一覧（任意）。`learningObjective` と同じ生成元。 */
+  teachingPoints?: string[];
 };
 
 export type MaterialFilters = {

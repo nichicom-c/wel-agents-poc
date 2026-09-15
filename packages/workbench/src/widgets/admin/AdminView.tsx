@@ -294,6 +294,8 @@ function MaterialsTab() {
   const [newDifficultyId, setNewDifficultyId] = useState(
     DIFFICULTY_LEVELS[0]?.id ?? "",
   );
+  const [newLearningObjective, setNewLearningObjective] = useState("");
+  const [newTeachingPointsText, setNewTeachingPointsText] = useState("");
 
   useEffect(() => {
     let cancelled = false;
@@ -326,13 +328,25 @@ function MaterialsTab() {
     }
     await addMaterial({
       difficultyId: newDifficultyId,
+      learningObjective: newLearningObjective.trim() || undefined,
       learningThemeId: newLearningThemeId,
       materialType: newMaterialType,
       specialtyId: newSpecialtyId,
+      teachingPoints: teachingPointsFromText(newTeachingPointsText),
       title: newTitle.trim(),
     });
     setNewTitle("");
+    setNewLearningObjective("");
+    setNewTeachingPointsText("");
     await refresh();
+  }
+
+  function teachingPointsFromText(text: string): string[] | undefined {
+    const points = text
+      .split("\n")
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0);
+    return points.length > 0 ? points : undefined;
   }
 
   return (
@@ -414,6 +428,18 @@ function MaterialsTab() {
                   : "未設定"}
               </span>
             </div>
+            {material.learningObjective ? (
+              <p className="soap-draft-text">
+                学習目標: {material.learningObjective}
+              </p>
+            ) : null}
+            {material.teachingPoints && material.teachingPoints.length > 0 ? (
+              <ul className="knowledge-review-status-history">
+                {material.teachingPoints.map((point) => (
+                  <li key={point}>{point}</li>
+                ))}
+              </ul>
+            ) : null}
             <div className="knowledge-review-decision-form">
               <label>
                 変更後の公開状態
@@ -511,6 +537,24 @@ function MaterialsTab() {
               </option>
             ))}
           </select>
+        </label>
+        <label>
+          学習目標(任意。Training 画面の教材チャットが会話の文脈として使う)
+          <textarea
+            placeholder="この教材で新人が身につけるべき学習目標"
+            value={newLearningObjective}
+            onChange={(event) => setNewLearningObjective(event.target.value)}
+          />
+        </label>
+        <label>
+          指導のポイント(任意。1行1項目)
+          <textarea
+            placeholder={
+              "単回の測定値だけで結論を出さない\n不足情報を明確にする"
+            }
+            value={newTeachingPointsText}
+            onChange={(event) => setNewTeachingPointsText(event.target.value)}
+          />
         </label>
         <button
           type="button"

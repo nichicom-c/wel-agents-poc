@@ -492,6 +492,7 @@ button:focus-visible {
   color: var(--text-primary);
   font-size: 14px;
   line-height: 1.6;
+  white-space: pre-wrap;
 }
 
 .knowledge-item-content {
@@ -1076,6 +1077,119 @@ button:focus-visible {
   margin-right: var(--space-2);
   content: "•";
   color: var(--text-subtle);
+}
+
+/* Training「教材チャット」のアシスタント発言（`packages/chat-ui` の message-markdown と同方針）。 */
+.message-markdown {
+  max-width: 100%;
+  color: var(--text-primary);
+  font-size: 14px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+.message-markdown > :first-child {
+  margin-top: 0;
+}
+
+.message-markdown > :last-child {
+  margin-bottom: 0;
+}
+
+.message-markdown :where(p, ul, ol, blockquote, pre, table) {
+  margin: 0 0 var(--space-3);
+}
+
+.message-markdown :where(h1, h2, h3, h4) {
+  margin: var(--space-4) 0 var(--space-2);
+  color: var(--text-strong);
+  font-weight: 800;
+  line-height: 1.28;
+}
+
+.message-markdown h1 {
+  font-size: 18px;
+}
+
+.message-markdown h2 {
+  font-size: 16px;
+}
+
+.message-markdown :where(h3, h4) {
+  font-size: 14px;
+}
+
+.message-markdown :where(ul, ol) {
+  padding-left: 1.4rem;
+}
+
+.message-markdown li + li {
+  margin-top: var(--space-1);
+}
+
+.message-markdown a {
+  color: var(--nav-active-text);
+  font-weight: 700;
+  text-decoration-thickness: 0.08em;
+  text-underline-offset: 0.2em;
+}
+
+.message-markdown blockquote {
+  padding-left: var(--space-3);
+  border-left: 3px solid var(--surface-border);
+  color: var(--text-muted);
+}
+
+.message-markdown code {
+  padding: 0.12em 0.34em;
+  border: 1px solid var(--surface-border);
+  border-radius: 6px;
+  background: var(--page-bg);
+  color: var(--text-primary);
+  font-family: "SFMono-Regular", "Menlo", "Consolas", monospace;
+}
+
+.message-markdown pre {
+  max-width: 100%;
+  padding: var(--space-3);
+  overflow-x: auto;
+  border: 1px solid var(--surface-border);
+  border-radius: var(--radius-control);
+  background: var(--page-bg);
+}
+
+.message-markdown pre code {
+  display: block;
+  padding: 0;
+  overflow-wrap: normal;
+  border: 0;
+  background: transparent;
+  white-space: pre;
+}
+
+.message-markdown table {
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
+  border-collapse: collapse;
+}
+
+.message-markdown :where(th, td) {
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--surface-border);
+  text-align: left;
+  vertical-align: top;
+}
+
+.message-markdown th {
+  color: var(--text-strong);
+  font-weight: 800;
+}
+
+.message-markdown-image-alt {
+  display: inline-block;
+  color: var(--text-muted);
+  font-style: italic;
 }
 
 @media (max-width: 1180px) {
