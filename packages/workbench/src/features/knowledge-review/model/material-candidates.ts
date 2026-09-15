@@ -100,6 +100,13 @@ export type MaterialCandidate = {
   statusHistory: MaterialCandidateStatusEvent[];
   /** `materials.id`。教材化済み（issue #10 の教材へ変換済み）の場合だけ設定される。 */
   materialId?: string;
+  /**
+   * この教材候補で新人が身につけるべき学習目標（任意）。BFF の教材候補生成 agent
+   * （AgentCore `type: "teaching_material"`）が専門職コメントから生成する。
+   */
+  learningObjective?: string;
+  /** 指導のポイント（教えるべきこと）の一覧（任意）。`learningObjective` と同じ生成元。 */
+  teachingPoints?: string[];
 };
 
 export type MaterialCandidateFilters = {

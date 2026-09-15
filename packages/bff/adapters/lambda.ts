@@ -34,6 +34,7 @@ import { handleSoapGapsRequest } from "../application/handle-soap-gaps-request.t
 import { handleSoapKnowledgeBaseRequest } from "../application/handle-soap-knowledge-base-request.ts";
 import { handleSoapMappingRequest } from "../application/handle-soap-mapping-request.ts";
 import { handleSoapRecordRequest } from "../application/handle-soap-record-request.ts";
+import { handleTeachingMaterialRequest } from "../application/handle-teaching-material-request.ts";
 import { handleTrainingDataClusterRequest } from "../application/handle-training-data-cluster-request.ts";
 import { handleVoiceRecordingRequest } from "../application/handle-voice-recording-request.ts";
 import {
@@ -364,6 +365,25 @@ export async function handleLambdaEvent(
       {
         actorId: config.actorId,
         getKnowledgeContext: knowledgeContextFetcher(config),
+        invokeRuntime: (runtimeSessionId, payload) =>
+          invokeAgentCoreRuntime(config, runtimeSessionId, payload, deps),
+        logError:
+          deps.logError ??
+          ((message, detail) => console.error(message, detail)),
+      },
+    );
+  }
+
+  if (path === "/api/teaching-material-draft") {
+    return handleTeachingMaterialRequest(
+      {
+        body: event.body,
+        isBase64Encoded: event.isBase64Encoded,
+        method,
+        path,
+      },
+      {
+        actorId: config.actorId,
         invokeRuntime: (runtimeSessionId, payload) =>
           invokeAgentCoreRuntime(config, runtimeSessionId, payload, deps),
         logError:

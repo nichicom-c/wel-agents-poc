@@ -10,6 +10,7 @@ import {
   createCandidateFromComments,
   DIFFICULTY_LEVELS,
   decideCandidateStatus,
+  generateTeachingMaterialDraft,
   KNOWLEDGE_REVIEW_ROLES,
   type KnowledgeReviewRole,
   knowledgeReviewRoleLabel,
@@ -31,6 +32,7 @@ import {
   type SoapRecordSummary,
   type SoapRecordVersion,
   SPECIALTIES,
+  type TeachingMaterialDraft,
   tagLabel,
 } from "../../features/knowledge-review/index.ts";
 import {
@@ -371,6 +373,25 @@ function CandidateTab({ authorName, canDecide }: CandidateTabProps) {
 
             {selectedId === candidate.id ? (
               <div className="knowledge-review-candidate-detail">
+                {candidate.learningObjective ? (
+                  <>
+                    <h5>学習目標（learning_objective）</h5>
+                    <p className="soap-draft-text">
+                      {candidate.learningObjective}
+                    </p>
+                  </>
+                ) : null}
+                {candidate.teachingPoints &&
+                candidate.teachingPoints.length > 0 ? (
+                  <>
+                    <h5>指導のポイント（teaching_points）</h5>
+                    <ul className="knowledge-review-status-history">
+                      {candidate.teachingPoints.map((point) => (
+                        <li key={point}>{point}</li>
+                      ))}
+                    </ul>
+                  </>
+                ) : null}
                 <h5>紐づく専門職コメント</h5>
                 {candidate.comments.length === 0 ? (
                   <p className="workbench-main-description">
@@ -533,6 +554,8 @@ function RecordTab({ authorName, canPost }: RecordTabProps) {
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [createTitle, setCreateTitle] = useState("");
   const [createSummary, setCreateSummary] = useState("");
+  const [createLearningObjective, setCreateLearningObjective] = useState("");
+  const [createTeachingPointsText, setCreateTeachingPointsText] = useState("");
   const [createSpecialtyId, setCreateSpecialtyId] = useState(
     SPECIALTIES[0]?.id ?? "",
   );
@@ -543,6 +566,10 @@ function RecordTab({ authorName, canPost }: RecordTabProps) {
     DIFFICULTY_LEVELS[0]?.id ?? "",
   );
   const [createNotice, setCreateNotice] = useState("");
+  const [generatedDraft, setGeneratedDraft] =
+    useState<TeachingMaterialDraft | null>(null);
+  const [generateStatus, setGenerateStatus] = useState<LoadStatus>("idle");
+  const [generateError, setGenerateError] = useState("");
 
   useEffect(() => {
     let cancelled = false;
@@ -621,15 +648,45 @@ function RecordTab({ authorName, canPost }: RecordTabProps) {
     if (!selectedRecordId || !selectedVersionId || !newCommentBody.trim()) {
       return;
     }
-    await postComment({
+    const body = newCommentBody.trim();
+    const posted = await postComment({
       authorRoleAtPost: authorName,
-      body: newCommentBody.trim(),
+      body,
       commentType: newCommentType,
       targetRecordId: selectedRecordId,
       targetRecordVersionId: selectedVersionId,
     });
     setNewCommentBody("");
     setComments(await listCommentsForVersion(selectedVersionId));
+    await generateDraftForComment(posted.id, body);
+  }
+
+  /**
+   * 投稿したコメント本文から教材候補（title/学習目標/指導のポイント）を AI 生成し、
+   * 「教材候補の作成」フォームへ下書きとして反映する。生成失敗はコメント投稿自体を
+   * 妨げないよう best-effort とし、エラーはフォーム上に表示するだけに留める。
+   */
+  async function generateDraftForComment(commentId: string, body: string) {
+    setGenerateStatus("loading");
+    setGenerateError("");
+    try {
+      const draft = await generateTeachingMaterialDraft(body);
+      setGeneratedDraft(draft);
+      setCreateTitle(draft.title);
+      setCreateSummary(draft.learningObjective);
+      setCreateLearningObjective(draft.learningObjective);
+      setCreateTeachingPointsText(draft.teachingPoints.join("\n"));
+      setSelectedCommentIds((prev) =>
+        prev.includes(commentId) ? prev : [...prev, commentId],
+      );
+      setShowCreateForm(true);
+      setGenerateStatus("idle");
+    } catch (caught) {
+      setGenerateStatus("error");
+      setGenerateError(
+        caught instanceof Error ? caught.message : String(caught),
+      );
+    }
   }
 
   function toggleCommentSelection(commentId: string) {
@@ -654,10 +711,12 @@ function RecordTab({ authorName, canPost }: RecordTabProps) {
       commentIds: selectedCommentIds,
       createdByRole: authorName,
       difficultyId: createDifficultyId,
+      learningObjective: createLearningObjective.trim() || undefined,
       learningThemeId: createLearningThemeId,
       recordType: record.recordType,
       specialtyId: createSpecialtyId,
       summary: createSummary.trim(),
+      teachingPoints: teachingPointsFromText(createTeachingPointsText),
       title: createTitle.trim(),
     });
     setCreateNotice(
@@ -667,6 +726,17 @@ function RecordTab({ authorName, canPost }: RecordTabProps) {
     setSelectedCommentIds([]);
     setCreateTitle("");
     setCreateSummary("");
+    setCreateLearningObjective("");
+    setCreateTeachingPointsText("");
+    setGeneratedDraft(null);
+  }
+
+  function teachingPointsFromText(text: string): string[] | undefined {
+    const points = text
+      .split("\n")
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0);
+    return points.length > 0 ? points : undefined;
   }
 
   const selectedVersion = (versions ?? []).find(
@@ -800,6 +870,17 @@ function RecordTab({ authorName, canPost }: RecordTabProps) {
                 投稿
               </button>
 
+              {generateStatus === "loading" ? (
+                <p className="workbench-main-description">
+                  投稿したコメントから教材候補を生成しています…
+                </p>
+              ) : null}
+              {generateStatus === "error" ? (
+                <p className="soap-draft-error">
+                  教材候補の生成に失敗しました: {generateError}
+                </p>
+              ) : null}
+
               <div className="soap-draft-candidate-actions">
                 <button
                   type="button"
@@ -819,6 +900,13 @@ function RecordTab({ authorName, canPost }: RecordTabProps) {
               {showCreateForm ? (
                 <div className="knowledge-review-create-form">
                   <h5>教材候補の作成</h5>
+                  {generatedDraft ? (
+                    <p className="workbench-main-description">
+                      AIがコメントから title / learning_objective /
+                      teaching_points
+                      を生成しました。内容を確認・編集してから保存してください。
+                    </p>
+                  ) : null}
                   <input
                     placeholder="タイトル"
                     value={createTitle}
@@ -829,6 +917,28 @@ function RecordTab({ authorName, canPost }: RecordTabProps) {
                     value={createSummary}
                     onChange={(event) => setCreateSummary(event.target.value)}
                   />
+                  <label>
+                    学習目標（learning_objective）
+                    <textarea
+                      placeholder="この教材候補で新人が身につけるべき学習目標"
+                      value={createLearningObjective}
+                      onChange={(event) =>
+                        setCreateLearningObjective(event.target.value)
+                      }
+                    />
+                  </label>
+                  <label>
+                    指導のポイント（teaching_points、1行1項目）
+                    <textarea
+                      placeholder={
+                        "単回の測定値だけで結論を出さない\n不足情報を明確にする"
+                      }
+                      value={createTeachingPointsText}
+                      onChange={(event) =>
+                        setCreateTeachingPointsText(event.target.value)
+                      }
+                    />
+                  </label>
                   <label>
                     分野
                     <select

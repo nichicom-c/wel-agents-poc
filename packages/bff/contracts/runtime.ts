@@ -7,8 +7,9 @@
  * `gap`（呼び出し側が優先度順に選んだ「今回扱う1件の不足」、`soap_gaps` の出力の1要素）と
  * `message`（利用者の今回の発言、初回の提示ターンは省略）を使う。`type: "exercise_feedback"`
  * （issue #9 の演習フィードバック生成）のときは `exercise_case` / `exercise_answers` を使う。
- * いずれも agentcore 側 `RuntimeRequest` の wire shape に合わせたもの。記録種別は入力ではなく、
- * 分類後に候補ごとの反映候補として返る。
+ * `type: "teaching_material"`（Knowledge Review 画面の教材候補生成）のときは `text`
+ * （専門職コメント本文）を使う。いずれも agentcore 側 `RuntimeRequest` の wire shape に
+ * 合わせたもの。記録種別は入力ではなく、分類後に候補ごとの反映候補として返る。
  */
 export type RuntimePayload = {
   /** Runtime / Memory で利用者を分離する actor ID。 */
@@ -18,8 +19,13 @@ export type RuntimePayload = {
   /** Runtime / Memory の会話 session ID。 */
   session_id: string;
   /** リクエスト種別。省略時は chat 扱い。 */
-  type?: "soap_draft" | "soap_gaps" | "soap_gaps_chat" | "exercise_feedback";
-  /** type: "soap_draft" のときの分類対象テキスト。 */
+  type?:
+    | "soap_draft"
+    | "soap_gaps"
+    | "soap_gaps_chat"
+    | "exercise_feedback"
+    | "teaching_material";
+  /** type: "soap_draft" / "teaching_material" のときの分類・生成対象テキスト。 */
   text?: string;
   /** type: "soap_gaps" / "soap_gaps_chat" のときの文脈（SOAP 下書き候補）。 */
   candidates?: unknown[];

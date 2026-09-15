@@ -172,6 +172,43 @@ describe("handleMaterialCandidateRequest", () => {
       });
     });
 
+    test("learningObjective / teachingPoints も createCandidate に渡す", async () => {
+      let capturedInput: unknown;
+      await handleMaterialCandidateRequest(
+        {
+          body: JSON.stringify({
+            commentIds: ["comment-1"],
+            createdByRole: "reviewer",
+            learningObjective:
+              "不足情報を確認し、S/Oを関連付けてAssessmentできるようになる",
+            summary: "summary text",
+            teachingPoints: [
+              "単回の測定値だけで結論を出さない",
+              "不足情報を明確にする",
+            ],
+            title: "title text",
+          }),
+          method: "POST",
+          path: "/api/material-candidates",
+        },
+        baseOptions({
+          createCandidate: async (input) => {
+            capturedInput = input;
+            return SAMPLE_CANDIDATE;
+          },
+        }),
+      );
+
+      expect(capturedInput).toMatchObject({
+        learningObjective:
+          "不足情報を確認し、S/Oを関連付けてAssessmentできるようになる",
+        teachingPoints: [
+          "単回の測定値だけで結論を出さない",
+          "不足情報を明確にする",
+        ],
+      });
+    });
+
     test("commentIds が空なら 400 を返す", async () => {
       const response = await handleMaterialCandidateRequest(
         {

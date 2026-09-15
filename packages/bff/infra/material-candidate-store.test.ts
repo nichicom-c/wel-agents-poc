@@ -57,7 +57,7 @@ const CANDIDATE_ROW = {
   title: "title text",
 };
 
-type RecordedCall = { name: string; sql?: string };
+type RecordedCall = { name: string; sql?: string; parameters?: unknown };
 
 class FakeRdsDataClient {
   readonly calls: RecordedCall[] = [];
@@ -71,7 +71,7 @@ class FakeRdsDataClient {
     const name = command.constructor.name;
     const sql =
       typeof command.input?.sql === "string" ? command.input.sql : undefined;
-    this.calls.push({ name, sql });
+    this.calls.push({ name, parameters: command.input?.parameters, sql });
 
     if (name === "BeginTransactionCommand") {
       this.txCounter += 1;
@@ -172,6 +172,7 @@ describe("listMaterialCandidates", () => {
         createdBy: "11111111-1111-1111-1111-111111111111",
         difficultyId: "intermediate",
         id: "candidate-1",
+        learningObjective: undefined,
         learningThemeId: "support-planning",
         recordType: "support_activity",
         rejectionReasonCode: undefined,
@@ -188,8 +189,55 @@ describe("listMaterialCandidates", () => {
           },
         ],
         summary: "summary text",
+        teachingPoints: undefined,
         title: "title text",
       },
+    ]);
+  });
+
+  test("learning_objective / teaching_points を camelCase で返す", async () => {
+    class WithTeachingFieldsClient extends FakeRdsDataClient {
+      override async send(command: {
+        constructor: { name: string };
+        input?: Record<string, unknown>;
+      }): Promise<unknown> {
+        const sql =
+          typeof command.input?.sql === "string"
+            ? command.input.sql
+            : undefined;
+        if (
+          sql?.includes("from material_candidates mc") &&
+          sql.includes("where (:specialtyId")
+        ) {
+          return {
+            formattedRecords: JSON.stringify([
+              {
+                ...CANDIDATE_ROW,
+                learning_objective:
+                  "不足情報を確認し、S/Oを関連付けてAssessmentできるようになる",
+                teaching_points: JSON.stringify([
+                  "単回の測定値だけで結論を出さない",
+                  "不足情報を明確にする",
+                ]),
+              },
+            ]),
+          };
+        }
+        return super.send(command);
+      }
+    }
+    const client = new WithTeachingFieldsClient();
+
+    const [result] = await listMaterialCandidates(CONFIG, undefined, {
+      client: client as never,
+    });
+
+    expect(result?.learningObjective).toBe(
+      "不足情報を確認し、S/Oを関連付けてAssessmentできるようになる",
+    );
+    expect(result?.teachingPoints).toEqual([
+      "単回の測定値だけで結論を出さない",
+      "不足情報を明確にする",
     ]);
   });
 });
@@ -227,6 +275,44 @@ describe("createMaterialCandidateFromComments", () => {
     expect(
       client.calls.some((call) => call.name === "CommitTransactionCommand"),
     ).toBe(true);
+  });
+
+  test("learningObjective / teachingPoints を insert パラメータとして渡す", async () => {
+    const client = new FakeRdsDataClient();
+    await createMaterialCandidateFromComments(
+      CONFIG,
+      {
+        commentIds: ["comment-1"],
+        createdBy: "11111111-1111-1111-1111-111111111111",
+        createdByRole: "reviewer",
+        learningObjective:
+          "不足情報を確認し、S/Oを関連付けてAssessmentできるようになる",
+        summary: "summary text",
+        teachingPoints: ["単回の測定値だけで結論を出さない"],
+        title: "title text",
+      },
+      { client: client as never },
+    );
+
+    const insertCall = client.calls.find((call) =>
+      call.sql?.includes("insert into material_candidates"),
+    );
+    const parameters = insertCall?.parameters as
+      | { name: string; value: Record<string, unknown> }[]
+      | undefined;
+    const learningObjectiveParam = parameters?.find(
+      (param) => param.name === "learningObjective",
+    );
+    const teachingPointsParam = parameters?.find(
+      (param) => param.name === "teachingPoints",
+    );
+
+    expect(learningObjectiveParam?.value.stringValue).toBe(
+      "不足情報を確認し、S/Oを関連付けてAssessmentできるようになる",
+    );
+    expect(teachingPointsParam?.value.stringValue).toBe(
+      JSON.stringify(["単回の測定値だけで結論を出さない"]),
+    );
   });
 
   test("途中で失敗したらロールバックして例外を投げる", async () => {

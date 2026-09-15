@@ -37,6 +37,8 @@ export type HandleMaterialCandidateOptions = {
     createdBy: string;
     createdByDisplayName?: string;
     createdByRole: string;
+    learningObjective?: string;
+    teachingPoints?: string[];
   }) => Promise<MaterialCandidate>;
   decideStatus: (input: {
     id: string;
@@ -179,10 +181,12 @@ async function handleCreate(
     createdByDisplayName: authContext.displayName,
     createdByRole,
     difficultyId: textField(body.difficultyId) || undefined,
+    learningObjective: textField(body.learningObjective) || undefined,
     learningThemeId: textField(body.learningThemeId) || undefined,
     recordType: isSoapRecordType(rawRecordType) ? rawRecordType : undefined,
     specialtyId: textField(body.specialtyId) || undefined,
     summary,
+    teachingPoints: stringArrayField(body.teachingPoints),
     title,
   });
 
@@ -269,6 +273,17 @@ function commentIdsFromBody(value: unknown): string[] {
   return value
     .map((entry) => (typeof entry === "string" ? entry.trim() : ""))
     .filter((entry) => entry.length > 0);
+}
+
+/** `teachingPoints`（任意の文字列配列）を取り出す。空・未指定なら undefined。 */
+function stringArrayField(value: unknown): string[] | undefined {
+  if (!Array.isArray(value)) {
+    return undefined;
+  }
+  const entries = value
+    .map((entry) => (typeof entry === "string" ? entry.trim() : ""))
+    .filter((entry) => entry.length > 0);
+  return entries.length > 0 ? entries : undefined;
 }
 
 function isMaterialCandidatePath(path: string): boolean {

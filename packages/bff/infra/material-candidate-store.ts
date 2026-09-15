@@ -14,6 +14,7 @@ import {
   beginTransaction,
   commitTransaction,
   execute,
+  jsonParam,
   nullableStringParam,
   parseJsonColumn,
   parseRows,
@@ -24,6 +25,13 @@ import {
   type TrainingDataStoreDeps,
   upsertAppUser,
 } from "./training-data-sql.ts";
+
+/** `teachingPoints`（任意の文字列配列）を jsonb param にする。未指定なら SQL NULL。 */
+function nullableJsonParam(name: string, value: unknown) {
+  return value === undefined
+    ? { name, value: { isNull: true } }
+    : jsonParam(name, value);
+}
 
 /**
  * 教材候補（issue #8）の永続化層。`material_candidates` を主に、紐づく専門職コメント
@@ -57,6 +65,8 @@ type CandidateRow = {
   material_id: string | null;
   created_by: string;
   created_at: string;
+  learning_objective: string | null;
+  teaching_points: string[] | string | null;
   comments: RawEmbeddedComment[] | string;
   status_history: RawEmbeddedStatusEvent[] | string;
 };
@@ -64,7 +74,7 @@ type CandidateRow = {
 const CANDIDATE_SELECT = `
   select mc.id, mc.title, mc.summary, mc.status, mc.specialty_id, mc.record_type,
          mc.learning_theme_id, mc.difficulty_id, mc.rejection_reason_code, mc.material_id,
-         mc.created_by, mc.created_at,
+         mc.created_by, mc.created_at, mc.learning_objective, mc.teaching_points,
          coalesce((
            select json_agg(json_build_object(
              'id', pc.id,
@@ -118,6 +128,7 @@ function mapCandidateRow(row: CandidateRow): MaterialCandidate {
     createdBy: row.created_by,
     difficultyId: row.difficulty_id ?? undefined,
     id: row.id,
+    learningObjective: row.learning_objective ?? undefined,
     learningThemeId: row.learning_theme_id ?? undefined,
     materialId: row.material_id ?? undefined,
     recordType: row.record_type ?? undefined,
@@ -129,6 +140,9 @@ function mapCandidateRow(row: CandidateRow): MaterialCandidate {
       reasonText: event.reasonText ?? undefined,
     })),
     summary: row.summary,
+    teachingPoints: row.teaching_points
+      ? parseJsonColumn<string[]>(row.teaching_points, [])
+      : undefined,
     title: row.title,
   };
 }
@@ -198,6 +212,10 @@ export type CreateMaterialCandidateInput = {
   createdByDisplayName?: string;
   /** 初回の状態履歴（candidate）に記録するロールのスナップショット（自由記述）。 */
   createdByRole: string;
+  /** 教材候補生成 agent（`type: "teaching_material"`）が生成した学習目標（任意）。 */
+  learningObjective?: string;
+  /** 教材候補生成 agent が生成した指導のポイント（任意）。 */
+  teachingPoints?: string[];
 };
 
 /** 選択した専門職コメントを束ねて新しい教材候補（status: candidate）を作る。 */
@@ -222,10 +240,11 @@ export async function createMaterialCandidateFromComments(
         rdsClient,
         config,
         `insert into material_candidates
-           (title, summary, specialty_id, record_type, learning_theme_id, difficulty_id, created_by)
+           (title, summary, specialty_id, record_type, learning_theme_id, difficulty_id,
+            created_by, learning_objective, teaching_points)
          values
            (:title, :summary, :specialtyId, :recordType::soap_record_type, :learningThemeId,
-            :difficultyId, :createdBy::uuid)
+            :difficultyId, :createdBy::uuid, :learningObjective, :teachingPoints::jsonb)
          returning id`,
         [
           stringParam("title", input.title),
@@ -235,6 +254,8 @@ export async function createMaterialCandidateFromComments(
           nullableStringParam("learningThemeId", input.learningThemeId),
           nullableStringParam("difficultyId", input.difficultyId),
           stringParam("createdBy", input.createdBy),
+          nullableStringParam("learningObjective", input.learningObjective),
+          nullableJsonParam("teachingPoints", input.teachingPoints),
         ],
         transactionId,
       ),

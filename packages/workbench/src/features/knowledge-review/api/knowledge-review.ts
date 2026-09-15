@@ -31,6 +31,7 @@ import type {
 const MATERIAL_CANDIDATES_ENDPOINT = "/api/material-candidates";
 const PROFESSIONAL_COMMENTS_ENDPOINT = "/api/professional-comments";
 const SOAP_RECORDS_ENDPOINT = "/api/soap-records";
+const TEACHING_MATERIAL_DRAFT_ENDPOINT = "/api/teaching-material-draft";
 
 type FetchFn = (
   input: string | URL | Request,
@@ -127,6 +128,8 @@ export type NewMaterialCandidateInput = {
   difficultyId?: string;
   commentIds: string[];
   createdByRole: string;
+  learningObjective?: string;
+  teachingPoints?: string[];
 };
 
 /** 選択した専門職コメントを束ねて新しい教材候補（status: candidate）を作る。 */
@@ -200,6 +203,48 @@ export type NewProfessionalCommentInput = {
   body: string;
   authorRoleAtPost: string;
 };
+
+export type TeachingMaterialDraft = {
+  title: string;
+  learningObjective: string;
+  teachingPoints: string[];
+};
+
+/**
+ * BFF `/api/teaching-material-draft` を呼び、専門職コメント本文から教材候補
+ * （title / learningObjective / teachingPoints）を AI 生成する。何も永続化しない
+ * stateless な生成のみで、保存は別途 {@link createCandidateFromComments} で行う。
+ */
+export async function generateTeachingMaterialDraft(
+  sourceText: string,
+  fetchFn: FetchFn = fetch,
+): Promise<TeachingMaterialDraft> {
+  const response = await fetchFn(TEACHING_MATERIAL_DRAFT_ENDPOINT, {
+    body: JSON.stringify({ text: sourceText }),
+    headers: { "content-type": "application/json" },
+    method: "POST",
+  });
+  const payload = await readJson(response);
+
+  if (!response.ok) {
+    throw new Error(trimmedText(payload.error) || `HTTP ${response.status}`);
+  }
+
+  const title = trimmedText(payload.title);
+  const learningObjective = trimmedText(payload.learningObjective);
+  const teachingPoints = Array.isArray(payload.teachingPoints)
+    ? payload.teachingPoints.filter(
+        (point): point is string =>
+          typeof point === "string" && point.trim().length > 0,
+      )
+    : [];
+
+  if (!title || !learningObjective || teachingPoints.length === 0) {
+    throw new Error("invalid response from /api/teaching-material-draft");
+  }
+
+  return { learningObjective, teachingPoints, title };
+}
 
 export async function postComment(
   input: NewProfessionalCommentInput,
@@ -314,6 +359,7 @@ function normalizeCandidate(
     createdBy,
     difficultyId: trimmedText(record.difficultyId) || undefined,
     id,
+    learningObjective: trimmedText(record.learningObjective) || undefined,
     learningThemeId: trimmedText(record.learningThemeId) || undefined,
     materialId: trimmedText(record.materialId) || undefined,
     recordType: isSoapRecordType(rawRecordType) ? rawRecordType : undefined,
@@ -324,8 +370,19 @@ function normalizeCandidate(
     status,
     statusHistory: normalizeStatusHistory(record.statusHistory),
     summary,
+    teachingPoints: normalizeTeachingPoints(record.teachingPoints),
     title,
   };
+}
+
+function normalizeTeachingPoints(value: unknown): string[] | undefined {
+  if (!Array.isArray(value)) {
+    return undefined;
+  }
+  const points = value
+    .map((entry) => trimmedText(entry))
+    .filter((entry) => entry.length > 0);
+  return points.length > 0 ? points : undefined;
 }
 
 function normalizeStatusHistory(

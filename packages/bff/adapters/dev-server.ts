@@ -33,6 +33,7 @@ import { handleSoapGapsRequest } from "../application/handle-soap-gaps-request.t
 import { handleSoapKnowledgeBaseRequest } from "../application/handle-soap-knowledge-base-request.ts";
 import { handleSoapMappingRequest } from "../application/handle-soap-mapping-request.ts";
 import { handleSoapRecordRequest } from "../application/handle-soap-record-request.ts";
+import { handleTeachingMaterialRequest } from "../application/handle-teaching-material-request.ts";
 import { handleTrainingDataClusterRequest } from "../application/handle-training-data-cluster-request.ts";
 import { handleVoiceRecordingRequest } from "../application/handle-voice-recording-request.ts";
 import { handleWsUrlRequest } from "../application/handle-ws-url-request.ts";
@@ -376,6 +377,24 @@ export async function handleBffDevRequest(
       {
         actorId: config.actorId,
         getKnowledgeContext: knowledgeContextFetcher(config),
+        invokeRuntime: (_runtimeSessionId, payload) =>
+          invokeLocalRuntime(config, payload, fetchFn),
+        logError: (message, detail) => console.error(message, detail),
+      },
+    );
+
+    return responseFromBff(bffResponse);
+  }
+
+  if (url.pathname === "/api/teaching-material-draft") {
+    const bffResponse = await handleTeachingMaterialRequest(
+      {
+        body,
+        method: request.method,
+        path: url.pathname,
+      },
+      {
+        actorId: config.actorId,
         invokeRuntime: (_runtimeSessionId, payload) =>
           invokeLocalRuntime(config, payload, fetchFn),
         logError: (message, detail) => console.error(message, detail),

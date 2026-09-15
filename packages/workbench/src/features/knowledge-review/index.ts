@@ -2,10 +2,12 @@ export type {
   DecideMaterialCandidateStatusOptions,
   NewMaterialCandidateInput,
   NewProfessionalCommentInput,
+  TeachingMaterialDraft,
 } from "./api/knowledge-review.ts";
 export {
   createCandidateFromComments,
   decideCandidateStatus,
+  generateTeachingMaterialDraft,
   listCommentsForVersion,
   listMaterialCandidates,
   listSoapRecords,
