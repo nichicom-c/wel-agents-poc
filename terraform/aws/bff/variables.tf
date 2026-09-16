@@ -337,6 +337,17 @@ variable "training_data_max_acu" {
   }
 }
 
+variable "training_data_seconds_until_auto_pause" {
+  description = "Idle seconds before the training data cluster auto-pauses (only effective while training_data_min_acu is 0). AWS allows 300-86400 and defaults to 300, which pauses after five idle minutes and makes resume errors frequent during development; 3600 keeps the cluster awake across short breaks."
+  type        = number
+  default     = 3600
+
+  validation {
+    condition     = var.training_data_seconds_until_auto_pause >= 300 && var.training_data_seconds_until_auto_pause <= 86400
+    error_message = "training_data_seconds_until_auto_pause must be between 300 and 86400."
+  }
+}
+
 variable "throttling_burst_limit" {
   description = "API Gateway default route throttling burst limit."
   type        = number

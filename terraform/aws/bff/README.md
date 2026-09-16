@@ -287,7 +287,7 @@ flowchart LR
     secrets -.->|"RDS が発行・ローテーション"| aurora
 ```
 
-> [WARNING] **既定は作成しない（`enable_training_data_store = false`）。** `true` にすると Aurora Serverless v2 が課金対象になる。既定の `training_data_min_acu = 0` は 2024-11 以降 GA の scale-to-zero（対応エンジンバージョンは Aurora PostgreSQL `13.15+`/`14.12+`/`15.7+`/`16.3+`）を使い、接続が無い間は自動 pause して ACU 課金を止める。pause からの復帰（最初の接続）には数秒〜1分程度の遅延が発生する。確認済みの正式レート（us-east-1）は Aurora Standard で `$0.12/ACU-時間`・storage `$0.10/GB-月`・I/O `$0.20/百万リクエスト`。**ap-northeast-1（東京）の正式レートは未確認**（AWS Pricing API を呼べる認証情報が無く確認できていない）ため、apply 前に AWS Pricing Calculator で実レートを確認すること。`min_capacity` が効かない/未対応エンジンバージョンの場合、`0.5` ACU の常時起動フロアだけで us-east-1 換算で概算 `$43/月` が固定費として発生し続ける。検証していない期間は destroy するか、[`cleanup.md`](./cleanup.md) の手順で削除する。
+> [WARNING] **既定は作成しない（`enable_training_data_store = false`）。** `true` にすると Aurora Serverless v2 が課金対象になる。既定の `training_data_min_acu = 0` は 2024-11 以降 GA の scale-to-zero（対応エンジンバージョンは Aurora PostgreSQL `13.15+`/`14.12+`/`15.7+`/`16.3+`）を使い、接続が無い間は自動 pause して ACU 課金を止める。pause までの無接続時間は `training_data_seconds_until_auto_pause`（既定 `3600` = 1時間、AWS の許容範囲は `300`〜`86400`）で決まる。**この値を設定しないと AWS 既定の `300` 秒が入り、5分触らないだけで pause するため開発中に resume 待ちのエラーが頻発する**（`The Aurora DB instance ... is resuming after being auto-paused.`）。伸ばすほど起きている時間の ACU 課金が増えるトレードオフになる。pause からの復帰（最初の接続）は概ね15秒、24時間以上 pause していた場合は30秒以上かかることがある。確認済みの正式レート（us-east-1）は Aurora Standard で `$0.12/ACU-時間`・storage `$0.10/GB-月`・I/O `$0.20/百万リクエスト`。**ap-northeast-1（東京）の正式レートは未確認**（AWS Pricing API を呼べる認証情報が無く確認できていない）ため、apply 前に AWS Pricing Calculator で実レートを確認すること。`min_capacity` が効かない/未対応エンジンバージョンの場合、`0.5` ACU の常時起動フロアだけで us-east-1 換算で概算 `$43/月` が固定費として発生し続ける。検証していない期間は destroy するか、[`cleanup.md`](./cleanup.md) の手順で削除する。
 
 ### 前提（追加分）
 

@@ -12,7 +12,7 @@ issue #8（専門職コメントからのノウハウ・教材候補蓄積）、
 
 以下は本メモの提案どおりに実装済み。
 
-- **Aurora Serverless v2 (PostgreSQL) + RDS Data API**: `terraform/aws/bff/training-data.tf` として `terraform/aws/bff` に追加済み（提案どおりの配置）。`min_capacity = 0` の scale-to-zero 構成で稼働中。
+- **Aurora Serverless v2 (PostgreSQL) + RDS Data API**: `terraform/aws/bff/training-data.tf` として `terraform/aws/bff` に追加済み（提案どおりの配置）。`min_capacity = 0` の scale-to-zero 構成で稼働中（`seconds_until_auto_pause = 3600`。未指定時の AWS 既定 300 秒だと5分ごとに pause して resume 待ちエラーが頻発したため明示した）。
 - **マイグレーション**: `terraform/aws/bff/migrations/0001_init.sql`（全テーブル・enum 型）+ `0002_seed_masters.sql`（specialties/learning_themes/difficulty_levels/rejection_reason_codes/quality_metrics_definitions の初期値）。ORM は導入せず、提案どおり repo 既存流儀（SQL を直接組み立てる）で `tools/db-migrate/run-migrations.ts` から Data API 経由で適用する軽量ランナーを実装。
 - **前提（SOAP 正式記録・編集履歴）**: 実装済み。`POST /api/soap-records` / `GET /api/soap-records` / `GET /api/soap-records/{recordId}/versions`（`packages/bff/infra/soap-record-store.ts`）。SOAP Studio の「正式記録として保存」ボタンから呼ばれる。
 - **issue #8（専門職コメント・教材候補）**: 実装済み。`POST /api/professional-comments` + `GET /api/professional-comments`、`GET/POST /api/material-candidates` + `PATCH /api/material-candidates/{id}/status`。加えて、本メモの提案時点では未設計だった **`POST /api/material-candidates/{id}/promote-to-material`** を追加した — 承認済み (`status: approved`) の教材候補を issue #10 の `materials` 行（`material_type: comment_derived_note`、`publication_status: draft`）に変換し、当初から schema にあった `material_candidates.material_id` 列（提案時点では「承認 gate を通過したらリンクする想定」とコメントしていた列）を実際に書き込む。自動連携ではなく Knowledge Review 画面から手動でトリガーする設計。

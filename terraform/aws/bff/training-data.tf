@@ -75,9 +75,13 @@ resource "aws_rds_cluster" "training_data" {
   # Aurora Data API。BFF Lambda は VPC 外から HTTPS でこれを呼ぶ（VPC アタッチ不要）。
   enable_http_endpoint = true
 
+  # min_capacity = 0 のときだけ seconds_until_auto_pause が効く（AWS 側は min > 0 にすると
+  # この属性を落とす）。未指定だと AWS 既定の 300 秒（5分）になり、開発中に resume 待ちの
+  # エラーが頻発するため明示する。
   serverlessv2_scaling_configuration {
-    min_capacity = var.training_data_min_acu
-    max_capacity = var.training_data_max_acu
+    min_capacity             = var.training_data_min_acu
+    max_capacity             = var.training_data_max_acu
+    seconds_until_auto_pause = var.training_data_seconds_until_auto_pause
   }
 
   # PoC なので destroy 時にスナップショットを残さない。
