@@ -9,9 +9,11 @@
  * （issue #9 の演習フィードバック生成）のときは `exercise_case` / `exercise_answers` を使う。
  * `type: "teaching_material"`（Knowledge Review 画面の教材候補生成）のときは `text`
  * （専門職コメント本文）を使う。`type: "material_chat"`（Training 画面の教材チャット）の
- * ときは `material`（対話対象の教材）/ `history`（client が保持するこれまでの会話）/
- * `message`（今回の発言、初回は省略）を使う。いずれも agentcore 側 `RuntimeRequest` の
- * wire shape に合わせたもの。記録種別は入力ではなく、分類後に候補ごとの反映候補として返る。
+ * ときは `material`（対話対象の教材、全体の文脈）/ `teaching_point`（呼び出し側がキューとして
+ * 選ぶ「今回扱う1件の指導のポイント」、省略時は教材全体の自由対話）/ `history`（client が
+ * 保持するこれまでの会話）/ `message`（今回の発言、初回は省略）を使う。いずれも agentcore 側
+ * `RuntimeRequest` の wire shape に合わせたもの。記録種別は入力ではなく、分類後に候補ごとの
+ * 反映候補として返る。
  */
 export type RuntimePayload = {
   /** Runtime / Memory で利用者を分離する actor ID。 */
@@ -42,6 +44,8 @@ export type RuntimePayload = {
   exercise_answers?: unknown;
   /** type: "material_chat" のときの対話対象の教材（title/learningObjective/teachingPoints）。 */
   material?: unknown;
+  /** type: "material_chat" のときの今回扱う1件の指導のポイント（省略時は教材全体の自由対話）。 */
+  teaching_point?: unknown;
   /** type: "material_chat" のときのこれまでの会話（{role, text}[]）。 */
   history?: unknown;
   /** type: "soap_draft" / "soap_gaps" / "soap_gaps_chat" のときの Knowledge Base 補足コンテキスト。 */

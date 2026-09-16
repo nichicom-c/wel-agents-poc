@@ -1,8 +1,7 @@
 /**
- * 汎用チャットのメッセージ履歴(session-local な UI 状態)。
- * 会話文脈そのものは AgentCore Memory 側が持つため、ここでは表示用の履歴だけを保持する。
- * `features/soap-gaps/model/chat-thread.ts` と同型だが、suggestions のような
- * 不足確認チャット固有の概念は持たない。
+ * 教材チャットのメッセージ履歴(session-local な UI 状態)。
+ * 会話文脈そのものは client（この state）が保持し、毎回 BFF へ送り直す（AgentCore Memory は
+ * 使わない）。`features/soap-gaps/model/chat-thread.ts` と同型（suggestions も同じ役割）。
  */
 export type ChatMessageRole = "user" | "assistant";
 
@@ -10,6 +9,8 @@ export type ChatMessage = {
   id: string;
   role: ChatMessageRole;
   text: string;
+  /** assistant メッセージにのみ付く、ブレインストーミング的な回答例・視点（0〜3件）。 */
+  suggestions?: string[];
 };
 
 function createId(): string {
@@ -32,6 +33,23 @@ export function appendUserMessage(
 export function appendAssistantMessage(
   messages: ChatMessage[],
   text: string,
+  suggestions: string[] = [],
 ): ChatMessage[] {
-  return [...messages, { id: createId(), role: "assistant", text }];
+  return [
+    ...messages,
+    {
+      id: createId(),
+      role: "assistant",
+      suggestions: suggestions.length > 0 ? suggestions : undefined,
+      text,
+    },
+  ];
+}
+
+/** 直近の assistant メッセージが持つ回答例・視点（無ければ空配列）。 */
+export function latestAssistantSuggestions(messages: ChatMessage[]): string[] {
+  const lastAssistant = [...messages]
+    .reverse()
+    .find((message) => message.role === "assistant");
+  return lastAssistant?.suggestions ?? [];
 }

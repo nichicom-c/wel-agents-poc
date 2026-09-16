@@ -6,7 +6,7 @@ const ACTOR_ID = "web-user";
 const SESSION_ID = "material-chat-00000000-0000-4000-8000-000000000000";
 
 describe("handleMaterialChatRequest", () => {
-  test("material / history / message を runtime payload に変換し message を返す", async () => {
+  test("material / teachingPoint / history / message を runtime payload に変換し message/suggestions/resolved を返す", async () => {
     let runtimeSessionId = "";
     let runtimePayload: unknown;
 
@@ -20,6 +20,7 @@ describe("handleMaterialChatRequest", () => {
             title: " 教材タイトル ",
           },
           message: " 質問です ",
+          teachingPoint: " ポイント1 ",
         }),
         method: "POST",
         path: "/api/material-chat",
@@ -36,8 +37,10 @@ describe("handleMaterialChatRequest", () => {
               actor_id: ACTOR_ID,
               message: "応答本文",
               model_id: "test-model",
+              resolved: true,
               session_id: sessionId,
               status: "success",
+              suggestions: ["視点1"],
               type: "material_chat",
             },
             statusCode: 200,
@@ -47,7 +50,11 @@ describe("handleMaterialChatRequest", () => {
     );
 
     expect(response.statusCode).toBe(200);
-    expect(JSON.parse(response.body)).toEqual({ message: "応答本文" });
+    expect(JSON.parse(response.body)).toEqual({
+      message: "応答本文",
+      resolved: true,
+      suggestions: ["視点1"],
+    });
     expect(runtimeSessionId).toBe(SESSION_ID);
     expect(runtimePayload).toEqual({
       actor_id: ACTOR_ID,
@@ -59,6 +66,7 @@ describe("handleMaterialChatRequest", () => {
       },
       message: "質問です",
       session_id: SESSION_ID,
+      teaching_point: "ポイント1",
       type: "material_chat",
     });
   });

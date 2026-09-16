@@ -3,7 +3,7 @@ import { describe, expect, test } from "bun:test";
 import { postMaterialChat } from "./material-chat.ts";
 
 describe("postMaterialChat", () => {
-  test("material / history / message を送り BFF /api/material-chat の message を返す", async () => {
+  test("material / teachingPoint / history / message を送り、message/suggestions/resolved を返す", async () => {
     let requestedUrl: string | URL | Request | undefined;
     let requestedInit: RequestInit | undefined;
     const fetchFn = async (
@@ -12,7 +12,11 @@ describe("postMaterialChat", () => {
     ) => {
       requestedUrl = input;
       requestedInit = init;
-      return Response.json({ message: "この教材の要点は…" });
+      return Response.json({
+        message: "この教材の要点は…",
+        resolved: true,
+        suggestions: ["視点1"],
+      });
     };
 
     const result = await postMaterialChat(
@@ -24,6 +28,7 @@ describe("postMaterialChat", () => {
           title: "教材タイトル",
         },
         message: "質問です",
+        teachingPoint: "ポイント1",
       },
       fetchFn,
     );
@@ -37,8 +42,28 @@ describe("postMaterialChat", () => {
         title: "教材タイトル",
       },
       message: "質問です",
+      teachingPoint: "ポイント1",
     });
-    expect(result).toBe("この教材の要点は…");
+    expect(result).toEqual({
+      message: "この教材の要点は…",
+      resolved: true,
+      suggestions: ["視点1"],
+    });
+  });
+
+  test("resolved / suggestions が無い応答は既定値（false / 空配列）にする", async () => {
+    const fetchFn = async () => Response.json({ message: "応答" });
+
+    const result = await postMaterialChat(
+      { history: [], material: { title: "教材タイトル" } },
+      fetchFn,
+    );
+
+    expect(result).toEqual({
+      message: "応答",
+      resolved: false,
+      suggestions: [],
+    });
   });
 
   test("非 2xx は BFF が返した error message を throw する", async () => {

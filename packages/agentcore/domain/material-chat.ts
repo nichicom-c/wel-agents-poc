@@ -58,6 +58,20 @@ export function getMaterialChatMessage(
     : undefined;
 }
 
+/**
+ * payload から「今回扱う1件の指導のポイント」を取り出す。呼び出し側（BFF/Workbench）が
+ * `material.teachingPoints` からキューとして選ぶ。省略時はポイントを絞らない教材全体の
+ * 自由対話として扱う。
+ */
+export function getMaterialChatTeachingPoint(
+  payload: RuntimeRequest,
+): string | undefined {
+  const { teaching_point: teachingPoint } = payload;
+  return typeof teachingPoint === "string" && teachingPoint.trim()
+    ? teachingPoint.trim()
+    : undefined;
+}
+
 function isTurnRole(value: unknown): value is MaterialChatTurnRole {
   return value === "user" || value === "assistant";
 }

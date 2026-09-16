@@ -58,6 +58,7 @@ export async function handleMaterialChatRequest(
       },
       message: textField(body.message) || undefined,
       session_id: sessionId,
+      teaching_point: textField(body.teachingPoint) || undefined,
       type: "material_chat",
     };
 
@@ -84,7 +85,11 @@ export async function handleMaterialChatRequest(
       });
     }
 
-    return response(200, { message: textField(payload.message) });
+    return response(200, {
+      message: textField(payload.message),
+      resolved: payload.resolved === true,
+      suggestions: stringArray(payload.suggestions),
+    });
   } catch (error) {
     const statusCode =
       error instanceof Error && error.name === "AbortError"

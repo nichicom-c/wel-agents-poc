@@ -15,13 +15,16 @@ import type { Gap } from "./soap-gaps.ts";
  * `soap_gaps` の出力の1要素）。`message` は `type: "soap_gaps_chat"` / `"material_chat"` の
  * ときに使う利用者の今回の発言（初回の提示ターンでは省略）。`exercise_case` /
  * `exercise_answers` は `type: "exercise_feedback"`（issue #9 の演習フィードバック生成）の
- * ときだけ使う。`material` / `history` は `type: "material_chat"`（Training 画面の教材
- * チャット）のときだけ使う: `material` は対話対象の教材（title/learningObjective/
- * teachingPoints）、`history` は client（workbench）が保持するこれまでの会話（AgentCore
- * Memory を使わない stateless 設計のため、毎回全履歴を渡す）。`knowledge_context` は
- * `type: "soap_draft"` / `"soap_gaps"` / `"soap_gaps_chat"` のときに BFF が
- * 保健師SOAP_KB_詳細設計書_v2 の `knowledge_item`（SOAP_RULE/SAFETY/FEEDBACK_POLICY）から
- * 組み立てて渡す補足コンテキスト（省略可、`domain/knowledge-context.ts` が抽出する）。
+ * ときだけ使う。`material` / `teaching_point` / `history` は `type: "material_chat"`
+ * （Training 画面の教材チャット）のときだけ使う: `material` は対話対象の教材（title/
+ * learningObjective/teachingPoints、全体の文脈）、`teaching_point` は呼び出し側
+ * （BFF/Workbench）がキューとして決定的に管理する「今回扱う1件の指導のポイント」
+ * （`material.teachingPoints` の1要素。省略時はポイントを絞らない教材全体の自由対話）、
+ * `history` は client（workbench）が保持するこれまでの会話（AgentCore Memory を使わない
+ * stateless 設計のため、毎回全履歴を渡す）。`knowledge_context` は `type: "soap_draft"` /
+ * `"soap_gaps"` / `"soap_gaps_chat"` のときに BFF が保健師SOAP_KB_詳細設計書_v2 の
+ * `knowledge_item`（SOAP_RULE/SAFETY/FEEDBACK_POLICY）から組み立てて渡す補足コンテキスト
+ * （省略可、`domain/knowledge-context.ts` が抽出する）。
  */
 export type RuntimeRequest = {
   prompt?: unknown;
@@ -36,6 +39,7 @@ export type RuntimeRequest = {
   exercise_case?: unknown;
   exercise_answers?: unknown;
   material?: unknown;
+  teaching_point?: unknown;
   history?: unknown;
   knowledge_context?: unknown;
 };
@@ -110,6 +114,10 @@ export type RuntimeResponse =
       type: "material_chat";
       /** 利用者にそのまま表示するチャット発言。 */
       message: string;
+      /** 断定しないブレインストーミング的な回答例・視点（0〜3件）。 */
+      suggestions: string[];
+      /** 今回のやりとりでこの指導のポイントへの対応が完了したか。 */
+      resolved: boolean;
       session_id: string;
       actor_id: string;
       model_id: string;
