@@ -6,7 +6,6 @@ import {
   addRubric,
   changeMaterialStatus,
   listMaterials,
-  listQualityMetrics,
   listReferenceKnowledge,
   listRequiredItems,
   listRubrics,
@@ -237,32 +236,5 @@ describe("listRequiredItems / addRequiredItem", () => {
     );
 
     expect(result.id).toBe("req-item-1");
-  });
-});
-
-describe("listQualityMetrics", () => {
-  test("snake_case ではなく BFF が返した camelCase をそのまま使う", async () => {
-    const fetchFn = async () =>
-      Response.json({
-        metrics: [
-          {
-            calculationDescription: "desc",
-            displayName: "分類精度",
-            metricKey: "classification_accuracy",
-            targetEntity: "soap_record_versions",
-          },
-        ],
-      });
-
-    const result = await listQualityMetrics(fetchFn);
-
-    expect(result).toEqual([
-      {
-        calculationDescription: "desc",
-        displayName: "分類精度",
-        metricKey: "classification_accuracy",
-        targetEntity: "soap_record_versions",
-      },
-    ]);
   });
 });

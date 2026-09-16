@@ -51,10 +51,6 @@ export function buildWorkbenchViteConfig(
       changeOrigin: true,
       target: config.bffUrl,
     },
-    "/api/quality-metrics": {
-      changeOrigin: true,
-      target: config.bffUrl,
-    },
     "/api/reference-knowledge": {
       changeOrigin: true,
       target: config.bffUrl,

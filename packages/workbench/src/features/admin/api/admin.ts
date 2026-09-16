@@ -20,7 +20,6 @@ import {
   type PublicationStatus,
 } from "../model/materials.ts";
 import type { PromptTemplate } from "../model/prompt-templates.ts";
-import type { QualityMetricDefinition } from "../model/quality-metrics.ts";
 import type {
   ReferenceKnowledge,
   ReferenceKnowledgeSourceType,
@@ -41,7 +40,7 @@ import {
 /**
  * 管理画面が使う BFF `/api/materials*` / `/api/rubrics*` / `/api/soap-knowledge-base*` /
  * `/api/prompt-templates` / `/api/reference-knowledge` /
- * `/api/required-items` / `/api/quality-metrics`（Aurora Serverless v2 + RDS Data API）を
+ * `/api/required-items`（Aurora Serverless v2 + RDS Data API）を
  * 呼ぶ。ルーブリック・Knowledge Base・Prompt Template は保健師SOAP_KB_詳細設計書_v2 の
  * スキーマ、それ以外は issue #10
  * （`docs/notes/2026-07-30-training-materials-db-schema-and-aws-infra.md` 参照）のスキーマ。
@@ -54,7 +53,6 @@ const SOAP_KNOWLEDGE_BASE_ITEMS_ENDPOINT = "/api/soap-knowledge-base-items";
 const PROMPT_TEMPLATES_ENDPOINT = "/api/prompt-templates";
 const REFERENCE_KNOWLEDGE_ENDPOINT = "/api/reference-knowledge";
 const REQUIRED_ITEMS_ENDPOINT = "/api/required-items";
-const QUALITY_METRICS_ENDPOINT = "/api/quality-metrics";
 const TRAINING_DATA_CLUSTER_ENDPOINT = "/api/training-data-cluster";
 
 type FetchFn = (
@@ -494,21 +492,6 @@ export async function addRequiredItem(
   return item;
 }
 
-// --- 品質指標（read-only） ------------------------------------------------
-
-export async function listQualityMetrics(
-  fetchFn: FetchFn = fetch,
-): Promise<QualityMetricDefinition[]> {
-  const response = await fetchFn(QUALITY_METRICS_ENDPOINT);
-  const payload = await readJson(response);
-
-  if (!response.ok) {
-    throw new Error(trimmedText(payload.error) || `HTTP ${response.status}`);
-  }
-
-  return normalizeQualityMetrics(payload.metrics);
-}
-
 // --- Training Data Store（Aurora）cluster 起動 ------------------------------
 
 /** 現在の Training Data Store（Aurora Serverless v2）cluster の status を取得する。 */
@@ -928,32 +911,6 @@ function normalizeRequiredItem(
     requirementLevel,
     specialtyId: trimmedText(record.specialtyId) || undefined,
   };
-}
-
-function normalizeQualityMetrics(value: unknown): QualityMetricDefinition[] {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-  return value
-    .map((entry) => normalizeQualityMetric(asRecord(entry)))
-    .filter(
-      (metric): metric is QualityMetricDefinition => metric !== undefined,
-    );
-}
-
-function normalizeQualityMetric(
-  record: Record<string, unknown>,
-): QualityMetricDefinition | undefined {
-  const metricKey = trimmedText(record.metricKey);
-  const displayName = trimmedText(record.displayName);
-  const calculationDescription = trimmedText(record.calculationDescription);
-  const targetEntity = trimmedText(record.targetEntity);
-
-  if (!metricKey || !displayName || !calculationDescription || !targetEntity) {
-    return undefined;
-  }
-
-  return { calculationDescription, displayName, metricKey, targetEntity };
 }
 
 function numberOrZero(value: unknown): number {

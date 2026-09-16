@@ -126,12 +126,3 @@ export type RequiredItemFilters = {
   recordType?: SoapRecordType;
   specialtyId?: string;
 };
-
-// --- 品質指標（quality_metrics_definitions、read-only） -----------------------
-
-export type QualityMetricDefinition = {
-  metricKey: string;
-  displayName: string;
-  calculationDescription: string;
-  targetEntity: string;
-};

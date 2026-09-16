@@ -18,7 +18,6 @@ export {
   getTrainingDataClusterStatus,
   listMaterials,
   listPromptTemplates,
-  listQualityMetrics,
   listReferenceKnowledge,
   listRequiredItems,
   listRubrics,
@@ -55,7 +54,6 @@ export {
   publicationStatusLabel,
 } from "./model/materials.ts";
 export type { PromptTemplate } from "./model/prompt-templates.ts";
-export type { QualityMetricDefinition } from "./model/quality-metrics.ts";
 export type {
   ReferenceKnowledge,
   ReferenceKnowledgeSourceType,

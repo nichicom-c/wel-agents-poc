@@ -8,7 +8,8 @@
 -- 現状スキーマと一致する。過去に存在した差分（旧 rubrics/rubric_items の置き換え、
 -- material_candidates/materials への learning_objective・teaching_points 追加、
 -- 新人保健師向け演習 exercise_* の追加と撤去、SOAP マッピング soap_mapping_versions と
--- soap_record_versions.soap_mapping_version_id の撤去）は、すべてこの定義に反映済みで
+-- soap_record_versions.soap_mapping_version_id の撤去、品質指標
+-- quality_metrics_definitions と quality_metric_key の撤去）は、すべてこの定義に反映済みで
 -- 個別ファイルは持たない。migration ランナー（tools/db-migrate/run-migrations.ts）は適用済み
 -- ファイル名を対象 DB の schema_migrations で管理するため、適用済み DB がこのファイルを
 -- 再実行することはない。
@@ -31,18 +32,6 @@ create type material_type as enum ('teaching_case', 'comment_derived_note', 'ref
 create type publication_status as enum ('draft', 'reviewing', 'published', 'archived');
 create type reference_knowledge_source_type as enum ('law', 'medical_care_law', 'internal_note');
 create type requirement_level as enum ('required', 'recommended');
-
--- 'learning_effectiveness' は演習（issue #9）の回答履歴を集計する指標として定義していた値。
--- 機能撤去後も定義行（0002_seed_masters.sql）は投入せず、enum 値だけを残す（値の削除には
--- 型の再作成が必要で、参照が無ければ実害が無いため）。
-create type quality_metric_key as enum (
-  'classification_accuracy',
-  'gap_detection_rate',
-  'adoption_rate',
-  'correction_rate',
-  'bounce_back_rate',
-  'learning_effectiveness'
-);
 
 -- =========================================================================
 -- ロール・マスタ（issue #10 が管理する対象。初期値は 0002_seed_masters.sql で投入する）
@@ -339,13 +328,3 @@ create table required_recommended_items (
 
 create index idx_required_recommended_items_search
   on required_recommended_items (record_type, specialty_id);
-
--- 実際の集計値は soap_record_versions / material_candidate_status_events を
--- 集計する view から取得する（このテーブルは定義だけを持つ。issue #10 の Out of Scope: 目標値・
--- 合格ラインの設定）。
-create table quality_metrics_definitions (
-  metric_key quality_metric_key primary key,
-  display_name text not null,
-  calculation_description text not null,
-  target_entity text not null
-);

@@ -357,15 +357,6 @@ resource "aws_apigatewayv2_route" "required_items_create" {
   target               = "integrations/${aws_apigatewayv2_integration.lambda.id}"
 }
 
-resource "aws_apigatewayv2_route" "quality_metrics_list" {
-  api_id               = aws_apigatewayv2_api.this.id
-  authorization_scopes = var.jwt_authorization_scopes
-  authorization_type   = "JWT"
-  authorizer_id        = aws_apigatewayv2_authorizer.jwt.id
-  route_key            = "GET /api/quality-metrics"
-  target               = "integrations/${aws_apigatewayv2_integration.lambda.id}"
-}
-
 resource "aws_apigatewayv2_route" "voice_recordings_create" {
   api_id               = aws_apigatewayv2_api.this.id
   authorization_scopes = var.jwt_authorization_scopes

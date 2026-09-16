@@ -1,7 +1,7 @@
 -- issue #10 が管理するマスタ（0001_init.sql で定義）の初期値。id/label は packages/workbench の dummy 実装
--- （features/knowledge-review/model/tags.ts, features/admin/model/material-candidates.ts,
--- features/admin/model/quality-metrics.ts）が使う固定値と一致させる。実 DB に切り替えた後も
--- これらの id をそのまま使えば workbench 側の変更は不要になる。
+-- （features/knowledge-review/model/tags.ts, features/admin/model/material-candidates.ts）が使う
+-- 固定値と一致させる。実 DB に切り替えた後もこれらの id をそのまま使えば workbench 側の変更は
+-- 不要になる。
 
 insert into specialties (id, label) values
   ('maternal-child', '母子保健'),
@@ -31,35 +31,3 @@ insert into rejection_reason_codes (code, label) values
   ('other', 'その他')
 on conflict (code) do nothing;
 
-insert into quality_metrics_definitions (metric_key, display_name, calculation_description, target_entity) values
-  (
-    'classification_accuracy',
-    '分類精度',
-    'SOAP 下書き生成 AI の分類（S/O/A/P）が、専門職の採用/編集後の結果と一致した割合。',
-    'soap_record_versions'
-  ),
-  (
-    'gap_detection_rate',
-    '不足検出率',
-    '不足確認（issue #6）が検出した不足のうち、実際に記録の改善につながった割合。',
-    'soap_record_versions'
-  ),
-  (
-    'adoption_rate',
-    '採用率',
-    '教材候補（issue #8）のうち承認済みになった割合。',
-    'material_candidate_status_events'
-  ),
-  (
-    'correction_rate',
-    '修正率',
-    '教材候補のうち要修正を経て承認に至った割合。',
-    'material_candidate_status_events'
-  ),
-  (
-    'bounce_back_rate',
-    '差し戻し率',
-    '教材候補のうち却下された割合。',
-    'material_candidate_status_events'
-  )
-on conflict (metric_key) do nothing;

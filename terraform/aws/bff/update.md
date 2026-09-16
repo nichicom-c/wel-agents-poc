@@ -73,8 +73,9 @@ Terraform apply は不要（migration ファイル自体はどの `.tf` から�
 > 畳み込み前の名前（`0003_seed_exercise_cases.sql` / `0004_create_knowledge_base.sql` /
 > `0005_seed_knowledge_base.sql` / `0006_add_material_candidate_teaching_fields.sql` /
 > `0007_add_material_teaching_fields.sql` / `0008_drop_exercise_tables.sql` /
-> `0004_drop_soap_mapping.sql`）は稼働中 DB に記録として残っているため、これらと**同名**の
-> ファイルを置くと永久にスキップされる。番号自体は 0004 から続けて使ってよい。
+> `0004_drop_soap_mapping.sql` / `0004_drop_quality_metrics.sql`）は稼働中 DB に記録として
+> 残っているため、これらと**同名**のファイルを置くと永久にスキップされる。番号自体は 0004 から
+> 続けて使ってよい。
 
 ```bash
 eval "$(mise exec -- terraform -chdir=terraform/aws/bff output -raw training_data_migrate_command)"

@@ -17,7 +17,6 @@ import { handleMaterialChatRequest } from "../application/handle-material-chat-r
 import { handleMaterialRequest } from "../application/handle-material-request.ts";
 import { handleProfessionalCommentRequest } from "../application/handle-professional-comment-request.ts";
 import { handlePromptTemplateRequest } from "../application/handle-prompt-template-request.ts";
-import { handleQualityMetricsRequest } from "../application/handle-quality-metrics-request.ts";
 import { handleReferenceKnowledgeRequest } from "../application/handle-reference-knowledge-request.ts";
 import { handleBffRequest } from "../application/handle-request.ts";
 import { handleRequiredItemRequest } from "../application/handle-required-item-request.ts";
@@ -80,7 +79,6 @@ import {
   createPromptTemplate,
   listPromptTemplates,
 } from "../infra/prompt-template-store.ts";
-import { listQualityMetrics } from "../infra/quality-metrics-store.ts";
 import { listReferenceKnowledge } from "../infra/reference-knowledge-store.ts";
 import {
   createRequiredItem,
@@ -522,18 +520,6 @@ export async function handleLambdaEvent(
     );
   }
 
-  if (path === "/api/quality-metrics") {
-    return handleQualityMetricsRequest(
-      {
-        body: event.body,
-        isBase64Encoded: event.isBase64Encoded,
-        method,
-        path,
-      },
-      qualityMetricsOptions(config, event, deps),
-    );
-  }
-
   if (
     path === "/api/voice-recordings" ||
     path.startsWith("/api/voice-recordings/")
@@ -871,32 +857,6 @@ function requiredItemOptions(
     authContext: authContextForEvent(event, config),
     createItem: (input) => createRequiredItem(storeConfig, input),
     listItems: (filters) => listRequiredItems(storeConfig, filters),
-    logError:
-      deps.logError ?? ((message, detail) => console.error(message, detail)),
-    trainingDataConfigured: Boolean(
-      config.trainingDataClusterArn &&
-        config.trainingDataDatabaseName &&
-        config.trainingDataSecretArn,
-    ),
-  };
-}
-
-/** 品質指標 handler が使う options を組み立てる。3つとも未設定なら handler 側が 503 を返す。 */
-function qualityMetricsOptions(
-  config: LambdaConfig,
-  event: LambdaEvent,
-  deps: LambdaHandlerDeps,
-): Parameters<typeof handleQualityMetricsRequest>[1] {
-  const storeConfig = {
-    clusterArn: config.trainingDataClusterArn ?? "",
-    database: config.trainingDataDatabaseName ?? "",
-    region: config.region,
-    secretArn: config.trainingDataSecretArn ?? "",
-  };
-
-  return {
-    authContext: authContextForEvent(event, config),
-    listMetrics: () => listQualityMetrics(storeConfig),
     logError:
       deps.logError ?? ((message, detail) => console.error(message, detail)),
     trainingDataConfigured: Boolean(

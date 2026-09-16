@@ -21,7 +21,6 @@ import {
   knowledgeItemCategoryLabel,
   listMaterials,
   listPromptTemplates,
-  listQualityMetrics,
   listReferenceKnowledge,
   listRequiredItems,
   listRubrics,
@@ -36,7 +35,6 @@ import {
   PUBLICATION_STATUSES,
   type PublicationStatus,
   publicationStatusLabel,
-  type QualityMetricDefinition,
   REQUIREMENT_LEVELS,
   type ReferenceKnowledge,
   type RequiredItemFilters,
@@ -72,8 +70,7 @@ type AdminTab =
   | "rubrics"
   | "prompt-templates"
   | "reference-knowledge"
-  | "required-items"
-  | "quality-metrics";
+  | "required-items";
 
 const ADMIN_TABS: ReadonlyArray<{ id: AdminTab; label: string }> = [
   { id: "materials", label: "教材" },
@@ -82,7 +79,6 @@ const ADMIN_TABS: ReadonlyArray<{ id: AdminTab; label: string }> = [
   { id: "prompt-templates", label: "Prompt Template" },
   { id: "reference-knowledge", label: "参照知識" },
   { id: "required-items", label: "必須・推奨項目" },
-  { id: "quality-metrics", label: "品質指標" },
 ];
 
 export function AdminView() {
@@ -146,10 +142,8 @@ export function AdminView() {
             <PromptTemplatesTab />
           ) : activeTab === "reference-knowledge" ? (
             <ReferenceKnowledgeTab />
-          ) : activeTab === "required-items" ? (
-            <RequiredItemsTab />
           ) : (
-            <QualityMetricsTab />
+            <RequiredItemsTab />
           )}
         </>
       )}
@@ -1362,47 +1356,6 @@ function RequiredItemsTab() {
           登録
         </button>
       </div>
-    </section>
-  );
-}
-
-function QualityMetricsTab() {
-  const [metrics, setMetrics] = useState<QualityMetricDefinition[] | null>(
-    null,
-  );
-
-  useEffect(() => {
-    let cancelled = false;
-    listQualityMetrics().then((result) => {
-      if (!cancelled) {
-        setMetrics(result);
-      }
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  return (
-    <section aria-label="品質指標">
-      <p className="workbench-main-description">
-        指標の目標値・合格ラインの設定は issue #10 の Out of Scope
-        のため、ここでは定義のみを表示する。
-      </p>
-      <ul className="knowledge-review-comment-list">
-        {(metrics ?? []).map((metric) => (
-          <li key={metric.metricKey} className="knowledge-review-comment">
-            <div className="knowledge-review-comment-header">
-              <span>{metric.displayName}</span>
-              <span>{metric.metricKey}</span>
-            </div>
-            <p className="soap-draft-text">{metric.calculationDescription}</p>
-            <p className="workbench-main-description">
-              集計対象: {metric.targetEntity}
-            </p>
-          </li>
-        ))}
-      </ul>
     </section>
   );
 }
