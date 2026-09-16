@@ -14,7 +14,6 @@ export {
   addRubric,
   addSoapKnowledgeBase,
   addSoapKnowledgeItem,
-  addSoapMappingVersion,
   changeMaterialStatus,
   getTrainingDataClusterStatus,
   listMaterials,
@@ -25,7 +24,6 @@ export {
   listRubrics,
   listSoapKnowledgeBases,
   listSoapKnowledgeItems,
-  listSoapMappingVersions,
   setRubricActive,
   setSoapKnowledgeBaseStatus,
   setSoapKnowledgeItemActive,
@@ -84,12 +82,3 @@ export type {
   RubricLevelNumber,
 } from "./model/rubrics.ts";
 export { isRubricLevelNumber, RUBRIC_LEVEL_NUMBERS } from "./model/rubrics.ts";
-export type {
-  MappingCategory,
-  MappingDefinition,
-  SoapMappingVersion,
-} from "./model/soap-mapping.ts";
-export {
-  currentVersionForRecordType,
-  MAPPING_CATEGORIES,
-} from "./model/soap-mapping.ts";

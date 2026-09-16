@@ -4,14 +4,12 @@ import {
   addMaterial,
   addRequiredItem,
   addRubric,
-  addSoapMappingVersion,
   changeMaterialStatus,
   listMaterials,
   listQualityMetrics,
   listReferenceKnowledge,
   listRequiredItems,
   listRubrics,
-  listSoapMappingVersions,
   setRubricActive,
 } from "./admin.ts";
 
@@ -197,72 +195,6 @@ describe("listReferenceKnowledge", () => {
         title: "title text",
       },
     ]);
-  });
-});
-
-describe("listSoapMappingVersions", () => {
-  test("recordType を query に含めて BFF /api/soap-mapping-versions を呼ぶ", async () => {
-    let requestedUrl: string | URL | Request | undefined;
-    const fetchFn = async (input: string | URL | Request) => {
-      requestedUrl = input;
-      return Response.json({
-        versions: [
-          {
-            createdBy: "11111111-1111-1111-1111-111111111111",
-            effectiveFrom: "2026-07-15T00:00:00.000Z",
-            id: "mapping-1",
-            isCurrent: true,
-            mappingDefinition: { A: "a", O: "o", P: "p", S: "s" },
-            recordType: "support_activity",
-            versionNo: 1,
-          },
-        ],
-      });
-    };
-
-    const result = await listSoapMappingVersions("support_activity", fetchFn);
-
-    expect(requestedUrl).toBe(
-      "/api/soap-mapping-versions?recordType=support_activity",
-    );
-    expect(result).toHaveLength(1);
-  });
-});
-
-describe("addSoapMappingVersion", () => {
-  test("body を JSON で POST し、更新後の一覧を返す", async () => {
-    let requestedInit: RequestInit | undefined;
-    const fetchFn = async (
-      _input: string | URL | Request,
-      init?: RequestInit,
-    ) => {
-      requestedInit = init;
-      return Response.json({
-        versions: [
-          {
-            createdBy: "11111111-1111-1111-1111-111111111111",
-            effectiveFrom: "2026-07-15T00:00:00.000Z",
-            id: "mapping-1",
-            isCurrent: true,
-            mappingDefinition: { A: "a", O: "o", P: "p", S: "s" },
-            recordType: "support_activity",
-            versionNo: 1,
-          },
-        ],
-      });
-    };
-
-    const result = await addSoapMappingVersion(
-      "support_activity",
-      { A: "a", O: "o", P: "p", S: "s" },
-      fetchFn,
-    );
-
-    expect(JSON.parse(String(requestedInit?.body))).toEqual({
-      mappingDefinition: { A: "a", O: "o", P: "p", S: "s" },
-      recordType: "support_activity",
-    });
-    expect(result).toHaveLength(1);
   });
 });
 

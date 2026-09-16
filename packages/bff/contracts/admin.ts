@@ -1,8 +1,8 @@
-import type { SoapCategory, SoapRecordType } from "./soap-records.ts";
+import type { SoapRecordType } from "./soap-records.ts";
 
 /**
  * 管理画面（issue #10。`docs/notes/2026-07-30-training-materials-db-schema-and-aws-infra.md`
- * 参照）が使う教材 / 評価ルーブリック / 参照知識 / SOAP マッピング / 必須推奨項目 / 品質指標の
+ * 参照）が使う教材 / 評価ルーブリック / 参照知識 / 必須推奨項目 / 品質指標の
  * contract。DB スキーマは `terraform/aws/bff/migrations/0001_init.sql` に対応する。
  */
 
@@ -98,29 +98,6 @@ export type ReferenceKnowledge = {
   externalKbRef?: string;
   linkedMaterialIds: string[];
   linkedRubricIds: string[];
-};
-
-// --- SOAP マッピング（soap_mapping_versions） --------------------------------
-
-export const MAPPING_CATEGORIES = [
-  "S",
-  "O",
-  "A",
-  "P",
-] as const satisfies readonly SoapCategory[];
-
-export type MappingCategory = (typeof MAPPING_CATEGORIES)[number];
-
-export type MappingDefinition = Record<MappingCategory, string>;
-
-export type SoapMappingVersion = {
-  id: string;
-  recordType: SoapRecordType;
-  versionNo: number;
-  mappingDefinition: MappingDefinition;
-  isCurrent: boolean;
-  effectiveFrom: string;
-  createdBy: string;
 };
 
 // --- 必須・推奨項目（required_recommended_items） ----------------------------

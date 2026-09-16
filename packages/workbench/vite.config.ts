@@ -87,10 +87,6 @@ export function buildWorkbenchViteConfig(
       changeOrigin: true,
       target: config.bffUrl,
     },
-    "/api/soap-mapping-versions": {
-      changeOrigin: true,
-      target: config.bffUrl,
-    },
     "/api/soap-records": {
       changeOrigin: true,
       target: config.bffUrl,

@@ -37,15 +37,10 @@ import {
   type Rubric,
   type RubricLevel,
 } from "../model/rubrics.ts";
-import {
-  MAPPING_CATEGORIES,
-  type MappingDefinition,
-  type SoapMappingVersion,
-} from "../model/soap-mapping.ts";
 
 /**
  * 管理画面が使う BFF `/api/materials*` / `/api/rubrics*` / `/api/soap-knowledge-base*` /
- * `/api/prompt-templates` / `/api/reference-knowledge` / `/api/soap-mapping-versions` /
+ * `/api/prompt-templates` / `/api/reference-knowledge` /
  * `/api/required-items` / `/api/quality-metrics`（Aurora Serverless v2 + RDS Data API）を
  * 呼ぶ。ルーブリック・Knowledge Base・Prompt Template は保健師SOAP_KB_詳細設計書_v2 の
  * スキーマ、それ以外は issue #10
@@ -58,7 +53,6 @@ const SOAP_KNOWLEDGE_BASE_ENDPOINT = "/api/soap-knowledge-base";
 const SOAP_KNOWLEDGE_BASE_ITEMS_ENDPOINT = "/api/soap-knowledge-base-items";
 const PROMPT_TEMPLATES_ENDPOINT = "/api/prompt-templates";
 const REFERENCE_KNOWLEDGE_ENDPOINT = "/api/reference-knowledge";
-const SOAP_MAPPING_VERSIONS_ENDPOINT = "/api/soap-mapping-versions";
 const REQUIRED_ITEMS_ENDPOINT = "/api/required-items";
 const QUALITY_METRICS_ENDPOINT = "/api/quality-metrics";
 const TRAINING_DATA_CLUSTER_ENDPOINT = "/api/training-data-cluster";
@@ -439,44 +433,6 @@ export async function listReferenceKnowledge(
   }
 
   return normalizeReferenceKnowledgeList(payload.referenceKnowledge);
-}
-
-// --- SOAP マッピング -----------------------------------------------------
-
-export async function listSoapMappingVersions(
-  recordType: SoapRecordType,
-  fetchFn: FetchFn = fetch,
-): Promise<SoapMappingVersion[]> {
-  const response = await fetchFn(
-    `${SOAP_MAPPING_VERSIONS_ENDPOINT}?recordType=${encodeURIComponent(recordType)}`,
-  );
-  const payload = await readJson(response);
-
-  if (!response.ok) {
-    throw new Error(trimmedText(payload.error) || `HTTP ${response.status}`);
-  }
-
-  return normalizeMappingVersions(payload.versions);
-}
-
-/** 新規バージョンを作る。既存記録には遡って適用しない（issue #10 の Technical Approach）。 */
-export async function addSoapMappingVersion(
-  recordType: SoapRecordType,
-  mappingDefinition: MappingDefinition,
-  fetchFn: FetchFn = fetch,
-): Promise<SoapMappingVersion[]> {
-  const response = await fetchFn(SOAP_MAPPING_VERSIONS_ENDPOINT, {
-    body: JSON.stringify({ mappingDefinition, recordType }),
-    headers: { "content-type": "application/json" },
-    method: "POST",
-  });
-  const payload = await readJson(response);
-
-  if (!response.ok) {
-    throw new Error(trimmedText(payload.error) || `HTTP ${response.status}`);
-  }
-
-  return normalizeMappingVersions(payload.versions);
 }
 
 // --- 必須・推奨項目 -------------------------------------------------------
@@ -934,65 +890,6 @@ function stringArray(value: unknown): string[] {
     return [];
   }
   return value.filter((entry): entry is string => typeof entry === "string");
-}
-
-function normalizeMappingVersions(value: unknown): SoapMappingVersion[] {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-  return value
-    .map((entry) => normalizeMappingVersion(asRecord(entry)))
-    .filter((version): version is SoapMappingVersion => version !== undefined);
-}
-
-function normalizeMappingVersion(
-  record: Record<string, unknown>,
-): SoapMappingVersion | undefined {
-  const id = trimmedText(record.id);
-  const recordType = record.recordType;
-  const versionNo = numberOrZero(record.versionNo);
-  const mappingDefinition = normalizeMappingDefinition(
-    record.mappingDefinition,
-  );
-  const isCurrent = record.isCurrent === true;
-  const effectiveFrom = trimmedText(record.effectiveFrom);
-  const createdBy = trimmedText(record.createdBy);
-
-  if (
-    !id ||
-    !isSoapRecordType(recordType) ||
-    versionNo <= 0 ||
-    !mappingDefinition ||
-    !effectiveFrom ||
-    !createdBy
-  ) {
-    return undefined;
-  }
-
-  return {
-    createdBy,
-    effectiveFrom,
-    id,
-    isCurrent,
-    mappingDefinition,
-    recordType,
-    versionNo,
-  };
-}
-
-function normalizeMappingDefinition(
-  value: unknown,
-): MappingDefinition | undefined {
-  const record = asRecord(value);
-  const result: Partial<MappingDefinition> = {};
-  for (const category of MAPPING_CATEGORIES) {
-    const text = trimmedText(record[category]);
-    if (!text) {
-      return undefined;
-    }
-    result[category] = text;
-  }
-  return result as MappingDefinition;
 }
 
 function normalizeRequiredItems(value: unknown): RequiredRecommendedItem[] {

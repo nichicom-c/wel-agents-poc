@@ -30,7 +30,6 @@ import { handleSoapDraftRequest } from "../application/handle-soap-draft-request
 import { handleSoapGapsChatRequest } from "../application/handle-soap-gaps-chat-request.ts";
 import { handleSoapGapsRequest } from "../application/handle-soap-gaps-request.ts";
 import { handleSoapKnowledgeBaseRequest } from "../application/handle-soap-knowledge-base-request.ts";
-import { handleSoapMappingRequest } from "../application/handle-soap-mapping-request.ts";
 import { handleSoapRecordRequest } from "../application/handle-soap-record-request.ts";
 import { handleTeachingMaterialRequest } from "../application/handle-teaching-material-request.ts";
 import { handleTrainingDataClusterRequest } from "../application/handle-training-data-cluster-request.ts";
@@ -101,10 +100,6 @@ import {
   setKnowledgeBaseStatus,
   setKnowledgeItemActive,
 } from "../infra/soap-knowledge-base-store.ts";
-import {
-  createSoapMappingVersion,
-  listSoapMappingVersions,
-} from "../infra/soap-mapping-store.ts";
 import {
   createSoapRecordVersion,
   listSoapRecords,
@@ -514,19 +509,6 @@ export async function handleLambdaEvent(
     );
   }
 
-  if (path === "/api/soap-mapping-versions") {
-    return handleSoapMappingRequest(
-      {
-        body: event.body,
-        isBase64Encoded: event.isBase64Encoded,
-        method,
-        path,
-        query: event.queryStringParameters ?? undefined,
-      },
-      soapMappingOptions(config, event, deps),
-    );
-  }
-
   if (path === "/api/required-items") {
     return handleRequiredItemRequest(
       {
@@ -862,33 +844,6 @@ function referenceKnowledgeOptions(
   return {
     authContext: authContextForEvent(event, config),
     listReferenceKnowledge: () => listReferenceKnowledge(storeConfig),
-    logError:
-      deps.logError ?? ((message, detail) => console.error(message, detail)),
-    trainingDataConfigured: Boolean(
-      config.trainingDataClusterArn &&
-        config.trainingDataDatabaseName &&
-        config.trainingDataSecretArn,
-    ),
-  };
-}
-
-/** SOAP マッピング handler が使う options を組み立てる。3つとも未設定なら handler 側が 503 を返す。 */
-function soapMappingOptions(
-  config: LambdaConfig,
-  event: LambdaEvent,
-  deps: LambdaHandlerDeps,
-): Parameters<typeof handleSoapMappingRequest>[1] {
-  const storeConfig = {
-    clusterArn: config.trainingDataClusterArn ?? "",
-    database: config.trainingDataDatabaseName ?? "",
-    region: config.region,
-    secretArn: config.trainingDataSecretArn ?? "",
-  };
-
-  return {
-    authContext: authContextForEvent(event, config),
-    createVersion: (input) => createSoapMappingVersion(storeConfig, input),
-    listVersions: (input) => listSoapMappingVersions(storeConfig, input),
     logError:
       deps.logError ?? ((message, detail) => console.error(message, detail)),
     trainingDataConfigured: Boolean(

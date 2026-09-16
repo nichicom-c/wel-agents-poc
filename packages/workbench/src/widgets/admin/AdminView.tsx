@@ -9,11 +9,9 @@ import {
   addRubric,
   addSoapKnowledgeBase,
   addSoapKnowledgeItem,
-  addSoapMappingVersion,
   adminDemoRoleLabel,
   canViewAdmin,
   changeMaterialStatus,
-  currentVersionForRecordType,
   getTrainingDataClusterStatus,
   KNOWLEDGE_BASE_STATUSES,
   KNOWLEDGE_ITEM_CATEGORIES,
@@ -29,10 +27,7 @@ import {
   listRubrics,
   listSoapKnowledgeBases,
   listSoapKnowledgeItems,
-  listSoapMappingVersions,
-  MAPPING_CATEGORIES,
   MATERIAL_TYPES,
-  type MappingDefinition,
   type Material,
   type MaterialFilters,
   type MaterialType,
@@ -54,7 +49,6 @@ import {
   requirementLevelLabel,
   type SoapKnowledgeBase,
   type SoapKnowledgeItem,
-  type SoapMappingVersion,
   setRubricActive,
   setSoapKnowledgeBaseStatus,
   setSoapKnowledgeItemActive,
@@ -78,7 +72,6 @@ type AdminTab =
   | "rubrics"
   | "prompt-templates"
   | "reference-knowledge"
-  | "soap-mapping"
   | "required-items"
   | "quality-metrics";
 
@@ -88,7 +81,6 @@ const ADMIN_TABS: ReadonlyArray<{ id: AdminTab; label: string }> = [
   { id: "rubrics", label: "ルーブリック" },
   { id: "prompt-templates", label: "Prompt Template" },
   { id: "reference-knowledge", label: "参照知識" },
-  { id: "soap-mapping", label: "SOAP マッピング" },
   { id: "required-items", label: "必須・推奨項目" },
   { id: "quality-metrics", label: "品質指標" },
 ];
@@ -154,8 +146,6 @@ export function AdminView() {
             <PromptTemplatesTab />
           ) : activeTab === "reference-knowledge" ? (
             <ReferenceKnowledgeTab />
-          ) : activeTab === "soap-mapping" ? (
-            <SoapMappingTab />
           ) : activeTab === "required-items" ? (
             <RequiredItemsTab />
           ) : (
@@ -1199,112 +1189,6 @@ function ReferenceKnowledgeTab() {
           </li>
         ))}
       </ul>
-    </section>
-  );
-}
-
-function SoapMappingTab() {
-  const [recordType, setRecordType] = useState<SoapRecordType>(
-    SOAP_RECORD_TYPES[0],
-  );
-  const [versions, setVersions] = useState<SoapMappingVersion[] | null>(null);
-  const [draft, setDraft] = useState<MappingDefinition>({
-    A: "",
-    O: "",
-    P: "",
-    S: "",
-  });
-  const [confirmedNoRetroactive, setConfirmedNoRetroactive] = useState(false);
-
-  useEffect(() => {
-    let cancelled = false;
-    listSoapMappingVersions(recordType).then((result) => {
-      if (cancelled) {
-        return;
-      }
-      setVersions(result);
-      const current = currentVersionForRecordType(result, recordType);
-      setDraft(current?.mappingDefinition ?? { A: "", O: "", P: "", S: "" });
-      setConfirmedNoRetroactive(false);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [recordType]);
-
-  const canSave =
-    confirmedNoRetroactive &&
-    MAPPING_CATEGORIES.every((category) => draft[category].trim());
-
-  async function handleSave() {
-    if (!canSave) {
-      return;
-    }
-    const updated = await addSoapMappingVersion(recordType, draft);
-    setVersions(updated);
-    setConfirmedNoRetroactive(false);
-  }
-
-  return (
-    <section aria-label="SOAP マッピング">
-      <div className="knowledge-review-tabs" role="tablist">
-        {SOAP_RECORD_TYPES.map((type) => (
-          <button
-            type="button"
-            key={type}
-            data-active={type === recordType}
-            onClick={() => setRecordType(type)}
-          >
-            {soapRecordTypeLabel(type)}
-          </button>
-        ))}
-      </div>
-
-      <h4>バージョン履歴</h4>
-      <ul className="knowledge-review-status-history">
-        {(versions ?? []).map((version) => (
-          <li key={version.id}>
-            version {version.versionNo}
-            {version.isCurrent ? "（現在有効）" : ""} — {version.createdBy} —{" "}
-            {version.effectiveFrom}
-          </li>
-        ))}
-      </ul>
-
-      <div className="knowledge-review-create-form">
-        <h5>新規バージョンの作成</h5>
-        {MAPPING_CATEGORIES.map((category) => (
-          <label key={category}>
-            {category}
-            <textarea
-              value={draft[category]}
-              onChange={(event) =>
-                setDraft((prev) => ({
-                  ...prev,
-                  [category]: event.target.value,
-                }))
-              }
-            />
-          </label>
-        ))}
-        <label className="knowledge-review-role-option">
-          <input
-            type="checkbox"
-            checked={confirmedNoRetroactive}
-            onChange={(event) =>
-              setConfirmedNoRetroactive(event.target.checked)
-            }
-          />
-          既存記録には遡って適用されないことを確認しました
-        </label>
-        <button
-          type="button"
-          disabled={!canSave}
-          onClick={() => void handleSave()}
-        >
-          新規バージョンとして保存
-        </button>
-      </div>
     </section>
   );
 }

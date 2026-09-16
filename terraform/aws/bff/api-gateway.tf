@@ -339,24 +339,6 @@ resource "aws_apigatewayv2_route" "reference_knowledge_list" {
   target               = "integrations/${aws_apigatewayv2_integration.lambda.id}"
 }
 
-resource "aws_apigatewayv2_route" "soap_mapping_versions_list" {
-  api_id               = aws_apigatewayv2_api.this.id
-  authorization_scopes = var.jwt_authorization_scopes
-  authorization_type   = "JWT"
-  authorizer_id        = aws_apigatewayv2_authorizer.jwt.id
-  route_key            = "GET /api/soap-mapping-versions"
-  target               = "integrations/${aws_apigatewayv2_integration.lambda.id}"
-}
-
-resource "aws_apigatewayv2_route" "soap_mapping_versions_create" {
-  api_id               = aws_apigatewayv2_api.this.id
-  authorization_scopes = var.jwt_authorization_scopes
-  authorization_type   = "JWT"
-  authorizer_id        = aws_apigatewayv2_authorizer.jwt.id
-  route_key            = "POST /api/soap-mapping-versions"
-  target               = "integrations/${aws_apigatewayv2_integration.lambda.id}"
-}
-
 resource "aws_apigatewayv2_route" "required_items_list" {
   api_id               = aws_apigatewayv2_api.this.id
   authorization_scopes = var.jwt_authorization_scopes

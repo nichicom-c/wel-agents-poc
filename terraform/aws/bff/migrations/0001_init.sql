@@ -7,9 +7,11 @@
 -- このファイルは「作ってから alter/drop で直す」履歴を畳んだ後の到達形であり、稼働中 DB の
 -- 現状スキーマと一致する。過去に存在した差分（旧 rubrics/rubric_items の置き換え、
 -- material_candidates/materials への learning_objective・teaching_points 追加、
--- 新人保健師向け演習 exercise_* の追加と撤去）は、すべてこの定義に反映済みで個別ファイルは
--- 持たない。migration ランナー（tools/db-migrate/run-migrations.ts）は適用済みファイル名を
--- 対象 DB の schema_migrations で管理するため、適用済み DB がこのファイルを再実行することはない。
+-- 新人保健師向け演習 exercise_* の追加と撤去、SOAP マッピング soap_mapping_versions と
+-- soap_record_versions.soap_mapping_version_id の撤去）は、すべてこの定義に反映済みで
+-- 個別ファイルは持たない。migration ランナー（tools/db-migrate/run-migrations.ts）は適用済み
+-- ファイル名を対象 DB の schema_migrations で管理するため、適用済み DB がこのファイルを
+-- 再実行することはない。
 --
 -- gen_random_uuid() は PostgreSQL 13 以降で built-in（pgcrypto 拡張は不要）。
 -- Aurora PostgreSQL の対象バージョン（scale-to-zero 対応の 15.7+ / 16.3+）は
@@ -98,23 +100,6 @@ create table soap_records (
   created_at timestamptz not null default now()
 );
 
--- 記録種別ごとに現在有効なマッピングバージョンを1件だけ持つ。既存記録には遡って適用しない
--- （issue #10）ため、soap_record_versions は生成時点の soap_mapping_version_id を固定で持つ。
-create table soap_mapping_versions (
-  id uuid primary key default gen_random_uuid(),
-  record_type soap_record_type not null,
-  version_no integer not null,
-  mapping_definition jsonb not null,
-  is_current boolean not null default false,
-  effective_from timestamptz not null default now(),
-  created_by uuid not null references app_users (id),
-  unique (record_type, version_no)
-);
-
-create index idx_soap_mapping_versions_current
-  on soap_mapping_versions (record_type)
-  where is_current;
-
 -- 追記専用（UPDATE しない）にすることで、そのまま issue #8 が言う「編集履歴」になる。
 create table soap_record_versions (
   id uuid primary key default gen_random_uuid(),
@@ -122,7 +107,6 @@ create table soap_record_versions (
   version_no integer not null,
   content jsonb not null,
   source soap_record_version_source not null,
-  soap_mapping_version_id uuid references soap_mapping_versions (id),
   recording_id text,
   created_by uuid not null references app_users (id),
   created_at timestamptz not null default now(),

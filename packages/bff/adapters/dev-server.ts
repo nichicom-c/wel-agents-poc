@@ -29,7 +29,6 @@ import { handleSoapDraftRequest } from "../application/handle-soap-draft-request
 import { handleSoapGapsChatRequest } from "../application/handle-soap-gaps-chat-request.ts";
 import { handleSoapGapsRequest } from "../application/handle-soap-gaps-request.ts";
 import { handleSoapKnowledgeBaseRequest } from "../application/handle-soap-knowledge-base-request.ts";
-import { handleSoapMappingRequest } from "../application/handle-soap-mapping-request.ts";
 import { handleSoapRecordRequest } from "../application/handle-soap-record-request.ts";
 import { handleTeachingMaterialRequest } from "../application/handle-teaching-material-request.ts";
 import { handleTrainingDataClusterRequest } from "../application/handle-training-data-cluster-request.ts";
@@ -82,10 +81,6 @@ import {
   setKnowledgeBaseStatus,
   setKnowledgeItemActive,
 } from "../infra/soap-knowledge-base-store.ts";
-import {
-  createSoapMappingVersion,
-  listSoapMappingVersions,
-} from "../infra/soap-mapping-store.ts";
 import {
   createSoapRecordVersion,
   listSoapRecords,
@@ -741,37 +736,6 @@ export async function handleBffDevRequest(
       {
         authContext: authContextForConfig(config),
         listReferenceKnowledge: () => listReferenceKnowledge(storeConfig),
-        logError: (message, detail) => console.error(message, detail),
-        trainingDataConfigured: Boolean(
-          config.trainingDataClusterArn &&
-            config.trainingDataDatabaseName &&
-            config.trainingDataSecretArn,
-        ),
-      },
-    );
-
-    return responseFromBff(bffResponse);
-  }
-
-  if (url.pathname === "/api/soap-mapping-versions") {
-    const storeConfig = {
-      clusterArn: config.trainingDataClusterArn ?? "",
-      database: config.trainingDataDatabaseName ?? "",
-      region: config.region,
-      secretArn: config.trainingDataSecretArn ?? "",
-    };
-
-    const bffResponse = await handleSoapMappingRequest(
-      {
-        body,
-        method: request.method,
-        path: url.pathname,
-        query: queryFromUrl(url),
-      },
-      {
-        authContext: authContextForConfig(config),
-        createVersion: (input) => createSoapMappingVersion(storeConfig, input),
-        listVersions: (input) => listSoapMappingVersions(storeConfig, input),
         logError: (message, detail) => console.error(message, detail),
         trainingDataConfigured: Boolean(
           config.trainingDataClusterArn &&
