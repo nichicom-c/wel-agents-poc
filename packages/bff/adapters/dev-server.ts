@@ -18,7 +18,6 @@ import { handleProfessionalCommentRequest } from "../application/handle-professi
 import { handlePromptTemplateRequest } from "../application/handle-prompt-template-request.ts";
 import { handleReferenceKnowledgeRequest } from "../application/handle-reference-knowledge-request.ts";
 import { handleBffRequest } from "../application/handle-request.ts";
-import { handleRequiredItemRequest } from "../application/handle-required-item-request.ts";
 import { handleRubricRequest } from "../application/handle-rubric-request.ts";
 import {
   handleSessionsRequest,
@@ -61,10 +60,6 @@ import {
   listPromptTemplates,
 } from "../infra/prompt-template-store.ts";
 import { listReferenceKnowledge } from "../infra/reference-knowledge-store.ts";
-import {
-  createRequiredItem,
-  listRequiredItems,
-} from "../infra/required-item-store.ts";
 import {
   createRubric,
   listRubrics,
@@ -734,37 +729,6 @@ export async function handleBffDevRequest(
       {
         authContext: authContextForConfig(config),
         listReferenceKnowledge: () => listReferenceKnowledge(storeConfig),
-        logError: (message, detail) => console.error(message, detail),
-        trainingDataConfigured: Boolean(
-          config.trainingDataClusterArn &&
-            config.trainingDataDatabaseName &&
-            config.trainingDataSecretArn,
-        ),
-      },
-    );
-
-    return responseFromBff(bffResponse);
-  }
-
-  if (url.pathname === "/api/required-items") {
-    const storeConfig = {
-      clusterArn: config.trainingDataClusterArn ?? "",
-      database: config.trainingDataDatabaseName ?? "",
-      region: config.region,
-      secretArn: config.trainingDataSecretArn ?? "",
-    };
-
-    const bffResponse = await handleRequiredItemRequest(
-      {
-        body,
-        method: request.method,
-        path: url.pathname,
-        query: queryFromUrl(url),
-      },
-      {
-        authContext: authContextForConfig(config),
-        createItem: (input) => createRequiredItem(storeConfig, input),
-        listItems: (filters) => listRequiredItems(storeConfig, filters),
         logError: (message, detail) => console.error(message, detail),
         trainingDataConfigured: Boolean(
           config.trainingDataClusterArn &&

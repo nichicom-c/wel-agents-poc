@@ -55,10 +55,6 @@ export function buildWorkbenchViteConfig(
       changeOrigin: true,
       target: config.bffUrl,
     },
-    "/api/required-items": {
-      changeOrigin: true,
-      target: config.bffUrl,
-    },
     "/api/rubrics": {
       changeOrigin: true,
       target: config.bffUrl,

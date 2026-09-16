@@ -11,7 +11,7 @@ describe("AdminView", () => {
     expect(html).toContain("ロール（デモ用の切り替え");
     expect(html).toContain("教材");
     expect(html).toContain("ルーブリック");
-    expect(html).toContain("必須・推奨項目");
+    expect(html).toContain("参照知識");
   });
 
   test("既定ロール（管理者）では権限がありませんの表示をしない", () => {

@@ -19,7 +19,6 @@ import { handleProfessionalCommentRequest } from "../application/handle-professi
 import { handlePromptTemplateRequest } from "../application/handle-prompt-template-request.ts";
 import { handleReferenceKnowledgeRequest } from "../application/handle-reference-knowledge-request.ts";
 import { handleBffRequest } from "../application/handle-request.ts";
-import { handleRequiredItemRequest } from "../application/handle-required-item-request.ts";
 import { handleRubricRequest } from "../application/handle-rubric-request.ts";
 import {
   handleSessionsRequest,
@@ -80,10 +79,6 @@ import {
   listPromptTemplates,
 } from "../infra/prompt-template-store.ts";
 import { listReferenceKnowledge } from "../infra/reference-knowledge-store.ts";
-import {
-  createRequiredItem,
-  listRequiredItems,
-} from "../infra/required-item-store.ts";
 import {
   createRubric,
   listRubrics,
@@ -507,19 +502,6 @@ export async function handleLambdaEvent(
     );
   }
 
-  if (path === "/api/required-items") {
-    return handleRequiredItemRequest(
-      {
-        body: event.body,
-        isBase64Encoded: event.isBase64Encoded,
-        method,
-        path,
-        query: event.queryStringParameters ?? undefined,
-      },
-      requiredItemOptions(config, event, deps),
-    );
-  }
-
   if (
     path === "/api/voice-recordings" ||
     path.startsWith("/api/voice-recordings/")
@@ -830,33 +812,6 @@ function referenceKnowledgeOptions(
   return {
     authContext: authContextForEvent(event, config),
     listReferenceKnowledge: () => listReferenceKnowledge(storeConfig),
-    logError:
-      deps.logError ?? ((message, detail) => console.error(message, detail)),
-    trainingDataConfigured: Boolean(
-      config.trainingDataClusterArn &&
-        config.trainingDataDatabaseName &&
-        config.trainingDataSecretArn,
-    ),
-  };
-}
-
-/** 必須・推奨項目 handler が使う options を組み立てる。3つとも未設定なら handler 側が 503 を返す。 */
-function requiredItemOptions(
-  config: LambdaConfig,
-  event: LambdaEvent,
-  deps: LambdaHandlerDeps,
-): Parameters<typeof handleRequiredItemRequest>[1] {
-  const storeConfig = {
-    clusterArn: config.trainingDataClusterArn ?? "",
-    database: config.trainingDataDatabaseName ?? "",
-    region: config.region,
-    secretArn: config.trainingDataSecretArn ?? "",
-  };
-
-  return {
-    authContext: authContextForEvent(event, config),
-    createItem: (input) => createRequiredItem(storeConfig, input),
-    listItems: (filters) => listRequiredItems(storeConfig, filters),
     logError:
       deps.logError ?? ((message, detail) => console.error(message, detail)),
     trainingDataConfigured: Boolean(

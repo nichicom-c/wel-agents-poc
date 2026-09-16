@@ -1,8 +1,4 @@
 import {
-  isSoapRecordType,
-  type SoapRecordType,
-} from "../../soap-draft/index.ts";
-import {
   KNOWLEDGE_BASE_STATUSES,
   KNOWLEDGE_ITEM_CATEGORIES,
   type KnowledgeBaseStatus,
@@ -26,12 +22,6 @@ import type {
 } from "../model/reference-knowledge.ts";
 import { REFERENCE_KNOWLEDGE_SOURCE_TYPES } from "../model/reference-knowledge.ts";
 import {
-  REQUIREMENT_LEVELS,
-  type RequiredItemFilters,
-  type RequiredRecommendedItem,
-  type RequirementLevel,
-} from "../model/required-items.ts";
-import {
   isRubricLevelNumber,
   type Rubric,
   type RubricLevel,
@@ -39,8 +29,7 @@ import {
 
 /**
  * 管理画面が使う BFF `/api/materials*` / `/api/rubrics*` / `/api/soap-knowledge-base*` /
- * `/api/prompt-templates` / `/api/reference-knowledge` /
- * `/api/required-items`（Aurora Serverless v2 + RDS Data API）を
+ * `/api/prompt-templates` / `/api/reference-knowledge`（Aurora Serverless v2 + RDS Data API）を
  * 呼ぶ。ルーブリック・Knowledge Base・Prompt Template は保健師SOAP_KB_詳細設計書_v2 の
  * スキーマ、それ以外は issue #10
  * （`docs/notes/2026-07-30-training-materials-db-schema-and-aws-infra.md` 参照）のスキーマ。
@@ -52,7 +41,6 @@ const SOAP_KNOWLEDGE_BASE_ENDPOINT = "/api/soap-knowledge-base";
 const SOAP_KNOWLEDGE_BASE_ITEMS_ENDPOINT = "/api/soap-knowledge-base-items";
 const PROMPT_TEMPLATES_ENDPOINT = "/api/prompt-templates";
 const REFERENCE_KNOWLEDGE_ENDPOINT = "/api/reference-knowledge";
-const REQUIRED_ITEMS_ENDPOINT = "/api/required-items";
 const TRAINING_DATA_CLUSTER_ENDPOINT = "/api/training-data-cluster";
 
 type FetchFn = (
@@ -431,65 +419,6 @@ export async function listReferenceKnowledge(
   }
 
   return normalizeReferenceKnowledgeList(payload.referenceKnowledge);
-}
-
-// --- 必須・推奨項目 -------------------------------------------------------
-
-export async function listRequiredItems(
-  filters: RequiredItemFilters = {},
-  fetchFn: FetchFn = fetch,
-): Promise<RequiredRecommendedItem[]> {
-  const query = new URLSearchParams();
-  if (filters.recordType) {
-    query.set("recordType", filters.recordType);
-  }
-  if (filters.specialtyId) {
-    query.set("specialtyId", filters.specialtyId);
-  }
-  const queryString = query.toString();
-
-  const response = await fetchFn(
-    queryString
-      ? `${REQUIRED_ITEMS_ENDPOINT}?${queryString}`
-      : REQUIRED_ITEMS_ENDPOINT,
-  );
-  const payload = await readJson(response);
-
-  if (!response.ok) {
-    throw new Error(trimmedText(payload.error) || `HTTP ${response.status}`);
-  }
-
-  return normalizeRequiredItems(payload.items);
-}
-
-export type NewRequiredItemInput = {
-  recordType: SoapRecordType;
-  specialtyId?: string;
-  itemName: string;
-  requirementLevel: RequirementLevel;
-  aggregationCategory: string;
-};
-
-export async function addRequiredItem(
-  input: NewRequiredItemInput,
-  fetchFn: FetchFn = fetch,
-): Promise<RequiredRecommendedItem> {
-  const response = await fetchFn(REQUIRED_ITEMS_ENDPOINT, {
-    body: JSON.stringify(input),
-    headers: { "content-type": "application/json" },
-    method: "POST",
-  });
-  const payload = await readJson(response);
-
-  if (!response.ok) {
-    throw new Error(trimmedText(payload.error) || `HTTP ${response.status}`);
-  }
-
-  const item = normalizeRequiredItem(payload);
-  if (!item) {
-    throw new Error("invalid response from /api/required-items");
-  }
-  return item;
 }
 
 // --- Training Data Store（Aurora）cluster 起動 ------------------------------
@@ -873,44 +802,6 @@ function stringArray(value: unknown): string[] {
     return [];
   }
   return value.filter((entry): entry is string => typeof entry === "string");
-}
-
-function normalizeRequiredItems(value: unknown): RequiredRecommendedItem[] {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-  return value
-    .map((entry) => normalizeRequiredItem(asRecord(entry)))
-    .filter((item): item is RequiredRecommendedItem => item !== undefined);
-}
-
-function normalizeRequiredItem(
-  record: Record<string, unknown>,
-): RequiredRecommendedItem | undefined {
-  const id = trimmedText(record.id);
-  const recordType = record.recordType;
-  const itemName = trimmedText(record.itemName);
-  const requirementLevel = record.requirementLevel;
-  const aggregationCategory = trimmedText(record.aggregationCategory);
-
-  if (
-    !id ||
-    !isSoapRecordType(recordType) ||
-    !itemName ||
-    !isOneOf(REQUIREMENT_LEVELS, requirementLevel) ||
-    !aggregationCategory
-  ) {
-    return undefined;
-  }
-
-  return {
-    aggregationCategory,
-    id,
-    itemName,
-    recordType,
-    requirementLevel,
-    specialtyId: trimmedText(record.specialtyId) || undefined,
-  };
 }
 
 function numberOrZero(value: unknown): number {

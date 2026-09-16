@@ -31,7 +31,6 @@ create type material_candidate_status as enum ('candidate', 'approved', 'rejecte
 create type material_type as enum ('teaching_case', 'comment_derived_note', 'reference_summary');
 create type publication_status as enum ('draft', 'reviewing', 'published', 'archived');
 create type reference_knowledge_source_type as enum ('law', 'medical_care_law', 'internal_note');
-create type requirement_level as enum ('required', 'recommended');
 
 -- =========================================================================
 -- ロール・マスタ（issue #10 が管理する対象。初期値は 0002_seed_masters.sql で投入する）
@@ -315,16 +314,3 @@ create table rubric_reference_knowledge (
   reference_knowledge_id uuid not null references reference_knowledge (id),
   primary key (rubric_id, reference_knowledge_id)
 );
-
-create table required_recommended_items (
-  id uuid primary key default gen_random_uuid(),
-  record_type soap_record_type not null,
-  specialty_id text references specialties (id),
-  item_name text not null,
-  requirement_level requirement_level not null,
-  aggregation_category text not null,
-  effective_from timestamptz not null default now()
-);
-
-create index idx_required_recommended_items_search
-  on required_recommended_items (record_type, specialty_id);

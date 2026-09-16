@@ -1,9 +1,7 @@
-import type { SoapRecordType } from "./soap-records.ts";
-
 /**
  * 管理画面（issue #10。`docs/notes/2026-07-30-training-materials-db-schema-and-aws-infra.md`
- * 参照）が使う教材 / 評価ルーブリック / 参照知識 / 必須推奨項目 / 品質指標の
- * contract。DB スキーマは `terraform/aws/bff/migrations/0001_init.sql` に対応する。
+ * 参照）が使う教材 / 評価ルーブリック / 参照知識の contract。DB スキーマは
+ * `terraform/aws/bff/migrations/0001_init.sql` に対応する。
  */
 
 // --- 教材（materials / material_revisions） ---------------------------------
@@ -98,31 +96,4 @@ export type ReferenceKnowledge = {
   externalKbRef?: string;
   linkedMaterialIds: string[];
   linkedRubricIds: string[];
-};
-
-// --- 必須・推奨項目（required_recommended_items） ----------------------------
-
-export const REQUIREMENT_LEVELS = ["required", "recommended"] as const;
-
-export type RequirementLevel = (typeof REQUIREMENT_LEVELS)[number];
-
-export function isRequirementLevel(value: unknown): value is RequirementLevel {
-  return (
-    typeof value === "string" &&
-    (REQUIREMENT_LEVELS as readonly string[]).includes(value)
-  );
-}
-
-export type RequiredRecommendedItem = {
-  id: string;
-  recordType: SoapRecordType;
-  specialtyId?: string;
-  itemName: string;
-  requirementLevel: RequirementLevel;
-  aggregationCategory: string;
-};
-
-export type RequiredItemFilters = {
-  recordType?: SoapRecordType;
-  specialtyId?: string;
 };

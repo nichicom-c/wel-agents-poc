@@ -5,7 +5,6 @@ import {
   type AdminDemoRole,
   addMaterial,
   addPromptTemplate,
-  addRequiredItem,
   addRubric,
   addSoapKnowledgeBase,
   addSoapKnowledgeItem,
@@ -22,7 +21,6 @@ import {
   listMaterials,
   listPromptTemplates,
   listReferenceKnowledge,
-  listRequiredItems,
   listRubrics,
   listSoapKnowledgeBases,
   listSoapKnowledgeItems,
@@ -35,16 +33,11 @@ import {
   PUBLICATION_STATUSES,
   type PublicationStatus,
   publicationStatusLabel,
-  REQUIREMENT_LEVELS,
   type ReferenceKnowledge,
-  type RequiredItemFilters,
-  type RequiredRecommendedItem,
-  type RequirementLevel,
   RUBRIC_LEVEL_NUMBERS,
   type Rubric,
   type RubricLevelNumber,
   referenceKnowledgeSourceTypeLabel,
-  requirementLevelLabel,
   type SoapKnowledgeBase,
   type SoapKnowledgeItem,
   setRubricActive,
@@ -58,19 +51,13 @@ import {
   SPECIALTIES,
   tagLabel,
 } from "../../features/knowledge-review/index.ts";
-import {
-  SOAP_RECORD_TYPES,
-  type SoapRecordType,
-  soapRecordTypeLabel,
-} from "../../features/soap-draft/index.ts";
 
 type AdminTab =
   | "materials"
   | "knowledge-base"
   | "rubrics"
   | "prompt-templates"
-  | "reference-knowledge"
-  | "required-items";
+  | "reference-knowledge";
 
 const ADMIN_TABS: ReadonlyArray<{ id: AdminTab; label: string }> = [
   { id: "materials", label: "教材" },
@@ -78,7 +65,6 @@ const ADMIN_TABS: ReadonlyArray<{ id: AdminTab; label: string }> = [
   { id: "rubrics", label: "ルーブリック" },
   { id: "prompt-templates", label: "Prompt Template" },
   { id: "reference-knowledge", label: "参照知識" },
-  { id: "required-items", label: "必須・推奨項目" },
 ];
 
 export function AdminView() {
@@ -140,10 +126,8 @@ export function AdminView() {
             <RubricsTab />
           ) : activeTab === "prompt-templates" ? (
             <PromptTemplatesTab />
-          ) : activeTab === "reference-knowledge" ? (
-            <ReferenceKnowledgeTab />
           ) : (
-            <RequiredItemsTab />
+            <ReferenceKnowledgeTab />
           )}
         </>
       )}
@@ -1183,179 +1167,6 @@ function ReferenceKnowledgeTab() {
           </li>
         ))}
       </ul>
-    </section>
-  );
-}
-
-function RequiredItemsTab() {
-  const [filters, setFilters] = useState<RequiredItemFilters>({});
-  const [items, setItems] = useState<RequiredRecommendedItem[] | null>(null);
-  const [newItemName, setNewItemName] = useState("");
-  const [newRecordType, setNewRecordType] = useState<SoapRecordType>(
-    SOAP_RECORD_TYPES[0],
-  );
-  const [newSpecialtyId, setNewSpecialtyId] = useState("");
-  const [newRequirementLevel, setNewRequirementLevel] =
-    useState<RequirementLevel>(REQUIREMENT_LEVELS[0]);
-  const [newAggregationCategory, setNewAggregationCategory] = useState("");
-
-  useEffect(() => {
-    let cancelled = false;
-    listRequiredItems(filters).then((result) => {
-      if (!cancelled) {
-        setItems(result);
-      }
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [filters]);
-
-  async function refresh() {
-    setItems(await listRequiredItems(filters));
-  }
-
-  async function handleAdd() {
-    if (!newItemName.trim() || !newAggregationCategory.trim()) {
-      return;
-    }
-    await addRequiredItem({
-      aggregationCategory: newAggregationCategory.trim(),
-      itemName: newItemName.trim(),
-      recordType: newRecordType,
-      requirementLevel: newRequirementLevel,
-      specialtyId: newSpecialtyId || undefined,
-    });
-    setNewItemName("");
-    setNewAggregationCategory("");
-    await refresh();
-  }
-
-  return (
-    <section aria-label="必須・推奨項目">
-      <fieldset className="knowledge-review-filters">
-        <legend>検索</legend>
-        <label>
-          記録種別
-          <select
-            value={filters.recordType ?? ""}
-            onChange={(event) =>
-              setFilters((prev) => ({
-                ...prev,
-                recordType: (event.target.value as SoapRecordType) || undefined,
-              }))
-            }
-          >
-            <option value="">すべて</option>
-            {SOAP_RECORD_TYPES.map((type) => (
-              <option key={type} value={type}>
-                {soapRecordTypeLabel(type)}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          分野
-          <select
-            value={filters.specialtyId ?? ""}
-            onChange={(event) =>
-              setFilters((prev) => ({
-                ...prev,
-                specialtyId: event.target.value || undefined,
-              }))
-            }
-          >
-            <option value="">すべて</option>
-            {SPECIALTIES.map((option) => (
-              <option key={option.id} value={option.id}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </label>
-      </fieldset>
-
-      <ul className="knowledge-review-status-history">
-        {(items ?? []).map((item) => (
-          <li key={item.id}>
-            <span className="knowledge-review-status-badge">
-              {requirementLevelLabel(item.requirementLevel)}
-            </span>{" "}
-            {item.itemName}（{soapRecordTypeLabel(item.recordType)} /{" "}
-            {item.specialtyId
-              ? tagLabel(SPECIALTIES, item.specialtyId)
-              : "全分野"}{" "}
-            / {item.aggregationCategory}）
-          </li>
-        ))}
-      </ul>
-
-      <div className="knowledge-review-create-form">
-        <h5>新規項目の登録</h5>
-        <input
-          placeholder="項目名"
-          value={newItemName}
-          onChange={(event) => setNewItemName(event.target.value)}
-        />
-        <label>
-          記録種別
-          <select
-            value={newRecordType}
-            onChange={(event) =>
-              setNewRecordType(event.target.value as SoapRecordType)
-            }
-          >
-            {SOAP_RECORD_TYPES.map((type) => (
-              <option key={type} value={type}>
-                {soapRecordTypeLabel(type)}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          分野（任意）
-          <select
-            value={newSpecialtyId}
-            onChange={(event) => setNewSpecialtyId(event.target.value)}
-          >
-            <option value="">全分野</option>
-            {SPECIALTIES.map((option) => (
-              <option key={option.id} value={option.id}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          必須/推奨
-          <select
-            value={newRequirementLevel}
-            onChange={(event) =>
-              setNewRequirementLevel(
-                event.target.value as (typeof REQUIREMENT_LEVELS)[number],
-              )
-            }
-          >
-            {REQUIREMENT_LEVELS.map((level) => (
-              <option key={level} value={level}>
-                {requirementLevelLabel(level)}
-              </option>
-            ))}
-          </select>
-        </label>
-        <input
-          placeholder="集計分類"
-          value={newAggregationCategory}
-          onChange={(event) => setNewAggregationCategory(event.target.value)}
-        />
-        <button
-          type="button"
-          disabled={!newItemName.trim() || !newAggregationCategory.trim()}
-          onClick={() => void handleAdd()}
-        >
-          登録
-        </button>
-      </div>
     </section>
   );
 }

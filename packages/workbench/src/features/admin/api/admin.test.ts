@@ -2,12 +2,10 @@ import { describe, expect, test } from "bun:test";
 
 import {
   addMaterial,
-  addRequiredItem,
   addRubric,
   changeMaterialStatus,
   listMaterials,
   listReferenceKnowledge,
-  listRequiredItems,
   listRubrics,
   setRubricActive,
 } from "./admin.ts";
@@ -194,47 +192,5 @@ describe("listReferenceKnowledge", () => {
         title: "title text",
       },
     ]);
-  });
-});
-
-describe("listRequiredItems / addRequiredItem", () => {
-  test("listRequiredItems は filters を query string に組み立てる", async () => {
-    let requestedUrl: string | URL | Request | undefined;
-    const fetchFn = async (input: string | URL | Request) => {
-      requestedUrl = input;
-      return Response.json({ items: [] });
-    };
-
-    await listRequiredItems(
-      { recordType: "support_activity", specialtyId: "maternal-child" },
-      fetchFn,
-    );
-
-    expect(requestedUrl).toBe(
-      "/api/required-items?recordType=support_activity&specialtyId=maternal-child",
-    );
-  });
-
-  test("addRequiredItem は body を JSON で POST する", async () => {
-    const fetchFn = async () =>
-      Response.json({
-        aggregationCategory: "基本情報",
-        id: "req-item-1",
-        itemName: "訪問日時",
-        recordType: "support_activity",
-        requirementLevel: "required",
-      });
-
-    const result = await addRequiredItem(
-      {
-        aggregationCategory: "基本情報",
-        itemName: "訪問日時",
-        recordType: "support_activity",
-        requirementLevel: "required",
-      },
-      fetchFn,
-    );
-
-    expect(result.id).toBe("req-item-1");
   });
 });

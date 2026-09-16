@@ -1,7 +1,6 @@
 export type {
   NewMaterialInput,
   NewPromptTemplateInput,
-  NewRequiredItemInput,
   NewRubricInput,
   NewRubricLevelInput,
   NewSoapKnowledgeBaseInput,
@@ -10,7 +9,6 @@ export type {
 export {
   addMaterial,
   addPromptTemplate,
-  addRequiredItem,
   addRubric,
   addSoapKnowledgeBase,
   addSoapKnowledgeItem,
@@ -19,7 +17,6 @@ export {
   listMaterials,
   listPromptTemplates,
   listReferenceKnowledge,
-  listRequiredItems,
   listRubrics,
   listSoapKnowledgeBases,
   listSoapKnowledgeItems,
@@ -59,15 +56,6 @@ export type {
   ReferenceKnowledgeSourceType,
 } from "./model/reference-knowledge.ts";
 export { referenceKnowledgeSourceTypeLabel } from "./model/reference-knowledge.ts";
-export type {
-  RequiredItemFilters,
-  RequiredRecommendedItem,
-  RequirementLevel,
-} from "./model/required-items.ts";
-export {
-  REQUIREMENT_LEVELS,
-  requirementLevelLabel,
-} from "./model/required-items.ts";
 export type { AdminDemoRole } from "./model/roles.ts";
 export {
   ADMIN_DEMO_ROLES,
