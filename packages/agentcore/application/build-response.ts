@@ -11,7 +11,6 @@
  */
 
 import type { RuntimeRequest, RuntimeResponse } from "../contracts/runtime.ts";
-import { isExerciseFeedbackRequest } from "../domain/exercise-feedback.ts";
 import { isMaterialChatRequest } from "../domain/material-chat.ts";
 import {
   composeMessage,
@@ -25,10 +24,6 @@ import { isSoapGapsChatRequest } from "../domain/soap-gaps-chat.ts";
 import { isTeachingMaterialRequest } from "../domain/teaching-material.ts";
 import { type Config, configFromEnv, missingConfig } from "../infra/config.ts";
 import type { MemoryStore } from "../infra/memory.ts";
-import {
-  buildExerciseFeedbackResponse,
-  type ExerciseFeedbackDeps,
-} from "./build-exercise-feedback-response.ts";
 import {
   buildMaterialChatResponse,
   type MaterialChatDeps,
@@ -72,7 +67,6 @@ export type RuntimeDeps = {
 } & SoapDraftDeps &
   SoapGapsDeps &
   SoapGapsChatDeps &
-  ExerciseFeedbackDeps &
   TeachingMaterialDeps &
   MaterialChatDeps;
 
@@ -98,8 +92,7 @@ function defaultSupervisorRunner(config: Config): SupervisorRunner {
  * `payload.type === "soap_draft"` のときは chat（supervisor）を経由せず
  * {@link buildSoapDraftResponse} に、`payload.type === "soap_gaps"` のときは
  * {@link buildSoapGapsResponse} に、`payload.type === "soap_gaps_chat"` のときは
- * {@link buildSoapGapsChatResponse} に、`payload.type === "exercise_feedback"` のときは
- * {@link buildExerciseFeedbackResponse} に、`payload.type === "teaching_material"` のときは
+ * {@link buildSoapGapsChatResponse} に、`payload.type === "teaching_material"` のときは
  * {@link buildTeachingMaterialResponse} に、`payload.type === "material_chat"` のときは
  * {@link buildMaterialChatResponse} に委譲する。それ以外（省略含む）は従来どおり chat
  * として扱う。
@@ -120,9 +113,6 @@ export async function buildResponse(
   }
   if (isSoapGapsChatRequest(payload)) {
     return buildSoapGapsChatResponse(payload, deps);
-  }
-  if (isExerciseFeedbackRequest(payload)) {
-    return buildExerciseFeedbackResponse(payload, deps);
   }
   if (isTeachingMaterialRequest(payload)) {
     return buildTeachingMaterialResponse(payload, deps);

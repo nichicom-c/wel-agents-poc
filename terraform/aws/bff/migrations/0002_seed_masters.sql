@@ -1,4 +1,4 @@
--- issue #10 が管理するマスタの初期値。id/label は packages/workbench の dummy 実装
+-- issue #10 が管理するマスタ（0001_init.sql で定義）の初期値。id/label は packages/workbench の dummy 実装
 -- （features/knowledge-review/model/tags.ts, features/admin/model/material-candidates.ts,
 -- features/admin/model/quality-metrics.ts）が使う固定値と一致させる。実 DB に切り替えた後も
 -- これらの id をそのまま使えば workbench 側の変更は不要になる。
@@ -61,11 +61,5 @@ insert into quality_metrics_definitions (metric_key, display_name, calculation_d
     '差し戻し率',
     '教材候補のうち却下された割合。',
     'material_candidate_status_events'
-  ),
-  (
-    'learning_effectiveness',
-    '学習効果',
-    '新人保健師向け演習（issue #9）で、同一受講者の回答が改善傾向にある割合。',
-    'exercise_attempts'
   )
 on conflict (metric_key) do nothing;

@@ -272,7 +272,7 @@ Response:
 
 ## Training Data Store（issue #8/#9/#10、opt-in）
 
-`packages/workbench` の Knowledge Review（issue #8）・Training（issue #9）・Admin（issue #10）の大半は現状 dummy データのみで動作するが、SOAP Studio の「正式記録として保存」→ Knowledge Review の記録一覧・版一覧（`soap_records` / `soap_record_versions`）だけは、この節の Aurora Serverless v2 (PostgreSQL) + RDS Data API を `POST/GET /api/soap-records` + `GET /api/soap-records/{recordId}/versions`（`packages/bff/infra/soap-record-store.ts`）経由で実際に読み書きする。コメント・教材候補・演習・管理系のテーブルは スキーマ・migration は用意済みだが BFF endpoint 未実装のため、引き続き dummy データで動く。設計の詳細は [`docs/notes/2026-07-30-training-materials-db-schema-and-aws-infra.md`](../../../docs/notes/2026-07-30-training-materials-db-schema-and-aws-infra.md) を参照。BFF Lambda 以外（AgentCore・Chat UI）はこの DB に触れない方針のため、`voice-capture.tf` と同じ理由でこの module に置く。
+`packages/workbench` の Knowledge Review（issue #8）・Admin（issue #10）の大半は現状 dummy データのみで動作するが、SOAP Studio の「正式記録として保存」→ Knowledge Review の記録一覧・版一覧（`soap_records` / `soap_record_versions`）だけは、この節の Aurora Serverless v2 (PostgreSQL) + RDS Data API を `POST/GET /api/soap-records` + `GET /api/soap-records/{recordId}/versions`（`packages/bff/infra/soap-record-store.ts`）経由で実際に読み書きする。コメント・教材候補・管理系のテーブルは スキーマ・migration は用意済みだが BFF endpoint 未実装のため、引き続き dummy データで動く。演習（issue #9）系のテーブルは機能削除にともない撤去済み。設計の詳細は [`docs/notes/2026-07-30-training-materials-db-schema-and-aws-infra.md`](../../../docs/notes/2026-07-30-training-materials-db-schema-and-aws-infra.md) を参照。BFF Lambda 以外（AgentCore・Chat UI）はこの DB に触れない方針のため、`voice-capture.tf` と同じ理由でこの module に置く。
 
 ```mermaid
 flowchart LR
@@ -313,7 +313,7 @@ mise exec -- terraform -chdir=terraform/aws/bff apply
 eval "$(mise exec -- terraform -chdir=terraform/aws/bff output -raw training_data_migrate_command)"
 ```
 
-`bun run training-data:migrate`（`tools/db-migrate/run-migrations.ts`）は ORM を使わず、`terraform/aws/bff/migrations/*.sql` を1ファイル1トランザクションで適用し、適用済みファイル名を対象 DB 自身の `schema_migrations` テーブルに記録する（再実行しても未適用分だけを追加で適用する）。`0001_init.sql` がテーブル・enum 型を作り、`0002_seed_masters.sql` が `packages/workbench` の dummy 実装と同じ id/label でマスタ（分野・学習テーマ・難易度・却下理由・品質指標定義）を投入する。
+`bun run training-data:migrate`（`tools/db-migrate/run-migrations.ts`）は ORM を使わず、`terraform/aws/bff/migrations/*.sql` を1ファイル1トランザクションで適用し、適用済みファイル名を対象 DB 自身の `schema_migrations` テーブルに記録する（再実行しても未適用分だけを追加で適用する）。`0001_init.sql` がテーブル・enum 型（issue #8/#10 の記録・コメント・教材候補・教材・参照知識・マスタと、保健師SOAP_KB_詳細設計書_v2 の Knowledge Base 層）をまとめて作り、`0002_seed_masters.sql` が `packages/workbench` の dummy 実装と同じ id/label でマスタ（分野・学習テーマ・難易度・却下理由・品質指標定義）を、`0003_seed_knowledge_base.sql` が Knowledge Base 層の初期データを投入する。途中で追加した差分 migration（Knowledge Base 層の追加、教材・教材候補への learning_objective / teaching_points 追加、新人保健師向け演習の追加と撤去）は `0001_init.sql` へ畳んであり、後から `alter table` で直す構成にはしていない。`schema_migrations` は**ファイル名**で適用済みを判定するため、畳み込み前の名前（`0003_seed_exercise_cases.sql` / `0004_create_knowledge_base.sql` / `0005_seed_knowledge_base.sql` / `0006_add_material_candidate_teaching_fields.sql` / `0007_add_material_teaching_fields.sql` / `0008_drop_exercise_tables.sql`）は稼働中 DB に記録として残っている。新しい migration を追加するときにこれらと同名のファイルを置くと、永久にスキップされる。
 
 ## このモジュールが作るリソース
 

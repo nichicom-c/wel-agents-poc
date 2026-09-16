@@ -5,8 +5,7 @@
  * `prompt` の代わりに `text` を使う。`type: "soap_gaps"` のときは `candidates`（`soap_draft`
  * の出力）を不足確認の対象として渡す。`type: "soap_gaps_chat"` のときは `candidates` に加えて
  * `gap`（呼び出し側が優先度順に選んだ「今回扱う1件の不足」、`soap_gaps` の出力の1要素）と
- * `message`（利用者の今回の発言、初回の提示ターンは省略）を使う。`type: "exercise_feedback"`
- * （issue #9 の演習フィードバック生成）のときは `exercise_case` / `exercise_answers` を使う。
+ * `message`（利用者の今回の発言、初回の提示ターンは省略）を使う。
  * `type: "teaching_material"`（Knowledge Review 画面の教材候補生成）のときは `text`
  * （専門職コメント本文）を使う。`type: "material_chat"`（Training 画面の教材チャット）の
  * ときは `material`（対話対象の教材、全体の文脈）/ `teaching_point`（呼び出し側がキューとして
@@ -27,7 +26,6 @@ export type RuntimePayload = {
     | "soap_draft"
     | "soap_gaps"
     | "soap_gaps_chat"
-    | "exercise_feedback"
     | "teaching_material"
     | "material_chat";
   /** type: "soap_draft" / "teaching_material" のときの分類・生成対象テキスト。 */
@@ -38,10 +36,6 @@ export type RuntimePayload = {
   gap?: unknown;
   /** type: "soap_gaps_chat" / "material_chat" のときの利用者の今回の発言（初回は省略）。 */
   message?: string;
-  /** type: "exercise_feedback" のときの演習ケースの文脈。 */
-  exercise_case?: unknown;
-  /** type: "exercise_feedback" のときの受講者の提出物。 */
-  exercise_answers?: unknown;
   /** type: "material_chat" のときの対話対象の教材（title/learningObjective/teachingPoints）。 */
   material?: unknown;
   /** type: "material_chat" のときの今回扱う1件の指導のポイント（省略時は教材全体の自由対話）。 */

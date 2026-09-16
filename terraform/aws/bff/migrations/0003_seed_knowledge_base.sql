@@ -1,7 +1,10 @@
--- 保健師SOAP_KB_詳細設計書_v2 の Knowledge Base 層（0004_create_knowledge_base.sql）の
--- 初期データ。出典: docs/spec/soap_kb_postgresql_migrations_v2/seeds/001_sample_data.sql
--- （case_record/soap_record/expert_review 以降は対象外。今回導入するのは
+-- 保健師SOAP_KB_詳細設計書_v2 の Knowledge Base 層（0001_init.sql で定義）の初期データ。
+-- 出典: docs/spec/soap_kb_postgresql_migrations_v2/seeds/001_sample_data.sql
+-- （case_record/soap_record/expert_review 以降は対象外。対象は
 -- knowledge_base/knowledge_item/rubric/rubric_level/prompt_template のみ）。
+--
+-- 全 insert が arbiter index 上の `on conflict ... do nothing` で冪等。既に同じ内容が入って
+-- いる DB に再適用しても、行は1件も増えない。
 
 insert into knowledge_base (id, code, name, description, version, status) values
   (

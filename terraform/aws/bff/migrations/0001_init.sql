@@ -1,6 +1,15 @@
--- issue #8 (専門職コメント・教材候補) / issue #9 (演習) / issue #10 (教材・ルーブリック・
--- 参照知識・マスタ) のための初期スキーマ。設計は
--- docs/notes/2026-07-30-training-materials-db-schema-and-aws-infra.md を参照。
+-- Training Data Store（Aurora Serverless v2 / PostgreSQL）の初期スキーマ。
+-- issue #8（専門職コメント・教材候補）/ issue #10（教材・参照知識・マスタ）と、
+-- 保健師SOAP_KB_詳細設計書_v2 の「知識ベース」層（knowledge_base / knowledge_item /
+-- rubric / rubric_level / prompt_template）を1ファイルで作り切る。
+-- 設計は docs/notes/2026-07-30-training-materials-db-schema-and-aws-infra.md を参照。
+--
+-- このファイルは「作ってから alter/drop で直す」履歴を畳んだ後の到達形であり、稼働中 DB の
+-- 現状スキーマと一致する。過去に存在した差分（旧 rubrics/rubric_items の置き換え、
+-- material_candidates/materials への learning_objective・teaching_points 追加、
+-- 新人保健師向け演習 exercise_* の追加と撤去）は、すべてこの定義に反映済みで個別ファイルは
+-- 持たない。migration ランナー（tools/db-migrate/run-migrations.ts）は適用済みファイル名を
+-- 対象 DB の schema_migrations で管理するため、適用済み DB がこのファイルを再実行することはない。
 --
 -- gen_random_uuid() は PostgreSQL 13 以降で built-in（pgcrypto 拡張は不要）。
 -- Aurora PostgreSQL の対象バージョン（scale-to-zero 対応の 15.7+ / 16.3+）は
@@ -18,13 +27,12 @@ create type comment_type as enum ('review', 'correction_rationale', 'instruction
 create type material_candidate_status as enum ('candidate', 'approved', 'rejected', 'needs_revision');
 create type material_type as enum ('teaching_case', 'comment_derived_note', 'reference_summary');
 create type publication_status as enum ('draft', 'reviewing', 'published', 'archived');
-create type rubric_review_status as enum ('expert_review_required', 'confirmed');
-create type rubric_target_type as enum ('exercise_feedback', 'material_review');
 create type reference_knowledge_source_type as enum ('law', 'medical_care_law', 'internal_note');
 create type requirement_level as enum ('required', 'recommended');
-create type model_answer_type as enum ('soap', 'assessment', 'support_plan');
-create type exercise_attempt_status as enum ('in_progress', 'submitted', 'feedback_ready');
-create type feedback_generated_by as enum ('ai', 'instructor');
+
+-- 'learning_effectiveness' は演習（issue #9）の回答履歴を集計する指標として定義していた値。
+-- 機能撤去後も定義行（0002_seed_masters.sql）は投入せず、enum 値だけを残す（値の削除には
+-- 型の再作成が必要で、参照が無ければ実害が無いため）。
 create type quality_metric_key as enum (
   'classification_accuracy',
   'gap_detection_rate',
@@ -154,6 +162,9 @@ create table professional_comment_revisions (
 
 -- issue #10 が管理する教材。issue #8 の教材候補が承認されるとここへ材料として繋がる想定
 -- （material_candidates.material_id）。
+-- learning_objective / teaching_points は Training 画面の教材チャットが使う。教材候補からの
+-- 教材化（promoteMaterialCandidateToMaterial）で引き継ぐほか、Admin 画面の「新規教材の登録」
+-- から直接入力もできるため、どちらも任意（NULL 許容）。
 create table materials (
   id uuid primary key default gen_random_uuid(),
   material_type material_type not null,
@@ -162,6 +173,8 @@ create table materials (
   specialty_id text references specialties (id),
   learning_theme_id text references learning_themes (id),
   difficulty_id text references difficulty_levels (id),
+  learning_objective text,
+  teaching_points jsonb,
   created_by uuid not null references app_users (id),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
@@ -176,6 +189,9 @@ create table material_revisions (
   changed_at timestamptz not null default now()
 );
 
+-- learning_objective / teaching_points は教材候補生成 agent（AgentCore `type:
+-- "teaching_material"`）の構造化出力のうち title 以外の2項目。既存データ・既存フローとの
+-- 互換のため任意（NULL 許容）。
 create table material_candidates (
   id uuid primary key default gen_random_uuid(),
   title text not null,
@@ -185,6 +201,8 @@ create table material_candidates (
   record_type soap_record_type,
   learning_theme_id text references learning_themes (id),
   difficulty_id text references difficulty_levels (id),
+  learning_objective text,
+  teaching_points jsonb,
   rejection_reason_code text references rejection_reason_codes (code),
   approver_id uuid references app_users (id),
   material_id uuid references materials (id),
@@ -219,28 +237,88 @@ create index idx_material_candidate_status_events_candidate
   on material_candidate_status_events (material_candidate_id);
 
 -- =========================================================================
--- issue #10: 評価ルーブリック・参照知識・必須推奨項目・品質指標
+-- Knowledge Base 層（knowledge_base / knowledge_item / rubric / rubric_level /
+-- prompt_template）
+--
+-- 保健師SOAP_KB_詳細設計書_v2（docs/spec/保健師SOAP_KB_詳細設計書_v2.docx）由来。
+-- 出典: docs/spec/soap_kb_postgresql_migrations_v2/migrations/001_create_knowledge_base.sql
+-- 評価ルーブリックは 8軸×4レベルの rubric / rubric_level がそのまま正で、
+-- rubric_reference_knowledge がこれを参照するため参照知識より先に定義する。
 -- =========================================================================
 
-create table rubrics (
-  id uuid primary key default gen_random_uuid(),
-  name text not null,
-  target_type rubric_target_type not null,
-  review_status rubric_review_status not null default 'expert_review_required',
-  version_no integer not null default 1,
-  created_by uuid not null references app_users (id),
-  created_at timestamptz not null default now()
+create table knowledge_base (
+    id uuid primary key default gen_random_uuid(),
+    code varchar(100) not null,
+    name varchar(255) not null,
+    description text,
+    version varchar(50) not null,
+    status varchar(20) not null default 'draft' check (status in ('draft', 'active', 'archived')),
+    created_at timestamptz not null default now(),
+    updated_at timestamptz not null default now(),
+    unique (code, version)
 );
 
-create table rubric_items (
-  id uuid primary key default gen_random_uuid(),
-  rubric_id uuid not null references rubrics (id),
-  criterion_name text not null,
-  description text,
-  order_no integer not null
+create table knowledge_item (
+    id uuid primary key default gen_random_uuid(),
+    knowledge_base_id uuid not null references knowledge_base (id) on delete cascade,
+    category varchar(50) not null,
+    item_key varchar(150) not null,
+    title varchar(255) not null,
+    content text not null,
+    metadata jsonb not null default '{}'::jsonb,
+    version varchar(50) not null default '1.0',
+    is_active boolean not null default true,
+    created_at timestamptz not null default now(),
+    updated_at timestamptz not null default now(),
+    unique (knowledge_base_id, category, item_key, version)
 );
 
-create index idx_rubric_items_rubric_id on rubric_items (rubric_id);
+create table rubric (
+    id uuid primary key default gen_random_uuid(),
+    knowledge_base_id uuid not null references knowledge_base (id) on delete cascade,
+    code varchar(100) not null,
+    name varchar(255) not null,
+    objective text not null,
+    sort_order integer not null default 0,
+    is_active boolean not null default true,
+    created_at timestamptz not null default now(),
+    updated_at timestamptz not null default now(),
+    unique (knowledge_base_id, code)
+);
+
+create table rubric_level (
+    id uuid primary key default gen_random_uuid(),
+    rubric_id uuid not null references rubric (id) on delete cascade,
+    level integer not null check (level between 1 and 4),
+    level_name varchar(50) not null,
+    definition text not null,
+    criteria jsonb not null default '[]'::jsonb,
+    created_at timestamptz not null default now(),
+    updated_at timestamptz not null default now(),
+    unique (rubric_id, level)
+);
+
+create table prompt_template (
+    id uuid primary key default gen_random_uuid(),
+    knowledge_base_id uuid not null references knowledge_base (id) on delete cascade,
+    code varchar(100) not null,
+    name varchar(255) not null,
+    system_prompt text not null,
+    user_prompt_template text not null,
+    output_schema jsonb not null default '{}'::jsonb,
+    version varchar(50) not null default '1.0',
+    is_active boolean not null default true,
+    created_at timestamptz not null default now(),
+    updated_at timestamptz not null default now(),
+    unique (knowledge_base_id, code, version)
+);
+
+create index idx_knowledge_item_lookup on knowledge_item (knowledge_base_id, category, is_active);
+create index idx_rubric_lookup on rubric (knowledge_base_id, is_active, sort_order);
+
+-- =========================================================================
+-- issue #10: 参照知識・必須推奨項目・品質指標
+-- =========================================================================
 
 -- external_kb_ref は既存の vector Knowledge Base（law / medical_care_law）上のドキュメントへの
 -- 参照であり、内容をこのテーブルへ複製しない。
@@ -260,7 +338,7 @@ create table material_reference_knowledge (
 );
 
 create table rubric_reference_knowledge (
-  rubric_id uuid not null references rubrics (id),
+  rubric_id uuid not null references rubric (id),
   reference_knowledge_id uuid not null references reference_knowledge (id),
   primary key (rubric_id, reference_knowledge_id)
 );
@@ -278,7 +356,7 @@ create table required_recommended_items (
 create index idx_required_recommended_items_search
   on required_recommended_items (record_type, specialty_id);
 
--- 実際の集計値は soap_record_versions / material_candidate_status_events / exercise_attempts を
+-- 実際の集計値は soap_record_versions / material_candidate_status_events を
 -- 集計する view から取得する（このテーブルは定義だけを持つ。issue #10 の Out of Scope: 目標値・
 -- 合格ラインの設定）。
 create table quality_metrics_definitions (
@@ -287,87 +365,3 @@ create table quality_metrics_definitions (
   calculation_description text not null,
   target_entity text not null
 );
-
--- =========================================================================
--- issue #9: 新人保健師向け演習
--- =========================================================================
-
--- exercise_cases は materials（material_type: 'teaching_case'）の 1:1 拡張テーブル。
--- 公開状態は materials.publication_status が一元管理する。
-create table exercise_cases (
-  material_id uuid primary key references materials (id),
-  initial_presentation jsonb not null,
-  constraints_text text,
-  expected_work_scene text,
-  required_institutional_knowledge text,
-  related_master_refs jsonb
-);
-
-create table exercise_followup_questions (
-  id uuid primary key default gen_random_uuid(),
-  exercise_case_material_id uuid not null references exercise_cases (material_id),
-  question_text text not null,
-  revealed_info_text text not null,
-  order_no integer not null
-);
-
-create index idx_exercise_followup_questions_case
-  on exercise_followup_questions (exercise_case_material_id);
-
-create table exercise_model_answers (
-  id uuid primary key default gen_random_uuid(),
-  exercise_case_material_id uuid not null references exercise_cases (material_id),
-  answer_type model_answer_type not null,
-  content jsonb not null,
-  acceptable_note text
-);
-
-create index idx_exercise_model_answers_case
-  on exercise_model_answers (exercise_case_material_id);
-
-create table exercise_case_rubrics (
-  exercise_case_material_id uuid not null references exercise_cases (material_id),
-  rubric_id uuid not null references rubrics (id),
-  primary key (exercise_case_material_id, rubric_id)
-);
-
-create table exercise_attempts (
-  id uuid primary key default gen_random_uuid(),
-  exercise_case_material_id uuid not null references exercise_cases (material_id),
-  trainee_id uuid not null references app_users (id),
-  status exercise_attempt_status not null default 'in_progress',
-  answer_followups jsonb,
-  answer_soap jsonb,
-  answer_assessment text,
-  answer_support_plan text,
-  started_at timestamptz not null default now(),
-  submitted_at timestamptz
-);
-
-create index idx_exercise_attempts_trainee on exercise_attempts (trainee_id);
-create index idx_exercise_attempts_case on exercise_attempts (exercise_case_material_id);
-
-create table exercise_feedback (
-  id uuid primary key default gen_random_uuid(),
-  attempt_id uuid not null references exercise_attempts (id),
-  generated_by feedback_generated_by not null,
-  data_collection_note text,
-  rationale_note text,
-  assessment_note text,
-  support_plan_note text,
-  documentation_note text,
-  created_at timestamptz not null default now()
-);
-
-create index idx_exercise_feedback_attempt on exercise_feedback (attempt_id);
-
-create table exercise_instructor_comments (
-  id uuid primary key default gen_random_uuid(),
-  feedback_id uuid not null references exercise_feedback (id),
-  instructor_id uuid not null references app_users (id),
-  body text not null,
-  created_at timestamptz not null default now()
-);
-
-create index idx_exercise_instructor_comments_feedback
-  on exercise_instructor_comments (feedback_id);

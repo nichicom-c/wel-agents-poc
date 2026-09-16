@@ -9,7 +9,7 @@
 | --- | :---: | :---: | :---: |
 | (A) Lambda package の入力（`packages/bff/` / `package.json` / `bun.lock` / `tsconfig.json`） | [OK] | [OK] | 通常不要 |
 | (B) BFF 設定（`agent_runtime_arn` / `agent_runtime_qualifier` / CORS / timeout ほか） | – | [OK] | API endpoint が変わった場合のみ |
-| (C) Training Data Store のスキーマ（`terraform/aws/bff/migrations/*.sql`、issue #8/#9/#10） | – | 新規リソース追加時のみ | 不要 |
+| (C) Training Data Store のスキーマ（`terraform/aws/bff/migrations/*.sql`、issue #8/#10） | – | 新規リソース追加時のみ | 不要 |
 
 ## (A) Lambda package の入力を更新
 
@@ -65,9 +65,16 @@ mise exec -- terraform -chdir=terraform/aws/chat-ui apply
 
 ## (C) Training Data Store のスキーマを更新
 
-`terraform/aws/bff/migrations/` に新しい番号（`0003_...sql` 等）の SQL ファイルを追加した場合、
+`terraform/aws/bff/migrations/` に新しい番号（`0004_...sql` 等）の SQL ファイルを追加した場合、
 Terraform apply は不要（migration ファイル自体はどの `.tf` からも参照されない）。追加した
 ファイルだけを再実行する。
+
+> [WARNING] 適用済み判定は番号ではなく**ファイル名**で行う（`schema_migrations.filename`）。
+> 畳み込み前の名前（`0003_seed_exercise_cases.sql` / `0004_create_knowledge_base.sql` /
+> `0005_seed_knowledge_base.sql` / `0006_add_material_candidate_teaching_fields.sql` /
+> `0007_add_material_teaching_fields.sql` / `0008_drop_exercise_tables.sql`）は稼働中 DB に
+> 記録として残っているため、これらと**同名**のファイルを置くと永久にスキップされる。
+> 番号自体は 0004 から続けて使ってよい。
 
 ```bash
 eval "$(mise exec -- terraform -chdir=terraform/aws/bff output -raw training_data_migrate_command)"

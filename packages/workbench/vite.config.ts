@@ -31,18 +31,6 @@ export function buildWorkbenchViteConfig(
   config = resolveWorkbenchDevConfig(),
 ): UserConfig {
   const proxy = {
-    "/api/exercise-attempts": {
-      changeOrigin: true,
-      target: config.bffUrl,
-    },
-    "/api/exercise-cases": {
-      changeOrigin: true,
-      target: config.bffUrl,
-    },
-    "/api/instructor-comments": {
-      changeOrigin: true,
-      target: config.bffUrl,
-    },
     "/api/material-candidates": {
       changeOrigin: true,
       target: config.bffUrl,
