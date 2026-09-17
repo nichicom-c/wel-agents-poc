@@ -16,11 +16,6 @@ import {
   type PublicationStatus,
 } from "../model/materials.ts";
 import type { PromptTemplate } from "../model/prompt-templates.ts";
-import type {
-  ReferenceKnowledge,
-  ReferenceKnowledgeSourceType,
-} from "../model/reference-knowledge.ts";
-import { REFERENCE_KNOWLEDGE_SOURCE_TYPES } from "../model/reference-knowledge.ts";
 import {
   isRubricLevelNumber,
   type Rubric,
@@ -29,7 +24,7 @@ import {
 
 /**
  * 管理画面が使う BFF `/api/materials*` / `/api/rubrics*` / `/api/soap-knowledge-base*` /
- * `/api/prompt-templates` / `/api/reference-knowledge`（Aurora Serverless v2 + RDS Data API）を
+ * `/api/prompt-templates`（Aurora Serverless v2 + RDS Data API）を
  * 呼ぶ。ルーブリック・Knowledge Base・Prompt Template は保健師SOAP_KB_詳細設計書_v2 の
  * スキーマ、それ以外は issue #10
  * （`docs/notes/2026-07-30-training-materials-db-schema-and-aws-infra.md` 参照）のスキーマ。
@@ -40,7 +35,6 @@ const RUBRICS_ENDPOINT = "/api/rubrics";
 const SOAP_KNOWLEDGE_BASE_ENDPOINT = "/api/soap-knowledge-base";
 const SOAP_KNOWLEDGE_BASE_ITEMS_ENDPOINT = "/api/soap-knowledge-base-items";
 const PROMPT_TEMPLATES_ENDPOINT = "/api/prompt-templates";
-const REFERENCE_KNOWLEDGE_ENDPOINT = "/api/reference-knowledge";
 const TRAINING_DATA_CLUSTER_ENDPOINT = "/api/training-data-cluster";
 
 type FetchFn = (
@@ -406,21 +400,6 @@ export async function addPromptTemplate(
   return promptTemplate;
 }
 
-// --- 参照知識（read-only） ------------------------------------------------
-
-export async function listReferenceKnowledge(
-  fetchFn: FetchFn = fetch,
-): Promise<ReferenceKnowledge[]> {
-  const response = await fetchFn(REFERENCE_KNOWLEDGE_ENDPOINT);
-  const payload = await readJson(response);
-
-  if (!response.ok) {
-    throw new Error(trimmedText(payload.error) || `HTTP ${response.status}`);
-  }
-
-  return normalizeReferenceKnowledgeList(payload.referenceKnowledge);
-}
-
 // --- Training Data Store（Aurora）cluster 起動 ------------------------------
 
 /** 現在の Training Data Store（Aurora Serverless v2）cluster の status を取得する。 */
@@ -757,43 +736,6 @@ function normalizePromptTemplate(
     systemPrompt,
     userPromptTemplate,
     version,
-  };
-}
-
-function normalizeReferenceKnowledgeList(value: unknown): ReferenceKnowledge[] {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-  return value
-    .map((entry) => normalizeReferenceKnowledge(asRecord(entry)))
-    .filter((item): item is ReferenceKnowledge => item !== undefined);
-}
-
-function normalizeReferenceKnowledge(
-  record: Record<string, unknown>,
-): ReferenceKnowledge | undefined {
-  const id = trimmedText(record.id);
-  const title = trimmedText(record.title);
-  const summary = trimmedText(record.summary);
-  const sourceType = record.sourceType;
-
-  if (
-    !id ||
-    !title ||
-    !summary ||
-    !isOneOf(REFERENCE_KNOWLEDGE_SOURCE_TYPES, sourceType)
-  ) {
-    return undefined;
-  }
-
-  return {
-    externalKbRef: trimmedText(record.externalKbRef) || undefined,
-    id,
-    linkedMaterialIds: stringArray(record.linkedMaterialIds),
-    linkedRubricIds: stringArray(record.linkedRubricIds),
-    sourceType: sourceType as ReferenceKnowledgeSourceType,
-    summary,
-    title,
   };
 }
 

@@ -5,7 +5,6 @@ import {
   addRubric,
   changeMaterialStatus,
   listMaterials,
-  listReferenceKnowledge,
   listRubrics,
   setRubricActive,
 } from "./admin.ts";
@@ -160,37 +159,5 @@ describe("addRubric", () => {
     );
 
     expect(result.id).toBe("rubric-1");
-  });
-});
-
-describe("listReferenceKnowledge", () => {
-  test("linkedMaterialIds / linkedRubricIds を含めて返す", async () => {
-    const fetchFn = async () =>
-      Response.json({
-        referenceKnowledge: [
-          {
-            id: "rk-1",
-            linkedMaterialIds: ["material-1"],
-            linkedRubricIds: [],
-            sourceType: "law",
-            summary: "summary text",
-            title: "title text",
-          },
-        ],
-      });
-
-    const result = await listReferenceKnowledge(fetchFn);
-
-    expect(result).toEqual([
-      {
-        externalKbRef: undefined,
-        id: "rk-1",
-        linkedMaterialIds: ["material-1"],
-        linkedRubricIds: [],
-        sourceType: "law",
-        summary: "summary text",
-        title: "title text",
-      },
-    ]);
   });
 });

@@ -1,6 +1,6 @@
 /**
  * 管理画面（issue #10。`docs/notes/2026-07-30-training-materials-db-schema-and-aws-infra.md`
- * 参照）が使う教材 / 評価ルーブリック / 参照知識の contract。DB スキーマは
+ * 参照）が使う教材 / 評価ルーブリックの contract。DB スキーマは
  * `terraform/aws/bff/migrations/0001_init.sql` に対応する。
  */
 
@@ -76,24 +76,3 @@ export type MaterialFilters = {
 //
 // 保健師SOAP_KB_詳細設計書_v2 の rubric / rubric_level（8軸×4レベル）へ移行済み。
 // 型定義は `./rubric.ts` を参照。
-
-// --- 参照知識（reference_knowledge、read-only） ------------------------------
-
-export const REFERENCE_KNOWLEDGE_SOURCE_TYPES = [
-  "law",
-  "medical_care_law",
-  "internal_note",
-] as const;
-
-export type ReferenceKnowledgeSourceType =
-  (typeof REFERENCE_KNOWLEDGE_SOURCE_TYPES)[number];
-
-export type ReferenceKnowledge = {
-  id: string;
-  title: string;
-  summary: string;
-  sourceType: ReferenceKnowledgeSourceType;
-  externalKbRef?: string;
-  linkedMaterialIds: string[];
-  linkedRubricIds: string[];
-};

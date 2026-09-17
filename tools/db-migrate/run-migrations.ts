@@ -87,6 +87,21 @@ export async function listMigrationFiles(dir: string): Promise<string[]> {
   return entries.filter((name) => name.endsWith(".sql")).sort();
 }
 
+/**
+ * 対象 DB の schema_migrations には記録があるのに、ローカルの migrations/ に実体が無い
+ * ファイル名（= 畳み込みで消えた過去の migration）を返す。この repo は差分ファイルを積まず
+ * 0001_init.sql を直接書き換えて DB を作り直す運用なので（terraform/aws/bff/README.md の
+ * 「Training Data Store」節）、作り直し済みの DB では空になる。空でない = その DB は
+ * 作り直せておらず、schema_migrations の記録のぶんだけ 0001_init.sql に追従できていない。
+ */
+export function retiredMigrationFilenames(
+  applied: Iterable<string>,
+  localFiles: readonly string[],
+): string[] {
+  const local = new Set(localFiles);
+  return [...applied].filter((filename) => !local.has(filename)).sort();
+}
+
 function escapeSqlLiteral(value: string): string {
   return value.replaceAll("'", "''");
 }
@@ -191,6 +206,8 @@ async function applyMigrationFile(
 
 export type RunMigrationsDeps = {
   client?: RDSDataClient;
+  /** 作り直せていない DB に残る、過去の migration 名の通知先。 */
+  onRetiredFilenames?: (filenames: string[]) => void;
 };
 
 /** 未適用のファイルだけを版番号順に適用し、新たに適用したファイル名を返す。 */
@@ -206,6 +223,11 @@ export async function runMigrations(
   const applied = await appliedMigrations(client, target);
   const files = await listMigrationFiles(migrationsDir);
 
+  const retired = retiredMigrationFilenames(applied, files);
+  if (retired.length > 0) {
+    deps.onRetiredFilenames?.(retired);
+  }
+
   const newlyApplied: string[] = [];
   for (const filename of files) {
     if (applied.has(filename)) {
@@ -219,7 +241,13 @@ export async function runMigrations(
 
 async function main(): Promise<void> {
   const target = migrationTargetFromEnv();
-  const applied = await runMigrations(target);
+  const applied = await runMigrations(target, DEFAULT_MIGRATIONS_DIR, {
+    onRetiredFilenames: (filenames) => {
+      console.warn(
+        `[WARNING] この DB は作り直せていない。適用済みだが migrations/ に実体が無いファイル名（この記録のぶんだけ 0001_init.sql に追従できていない）: ${filenames.join(", ")}`,
+      );
+    },
+  });
   if (applied.length === 0) {
     console.log("[OK] no pending migrations");
     return;

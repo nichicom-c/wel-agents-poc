@@ -28,7 +28,7 @@ export function adminDemoRoleLabel(role: AdminDemoRole): string {
   return ROLE_LABELS[role];
 }
 
-/** 管理画面（教材・ルーブリック・参照知識・必須推奨項目等）を参照できるロールか。 */
+/** 管理画面（教材・Knowledge Base・ルーブリック・Prompt Template）を参照できるロールか。 */
 export function canViewAdmin(role: AdminDemoRole): boolean {
   return role === "admin";
 }

@@ -330,15 +330,6 @@ resource "aws_apigatewayv2_route" "prompt_templates_create" {
   target               = "integrations/${aws_apigatewayv2_integration.lambda.id}"
 }
 
-resource "aws_apigatewayv2_route" "reference_knowledge_list" {
-  api_id               = aws_apigatewayv2_api.this.id
-  authorization_scopes = var.jwt_authorization_scopes
-  authorization_type   = "JWT"
-  authorizer_id        = aws_apigatewayv2_authorizer.jwt.id
-  route_key            = "GET /api/reference-knowledge"
-  target               = "integrations/${aws_apigatewayv2_integration.lambda.id}"
-}
-
 resource "aws_apigatewayv2_route" "voice_recordings_create" {
   api_id               = aws_apigatewayv2_api.this.id
   authorization_scopes = var.jwt_authorization_scopes

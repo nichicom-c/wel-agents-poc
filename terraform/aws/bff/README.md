@@ -270,9 +270,9 @@ Response:
 
 音声原本は `recordings/{recordingId}/original.<format>`、Transcribe の出力は `recordings/{recordingId}/transcript-raw.json`、編集済み transcript は `recordings/{recordingId}/transcript-edited.txt` として同じ bucket に保存する。SOAP Studio への引き継ぎ（編集済み transcript を `/api/soap-draft` の入力にする）は Workbench 側（session-local、DB 上のひも付けなし）が担う。
 
-## Training Data Store（issue #8/#9/#10、opt-in）
+## Training Data Store（issue #8/#10、opt-in）
 
-`packages/workbench` の Knowledge Review（issue #8）・Admin（issue #10）の大半は現状 dummy データのみで動作するが、SOAP Studio の「正式記録として保存」→ Knowledge Review の記録一覧・版一覧（`soap_records` / `soap_record_versions`）だけは、この節の Aurora Serverless v2 (PostgreSQL) + RDS Data API を `POST/GET /api/soap-records` + `GET /api/soap-records/{recordId}/versions`（`packages/bff/infra/soap-record-store.ts`）経由で実際に読み書きする。コメント・教材候補・管理系のテーブルは スキーマ・migration は用意済みだが BFF endpoint 未実装のため、引き続き dummy データで動く。演習（issue #9）系のテーブルは機能削除にともない撤去済み。設計の詳細は [`docs/notes/2026-07-30-training-materials-db-schema-and-aws-infra.md`](../../../docs/notes/2026-07-30-training-materials-db-schema-and-aws-infra.md) を参照。BFF Lambda 以外（AgentCore・Chat UI）はこの DB に触れない方針のため、`voice-capture.tf` と同じ理由でこの module に置く。
+このリポジトリで唯一の OLTP データストア。SOAP Studio の「正式記録として保存」（`soap_records` / `soap_record_versions`）、Knowledge Review の専門職コメント・教材候補（`professional_comments` / `material_candidates` 系）、Admin の教材・Knowledge Base 層・ルーブリック・Prompt Template（`materials` / `knowledge_base` / `knowledge_item` / `rubric` / `rubric_level` / `prompt_template`）を、この節の Aurora Serverless v2 (PostgreSQL) + RDS Data API 経由で実際に読み書きする。DB へ触れるのは BFF Lambda だけで（`packages/bff/infra/*-store.ts`）、AgentCore・Chat UI は触れない方針のため、`voice-capture.tf` と同じ理由でこの module に置く。演習（issue #9）系のテーブルは機能削除にともない撤去済み。設計の詳細は [`docs/notes/2026-07-30-training-materials-db-schema-and-aws-infra.md`](../../../docs/notes/2026-07-30-training-materials-db-schema-and-aws-infra.md) を参照（同ノートの ER 図・DDL は撤去前の検討時点のものなので、スキーマの正は `migrations/0001_init.sql`）。
 
 ```mermaid
 flowchart LR
@@ -313,7 +313,31 @@ mise exec -- terraform -chdir=terraform/aws/bff apply
 eval "$(mise exec -- terraform -chdir=terraform/aws/bff output -raw training_data_migrate_command)"
 ```
 
-`bun run training-data:migrate`（`tools/db-migrate/run-migrations.ts`）は ORM を使わず、`terraform/aws/bff/migrations/*.sql` を1ファイル1トランザクションで適用し、適用済みファイル名を対象 DB 自身の `schema_migrations` テーブルに記録する（再実行しても未適用分だけを追加で適用する）。`0001_init.sql` がテーブル・enum 型（issue #8/#10 の記録・コメント・教材候補・教材・参照知識・マスタと、保健師SOAP_KB_詳細設計書_v2 の Knowledge Base 層）をまとめて作り、`0002_seed_masters.sql` が `packages/workbench` の dummy 実装と同じ id/label でマスタ（分野・学習テーマ・難易度・却下理由）を、`0003_seed_knowledge_base.sql` が Knowledge Base 層の初期データを投入する。途中で追加した差分 migration（Knowledge Base 層の追加、教材・教材候補への learning_objective / teaching_points 追加、新人保健師向け演習の追加と撤去、SOAP マッピングの撤去、品質指標の撤去、必須・推奨項目の撤去）は `0001_init.sql` へ畳んであり、後から `alter table` で直す構成にはしていない。`schema_migrations` は**ファイル名**で適用済みを判定するため、畳み込み前の名前（`0003_seed_exercise_cases.sql` / `0004_create_knowledge_base.sql` / `0005_seed_knowledge_base.sql` / `0006_add_material_candidate_teaching_fields.sql` / `0007_add_material_teaching_fields.sql` / `0008_drop_exercise_tables.sql` / `0004_drop_soap_mapping.sql` / `0004_drop_quality_metrics.sql` / `0004_drop_required_items.sql`）は稼働中 DB に記録として残っている。新しい migration を追加するときにこれらと同名のファイルを置くと、永久にスキップされる。
+`bun run training-data:migrate`（`tools/db-migrate/run-migrations.ts`）は ORM を使わず、`terraform/aws/bff/migrations/*.sql` を1ファイル1トランザクションで適用し、適用済みファイル名を対象 DB 自身の `schema_migrations` テーブルに記録する（再実行しても未適用分だけを追加で適用する）。ファイルは常にこの3つだけで、版番号が 0004 以降に伸びることはない。
+
+| ファイル | 役割 |
+| --- | --- |
+| `0001_init.sql` | テーブル・enum 型（issue #8/#10 の記録・コメント・教材候補・教材・マスタと、保健師SOAP_KB_詳細設計書_v2 の Knowledge Base 層）を作り切る。**スキーマの正はこのファイル** |
+| `0002_seed_masters.sql` | マスタ（分野・学習テーマ・難易度・却下理由）を `packages/workbench` と同じ id/label で投入する |
+| `0003_seed_knowledge_base.sql` | Knowledge Base 層の初期データを投入する |
+
+### migration の運用ルール
+
+**スキーマを変えたら、差分ファイルを積まずに `0001_init.sql` を直接書き換え、DB を作り直す。** PoC で捨てて良いデータしか無いことを前提に、「`0001`〜`0003` を初回適用しただけの状態」以外を存在させない。こうすると `0001_init.sql` 単体が常に現在のスキーマの正であり、`schema_migrations` にも3行しか入らないため、「どの環境がどこまで適用したか」を追う必要そのものが無くなる。
+
+これまでの畳み込み履歴（Knowledge Base 層の追加、教材・教材候補への `learning_objective` / `teaching_points` 追加、新人保健師向け演習の追加と撤去、SOAP gap 検出ルールの `knowledge_item` 外部化と revert、SOAP マッピングの撤去、品質指標の撤去、必須・推奨項目の撤去、参照知識の撤去）も、すべて `0001_init.sql` に反映済みで個別ファイルを持たない。
+
+#### 作り直す手順
+
+```bash
+eval "$(mise exec -- terraform -chdir=terraform/aws/bff output -raw training_data_reset_command)"
+```
+
+`bun run training-data:reset`（`tools/db-migrate/reset-schema.ts`）が `drop schema public cascade` + `create schema public` で `schema_migrations` ごと落とし、続けて `0001`〜`0003` を初回適用する。destructive なので `--yes` が無いと何もしない（output のコマンドには含まれている）。
+
+> [WARNING] **`drop schema public cascade` は Training Data Store の全データを消す。** マスタと Knowledge Base 層は `0002` / `0003` が入れ直すが、画面から作った SOAP 正式記録・専門職コメント・教材候補・教材は復元されない。運用データを持つ環境に育ったら、この節のルールを「冪等な差分ファイルを積む」方式へ切り替えること。
+
+`schema_migrations` は**ファイル名**だけで適用済みを判定するため、作り直しを飛ばして `0001_init.sql` を書き換えただけの DB は、記録が残っているぶん二度と追従しない。この取りこぼしを検出するため、migration ランナーは**適用済みだが `migrations/` に実体が無いファイル名**を `[WARNING]` として出す。作り直しが済んでいれば何も出ないので、**警告が出たらその DB は作り直せていない**と判断する。
 
 ## このモジュールが作るリソース
 

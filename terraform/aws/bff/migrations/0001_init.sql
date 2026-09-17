@@ -1,18 +1,27 @@
 -- Training Data Store（Aurora Serverless v2 / PostgreSQL）の初期スキーマ。
--- issue #8（専門職コメント・教材候補）/ issue #10（教材・参照知識・マスタ）と、
+-- issue #8（専門職コメント・教材候補）/ issue #10（教材・マスタ）と、
 -- 保健師SOAP_KB_詳細設計書_v2 の「知識ベース」層（knowledge_base / knowledge_item /
 -- rubric / rubric_level / prompt_template）を1ファイルで作り切る。
 -- 設計は docs/notes/2026-07-30-training-materials-db-schema-and-aws-infra.md を参照。
 --
--- このファイルは「作ってから alter/drop で直す」履歴を畳んだ後の到達形であり、稼働中 DB の
--- 現状スキーマと一致する。過去に存在した差分（旧 rubrics/rubric_items の置き換え、
--- material_candidates/materials への learning_objective・teaching_points 追加、
--- 新人保健師向け演習 exercise_* の追加と撤去、SOAP マッピング soap_mapping_versions と
--- soap_record_versions.soap_mapping_version_id の撤去、品質指標
--- quality_metrics_definitions と quality_metric_key の撤去）は、すべてこの定義に反映済みで
--- 個別ファイルは持たない。migration ランナー（tools/db-migrate/run-migrations.ts）は適用済み
--- ファイル名を対象 DB の schema_migrations で管理するため、適用済み DB がこのファイルを
--- 再実行することはない。
+-- このファイルは「作ってから alter/drop で直す」履歴を畳んだ後の到達形であり、新規 DB を
+-- migrations/*.sql で作り切ったときの最終スキーマと一致する。過去に存在した差分（旧
+-- rubrics/rubric_items の置き換え、material_candidates/materials への learning_objective・
+-- teaching_points 追加、新人保健師向け演習 exercise_* の追加と撤去、SOAP マッピング
+-- soap_mapping_versions と soap_record_versions.soap_mapping_version_id の撤去、品質指標
+-- quality_metrics_definitions と quality_metric_key の撤去、必須・推奨項目
+-- required_recommended_items と requirement_level の撤去、参照知識 reference_knowledge /
+-- material_reference_knowledge / rubric_reference_knowledge と
+-- reference_knowledge_source_type の撤去、未使用の professional_comment_revisions と
+-- soap_record_versions.recording_id の撤去）は、すべてこの定義に反映済み。
+-- migration ランナー（tools/db-migrate/run-migrations.ts）は適用済みファイル名を対象 DB の
+-- schema_migrations で管理するため、適用済み DB がこのファイルを再実行することはない。
+--
+-- [IMPORTANT] このファイルを書き換えるだけでは、既にこのファイルを適用済みの DB は変わらない
+-- （schema_migrations にファイル名があるので二度と実行されない）。スキーマを変えたら、差分
+-- ファイルを積まずにこのファイルを直接書き換え、drop schema public cascade で DB を作り直す
+-- こと。手順と注意（全データが消える）は terraform/aws/bff/README.md の「Training Data Store」
+-- 節を参照。
 --
 -- gen_random_uuid() は PostgreSQL 13 以降で built-in（pgcrypto 拡張は不要）。
 -- Aurora PostgreSQL の対象バージョン（scale-to-zero 対応の 15.7+ / 16.3+）は
@@ -30,7 +39,6 @@ create type comment_type as enum ('review', 'correction_rationale', 'instruction
 create type material_candidate_status as enum ('candidate', 'approved', 'rejected', 'needs_revision');
 create type material_type as enum ('teaching_case', 'comment_derived_note', 'reference_summary');
 create type publication_status as enum ('draft', 'reviewing', 'published', 'archived');
-create type reference_knowledge_source_type as enum ('law', 'medical_care_law', 'internal_note');
 
 -- =========================================================================
 -- ロール・マスタ（issue #10 が管理する対象。初期値は 0002_seed_masters.sql で投入する）
@@ -68,6 +76,10 @@ create table rejection_reason_codes (
 
 -- Cognito Group（cognito:groups claim）からミラーする、行レベルの認可・記名に使うロール一覧。
 -- packages/bff/domain/auth.ts の authContextFromJwtClaims 拡張で actorId/userId とあわせて導出する想定。
+-- [WARNING] roles はこのロールモデルが未実装のため常に空配列で、読み書きするコードはまだ無い
+-- （現状の記名は professional_comments.author_role_at_post /
+-- material_candidate_status_events.changed_by_role の自由記述 text 列だけ）。設計意図を残すため
+-- 列は維持しているので、実装時はここを正にする。
 create table app_users (
   id uuid primary key,
   display_name text,
@@ -95,7 +107,6 @@ create table soap_record_versions (
   version_no integer not null,
   content jsonb not null,
   source soap_record_version_source not null,
-  recording_id text,
   created_by uuid not null references app_users (id),
   created_at timestamptz not null default now(),
   unique (record_id, version_no)
@@ -121,16 +132,6 @@ create table professional_comments (
 
 create index idx_professional_comments_target_version
   on professional_comments (target_record_version_id);
-
--- 編集履歴の保持範囲は issue #8 の Open Question。編集時だけ行を追加する設計にして、
--- 「編集不可にする」「全履歴を残す」のどちらの結論でもスキーマ変更なしに対応する。
-create table professional_comment_revisions (
-  id uuid primary key default gen_random_uuid(),
-  comment_id uuid not null references professional_comments (id),
-  previous_body text not null,
-  edited_by uuid not null references app_users (id),
-  edited_at timestamptz not null default now()
-);
 
 -- issue #10 が管理する教材。issue #8 の教材候補が承認されるとここへ材料として繋がる想定
 -- （material_candidates.material_id）。
@@ -214,8 +215,7 @@ create index idx_material_candidate_status_events_candidate
 --
 -- 保健師SOAP_KB_詳細設計書_v2（docs/spec/保健師SOAP_KB_詳細設計書_v2.docx）由来。
 -- 出典: docs/spec/soap_kb_postgresql_migrations_v2/migrations/001_create_knowledge_base.sql
--- 評価ルーブリックは 8軸×4レベルの rubric / rubric_level がそのまま正で、
--- rubric_reference_knowledge がこれを参照するため参照知識より先に定義する。
+-- 評価ルーブリックは 8軸×4レベルの rubric / rubric_level がそのまま正。
 -- =========================================================================
 
 create table knowledge_base (
@@ -287,30 +287,3 @@ create table prompt_template (
 
 create index idx_knowledge_item_lookup on knowledge_item (knowledge_base_id, category, is_active);
 create index idx_rubric_lookup on rubric (knowledge_base_id, is_active, sort_order);
-
--- =========================================================================
--- issue #10: 参照知識・必須推奨項目・品質指標
--- =========================================================================
-
--- external_kb_ref は既存の vector Knowledge Base（law / medical_care_law）上のドキュメントへの
--- 参照であり、内容をこのテーブルへ複製しない。
-create table reference_knowledge (
-  id uuid primary key default gen_random_uuid(),
-  title text not null,
-  summary text not null,
-  source_type reference_knowledge_source_type not null,
-  external_kb_ref text,
-  created_at timestamptz not null default now()
-);
-
-create table material_reference_knowledge (
-  material_id uuid not null references materials (id),
-  reference_knowledge_id uuid not null references reference_knowledge (id),
-  primary key (material_id, reference_knowledge_id)
-);
-
-create table rubric_reference_knowledge (
-  rubric_id uuid not null references rubric (id),
-  reference_knowledge_id uuid not null references reference_knowledge (id),
-  primary key (rubric_id, reference_knowledge_id)
-);

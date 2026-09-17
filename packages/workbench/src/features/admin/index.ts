@@ -16,7 +16,6 @@ export {
   getTrainingDataClusterStatus,
   listMaterials,
   listPromptTemplates,
-  listReferenceKnowledge,
   listRubrics,
   listSoapKnowledgeBases,
   listSoapKnowledgeItems,
@@ -51,11 +50,6 @@ export {
   publicationStatusLabel,
 } from "./model/materials.ts";
 export type { PromptTemplate } from "./model/prompt-templates.ts";
-export type {
-  ReferenceKnowledge,
-  ReferenceKnowledgeSourceType,
-} from "./model/reference-knowledge.ts";
-export { referenceKnowledgeSourceTypeLabel } from "./model/reference-knowledge.ts";
 export type { AdminDemoRole } from "./model/roles.ts";
 export {
   ADMIN_DEMO_ROLES,

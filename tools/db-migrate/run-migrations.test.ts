@@ -7,6 +7,7 @@ import {
   listMigrationFiles,
   type MigrationTarget,
   migrationTargetFromEnv,
+  retiredMigrationFilenames,
   runMigrations,
   splitSqlStatements,
 } from "./run-migrations.ts";
@@ -139,7 +140,41 @@ describe("listMigrationFiles", () => {
   });
 });
 
+describe("retiredMigrationFilenames", () => {
+  test("適用済みだがローカルに実体が無いファイル名だけを名前順で返す", () => {
+    expect(
+      retiredMigrationFilenames(
+        ["0002_seed.sql", "0008_drop_exercise_tables.sql", "0001_init.sql"],
+        ["0001_init.sql", "0002_seed.sql", "0003_seed.sql"],
+      ),
+    ).toEqual(["0008_drop_exercise_tables.sql"]);
+  });
+
+  test("作り直し済み（記録とファイルが一致）なら空配列を返す", () => {
+    expect(
+      retiredMigrationFilenames(["0001_init.sql"], ["0001_init.sql"]),
+    ).toEqual([]);
+  });
+});
+
 describe("runMigrations", () => {
+  test("作り直せていない DB の過去の migration 名を onRetiredFilenames へ通知する", async () => {
+    const dir = await tempMigrationsDir();
+    await writeFile(join(dir, "0001_init.sql"), "create table a (id text);\n");
+
+    const client = new FakeRdsDataClient([
+      "0001_init.sql",
+      "0004_drop_soap_mapping.sql",
+    ]);
+    const retired: string[][] = [];
+    await runMigrations(TARGET, dir, {
+      client: client as never,
+      onRetiredFilenames: (filenames) => retired.push(filenames),
+    });
+
+    expect(retired).toEqual([["0004_drop_soap_mapping.sql"]]);
+  });
+
   test("未適用のファイルだけを版番号順に適用し、ファイル名を記録する", async () => {
     const dir = await tempMigrationsDir();
     await writeFile(join(dir, "0001_init.sql"), "create table a (id text);\n");

@@ -80,3 +80,16 @@ output "training_data_migrate_command" {
     "mise exec -- bun run training-data:migrate",
   ]) : ""
 }
+
+# [WARNING] このコマンドは Training Data Store の全データを消す。スキーマを変えたら
+# 0001_init.sql を直接書き換えて DB を作り直す運用（README の「Training Data Store」節）のための
+# もので、`--yes` が無いと実行されない。
+output "training_data_reset_command" {
+  description = "Copy-paste command to drop and recreate the public schema, then re-apply migrations from scratch. Destroys all data."
+  value = var.enable_training_data_store ? join(" ", [
+    "TRAINING_DATA_CLUSTER_ARN='${aws_rds_cluster.training_data[0].arn}'",
+    "TRAINING_DATA_SECRET_ARN='${aws_rds_cluster.training_data[0].master_user_secret[0].secret_arn}'",
+    "TRAINING_DATA_DATABASE_NAME='${aws_rds_cluster.training_data[0].database_name}'",
+    "mise exec -- bun run training-data:reset -- --yes",
+  ]) : ""
+}

@@ -17,7 +17,6 @@ import { handleMaterialChatRequest } from "../application/handle-material-chat-r
 import { handleMaterialRequest } from "../application/handle-material-request.ts";
 import { handleProfessionalCommentRequest } from "../application/handle-professional-comment-request.ts";
 import { handlePromptTemplateRequest } from "../application/handle-prompt-template-request.ts";
-import { handleReferenceKnowledgeRequest } from "../application/handle-reference-knowledge-request.ts";
 import { handleBffRequest } from "../application/handle-request.ts";
 import { handleRubricRequest } from "../application/handle-rubric-request.ts";
 import {
@@ -78,7 +77,6 @@ import {
   createPromptTemplate,
   listPromptTemplates,
 } from "../infra/prompt-template-store.ts";
-import { listReferenceKnowledge } from "../infra/reference-knowledge-store.ts";
 import {
   createRubric,
   listRubrics,
@@ -490,18 +488,6 @@ export async function handleLambdaEvent(
     );
   }
 
-  if (path === "/api/reference-knowledge") {
-    return handleReferenceKnowledgeRequest(
-      {
-        body: event.body,
-        isBase64Encoded: event.isBase64Encoded,
-        method,
-        path,
-      },
-      referenceKnowledgeOptions(config, event, deps),
-    );
-  }
-
   if (
     path === "/api/voice-recordings" ||
     path.startsWith("/api/voice-recordings/")
@@ -786,32 +772,6 @@ function promptTemplateOptions(
     authContext: authContextForEvent(event, config),
     createPromptTemplate: (input) => createPromptTemplate(storeConfig, input),
     listPromptTemplates: () => listPromptTemplates(storeConfig),
-    logError:
-      deps.logError ?? ((message, detail) => console.error(message, detail)),
-    trainingDataConfigured: Boolean(
-      config.trainingDataClusterArn &&
-        config.trainingDataDatabaseName &&
-        config.trainingDataSecretArn,
-    ),
-  };
-}
-
-/** 参照知識 handler が使う options を組み立てる。3つとも未設定なら handler 側が 503 を返す。 */
-function referenceKnowledgeOptions(
-  config: LambdaConfig,
-  event: LambdaEvent,
-  deps: LambdaHandlerDeps,
-): Parameters<typeof handleReferenceKnowledgeRequest>[1] {
-  const storeConfig = {
-    clusterArn: config.trainingDataClusterArn ?? "",
-    database: config.trainingDataDatabaseName ?? "",
-    region: config.region,
-    secretArn: config.trainingDataSecretArn ?? "",
-  };
-
-  return {
-    authContext: authContextForEvent(event, config),
-    listReferenceKnowledge: () => listReferenceKnowledge(storeConfig),
     logError:
       deps.logError ?? ((message, detail) => console.error(message, detail)),
     trainingDataConfigured: Boolean(

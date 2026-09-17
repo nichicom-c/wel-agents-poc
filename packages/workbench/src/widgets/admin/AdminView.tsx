@@ -20,7 +20,6 @@ import {
   knowledgeItemCategoryLabel,
   listMaterials,
   listPromptTemplates,
-  listReferenceKnowledge,
   listRubrics,
   listSoapKnowledgeBases,
   listSoapKnowledgeItems,
@@ -33,11 +32,9 @@ import {
   PUBLICATION_STATUSES,
   type PublicationStatus,
   publicationStatusLabel,
-  type ReferenceKnowledge,
   RUBRIC_LEVEL_NUMBERS,
   type Rubric,
   type RubricLevelNumber,
-  referenceKnowledgeSourceTypeLabel,
   type SoapKnowledgeBase,
   type SoapKnowledgeItem,
   setRubricActive,
@@ -52,19 +49,13 @@ import {
   tagLabel,
 } from "../../features/knowledge-review/index.ts";
 
-type AdminTab =
-  | "materials"
-  | "knowledge-base"
-  | "rubrics"
-  | "prompt-templates"
-  | "reference-knowledge";
+type AdminTab = "materials" | "knowledge-base" | "rubrics" | "prompt-templates";
 
 const ADMIN_TABS: ReadonlyArray<{ id: AdminTab; label: string }> = [
   { id: "materials", label: "教材" },
   { id: "knowledge-base", label: "Knowledge Base" },
   { id: "rubrics", label: "ルーブリック" },
   { id: "prompt-templates", label: "Prompt Template" },
-  { id: "reference-knowledge", label: "参照知識" },
 ];
 
 export function AdminView() {
@@ -77,7 +68,7 @@ export function AdminView() {
       <h2>Admin</h2>
       <p className="workbench-main-description">
         教材・Knowledge Base・評価ルーブリック・Prompt
-        Template・参照知識・マスタ対応を管理する作業画面
+        Template・マスタ対応を管理する作業画面
       </p>
 
       <fieldset className="knowledge-review-role-select">
@@ -124,10 +115,8 @@ export function AdminView() {
             <KnowledgeBaseTab />
           ) : activeTab === "rubrics" ? (
             <RubricsTab />
-          ) : activeTab === "prompt-templates" ? (
-            <PromptTemplatesTab />
           ) : (
-            <ReferenceKnowledgeTab />
+            <PromptTemplatesTab />
           )}
         </>
       )}
@@ -1094,79 +1083,6 @@ function PromptTemplatesTab() {
           登録
         </button>
       </div>
-    </section>
-  );
-}
-
-function ReferenceKnowledgeTab() {
-  const [items, setItems] = useState<ReferenceKnowledge[] | null>(null);
-  const [materials, setMaterials] = useState<Material[]>([]);
-  const [rubrics, setRubrics] = useState<Rubric[]>([]);
-
-  useEffect(() => {
-    let cancelled = false;
-    Promise.all([
-      listReferenceKnowledge(),
-      listMaterials(),
-      listRubrics(),
-    ]).then(([referenceKnowledge, materialList, rubricList]) => {
-      if (cancelled) {
-        return;
-      }
-      setItems(referenceKnowledge);
-      setMaterials(materialList);
-      setRubrics(rubricList);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  function materialTitle(id: string): string {
-    return materials.find((material) => material.id === id)?.title ?? id;
-  }
-
-  function rubricName(id: string): string {
-    return rubrics.find((rubric) => rubric.id === id)?.name ?? id;
-  }
-
-  return (
-    <section aria-label="参照知識一覧">
-      <ul className="knowledge-review-comment-list">
-        {(items ?? []).map((item) => (
-          <li key={item.id} className="knowledge-review-comment">
-            <div className="knowledge-review-comment-header">
-              <span>{item.title}</span>
-              <span>{referenceKnowledgeSourceTypeLabel(item.sourceType)}</span>
-            </div>
-            <p className="soap-draft-text">{item.summary}</p>
-            {item.externalKbRef ? (
-              <p className="workbench-main-description">
-                参照元: {item.externalKbRef}
-              </p>
-            ) : null}
-            <div className="knowledge-review-tag-row">
-              {item.linkedMaterialIds.length === 0 &&
-              item.linkedRubricIds.length === 0 ? (
-                <span>紐づく教材・ルーブリックはありません</span>
-              ) : (
-                <>
-                  {item.linkedMaterialIds.map((materialId) => (
-                    <span key={materialId}>
-                      教材: {materialTitle(materialId)}
-                    </span>
-                  ))}
-                  {item.linkedRubricIds.map((rubricId) => (
-                    <span key={rubricId}>
-                      ルーブリック: {rubricName(rubricId)}
-                    </span>
-                  ))}
-                </>
-              )}
-            </div>
-          </li>
-        ))}
-      </ul>
     </section>
   );
 }

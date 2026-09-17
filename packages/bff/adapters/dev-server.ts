@@ -16,7 +16,6 @@ import { handleMaterialChatRequest } from "../application/handle-material-chat-r
 import { handleMaterialRequest } from "../application/handle-material-request.ts";
 import { handleProfessionalCommentRequest } from "../application/handle-professional-comment-request.ts";
 import { handlePromptTemplateRequest } from "../application/handle-prompt-template-request.ts";
-import { handleReferenceKnowledgeRequest } from "../application/handle-reference-knowledge-request.ts";
 import { handleBffRequest } from "../application/handle-request.ts";
 import { handleRubricRequest } from "../application/handle-rubric-request.ts";
 import {
@@ -59,7 +58,6 @@ import {
   createPromptTemplate,
   listPromptTemplates,
 } from "../infra/prompt-template-store.ts";
-import { listReferenceKnowledge } from "../infra/reference-knowledge-store.ts";
 import {
   createRubric,
   listRubrics,
@@ -700,35 +698,6 @@ export async function handleBffDevRequest(
         createPromptTemplate: (input) =>
           createPromptTemplate(storeConfig, input),
         listPromptTemplates: () => listPromptTemplates(storeConfig),
-        logError: (message, detail) => console.error(message, detail),
-        trainingDataConfigured: Boolean(
-          config.trainingDataClusterArn &&
-            config.trainingDataDatabaseName &&
-            config.trainingDataSecretArn,
-        ),
-      },
-    );
-
-    return responseFromBff(bffResponse);
-  }
-
-  if (url.pathname === "/api/reference-knowledge") {
-    const storeConfig = {
-      clusterArn: config.trainingDataClusterArn ?? "",
-      database: config.trainingDataDatabaseName ?? "",
-      region: config.region,
-      secretArn: config.trainingDataSecretArn ?? "",
-    };
-
-    const bffResponse = await handleReferenceKnowledgeRequest(
-      {
-        body,
-        method: request.method,
-        path: url.pathname,
-      },
-      {
-        authContext: authContextForConfig(config),
-        listReferenceKnowledge: () => listReferenceKnowledge(storeConfig),
         logError: (message, detail) => console.error(message, detail),
         trainingDataConfigured: Boolean(
           config.trainingDataClusterArn &&

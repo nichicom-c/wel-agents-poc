@@ -24,6 +24,7 @@
     "medical-care-law:generate:textbook": "bun run tools/medical-care-law-rag/generate-textbook-corpus.ts",
     "structured-data:generate:support-activity": "bun run tools/structured-data/generate-support-activity-sample.ts",
     "training-data:migrate": "bun run tools/db-migrate/run-migrations.ts",
+    "training-data:reset": "bun run tools/db-migrate/reset-schema.ts",
     "ncu": "bunx npm-check-updates --workspaces"
   },
   "devDependencies": {
