@@ -144,16 +144,17 @@ wel-agents-poc/
 │   ├── agentcore/        # AgentCore Runtime（@wel-agents-poc/agentcore。entrypoint + contracts/domain/application/adapters/infra）
 │   ├── bff/              # BFF（@wel-agents-poc/bff。root wrappers + contracts/domain/application/adapters/infra）
 │   ├── chat-ui/          # React Chat UI（@wel-agents-poc/chat-ui。Vite dev/build、/api/ws-url + /api/chat proxy）
-│   └── workbench/        # React Workbench（@wel-agents-poc/workbench。作業目的ごとの画面 shell、現状はホームページのみ）
+│   └── workbench/        # React Workbench（@wel-agents-poc/workbench。SOAP Studio / Voice Capture / Knowledge Review / Training / Admin）
 ├── Dockerfile.agentcore  # AgentCore Runtime 用 Bun コンテナ
 ├── terraform/            # IaC
 │   ├── aws/
 │   │   ├── agentcore/    # AgentCore Runtime・vector KB・law_hierarchical 比較 KB・support_activity SQL KB・Memory・ECR・IAM
 │   │   ├── auth/         # Cognito User Pool + App Client + Hosted UI（OIDC IdP）
-│   │   ├── bff/          # API Gateway + Lambda BFF
+│   │   ├── bff/          # API Gateway + Lambda BFF + Training Data Store（Aurora Serverless v2）+ Voice Capture S3/Transcribe
+│   │   │   └── migrations/   # Training Data Store のスキーマ・seed（0001-0003。差分は積まず 0001 を直接書き換えて作り直す）
 │   │   └── chat-ui/      # S3 + CloudFront Chat UI hosting
 │   └── gc/               # Google Cloud（WIP）
-├── tools/                # セットアップ・クリーンアップスクリプト・structured-data generator
+├── tools/                # セットアップ/クリーンアップ・terraform 実行（tf/）・DB マイグレーション（db-migrate/）・各種コーパス/structured-data generator
 ├── .agents/              # Codex 用スキル（Strands 公式ドキュメント参照）
 └── .claude/              # Claude Code 用ルール・スキル
 ```
