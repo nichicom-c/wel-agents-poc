@@ -11,6 +11,7 @@ import {
   handleKnowledgeBaseDetailRequest,
   type KnowledgeBaseDetailProvider,
 } from "../application/handle-knowledge-base-detail-request.ts";
+import { handleMastersRequest } from "../application/handle-masters-request.ts";
 import { handleMaterialCandidateRequest } from "../application/handle-material-candidate-request.ts";
 import { handleMaterialChatRequest } from "../application/handle-material-chat-request.ts";
 import { handleMaterialRequest } from "../application/handle-material-request.ts";
@@ -39,6 +40,7 @@ import { authContextFromJwtClaims } from "../domain/auth.ts";
 import { listAgentCoreSessions } from "../infra/agentcore-sessions-client.ts";
 import { buildDevInfo } from "../infra/dev-info.ts";
 import { makeKnowledgeBaseDetailProvider } from "../infra/knowledge-base-detail.ts";
+import { getMasters } from "../infra/master-store.ts";
 import {
   createMaterialCandidateFromComments,
   decideMaterialCandidateStatus,
@@ -667,6 +669,35 @@ export async function handleBffDevRequest(
           ),
         setKnowledgeItemActive: (input) =>
           setKnowledgeItemActive(storeConfig, input),
+        trainingDataConfigured: Boolean(
+          config.trainingDataClusterArn &&
+            config.trainingDataDatabaseName &&
+            config.trainingDataSecretArn,
+        ),
+      },
+    );
+
+    return responseFromBff(bffResponse);
+  }
+
+  if (url.pathname === "/api/masters") {
+    const storeConfig = {
+      clusterArn: config.trainingDataClusterArn ?? "",
+      database: config.trainingDataDatabaseName ?? "",
+      region: config.region,
+      secretArn: config.trainingDataSecretArn ?? "",
+    };
+
+    const bffResponse = await handleMastersRequest(
+      {
+        body,
+        method: request.method,
+        path: url.pathname,
+      },
+      {
+        authContext: authContextForConfig(config),
+        getMasters: () => getMasters(storeConfig),
+        logError: (message, detail) => console.error(message, detail),
         trainingDataConfigured: Boolean(
           config.trainingDataClusterArn &&
             config.trainingDataDatabaseName &&

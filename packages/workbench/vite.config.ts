@@ -43,6 +43,10 @@ export function buildWorkbenchViteConfig(
       changeOrigin: true,
       target: config.bffUrl,
     },
+    "/api/masters": {
+      changeOrigin: true,
+      target: config.bffUrl,
+    },
     "/api/professional-comments": {
       changeOrigin: true,
       target: config.bffUrl,

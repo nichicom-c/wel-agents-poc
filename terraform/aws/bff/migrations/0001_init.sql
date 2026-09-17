@@ -44,9 +44,9 @@ create type publication_status as enum ('draft', 'reviewing', 'published', 'arch
 -- ロール・マスタ（issue #10 が管理する対象。初期値は 0002_seed_masters.sql で投入する）
 -- =========================================================================
 
--- id はブラウザ表示用の固定 id（packages/workbench の dummy 実装が使う id と一致させる。
--- 例: "maternal-child"）。issue #10 の管理画面から増減できるようにするため enum ではなく
--- マスタテーブルにする。
+-- id は可読な固定文字列（例: "maternal-child"）で、materials / material_candidates の FK になる。
+-- issue #10 の管理画面から増減できるようにするため enum ではなくマスタテーブルにする。
+-- label は BFF `GET /api/masters` が配り、画面はこれを唯一の正として表示する。
 create table specialties (
   id text primary key,
   label text not null,

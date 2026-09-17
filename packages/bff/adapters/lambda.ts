@@ -12,6 +12,7 @@ import {
   handleKnowledgeBaseDetailRequest,
   type KnowledgeBaseDetailProvider,
 } from "../application/handle-knowledge-base-detail-request.ts";
+import { handleMastersRequest } from "../application/handle-masters-request.ts";
 import { handleMaterialCandidateRequest } from "../application/handle-material-candidate-request.ts";
 import { handleMaterialChatRequest } from "../application/handle-material-chat-request.ts";
 import { handleMaterialRequest } from "../application/handle-material-request.ts";
@@ -58,6 +59,7 @@ import {
   type EnvSource,
   type LambdaConfig,
 } from "../infra/lambda-config.ts";
+import { getMasters } from "../infra/master-store.ts";
 import {
   createMaterialCandidateFromComments,
   decideMaterialCandidateStatus,
@@ -475,6 +477,18 @@ export async function handleLambdaEvent(
     );
   }
 
+  if (path === "/api/masters") {
+    return handleMastersRequest(
+      {
+        body: event.body,
+        isBase64Encoded: event.isBase64Encoded,
+        method,
+        path,
+      },
+      mastersOptions(config, event, deps),
+    );
+  }
+
   if (path === "/api/prompt-templates") {
     return handlePromptTemplateRequest(
       {
@@ -756,6 +770,32 @@ function soapKnowledgeBaseOptions(
 }
 
 /** Prompt Template handler が使う options を組み立てる。3つとも未設定なら handler 側が 503 を返す。 */
+/** マスタ handler が使う options を組み立てる。3つとも未設定なら handler 側が 503 を返す。 */
+function mastersOptions(
+  config: LambdaConfig,
+  event: LambdaEvent,
+  deps: LambdaHandlerDeps,
+): Parameters<typeof handleMastersRequest>[1] {
+  const storeConfig = {
+    clusterArn: config.trainingDataClusterArn ?? "",
+    database: config.trainingDataDatabaseName ?? "",
+    region: config.region,
+    secretArn: config.trainingDataSecretArn ?? "",
+  };
+
+  return {
+    authContext: authContextForEvent(event, config),
+    getMasters: () => getMasters(storeConfig),
+    logError:
+      deps.logError ?? ((message, detail) => console.error(message, detail)),
+    trainingDataConfigured: Boolean(
+      config.trainingDataClusterArn &&
+        config.trainingDataDatabaseName &&
+        config.trainingDataSecretArn,
+    ),
+  };
+}
+
 function promptTemplateOptions(
   config: LambdaConfig,
   event: LambdaEvent,

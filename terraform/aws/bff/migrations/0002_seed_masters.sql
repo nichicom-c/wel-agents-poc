@@ -1,7 +1,7 @@
--- issue #10 が管理するマスタ（0001_init.sql で定義）の初期値。id/label は packages/workbench の dummy 実装
--- （features/knowledge-review/model/tags.ts, features/admin/model/material-candidates.ts）が使う
--- 固定値と一致させる。実 DB に切り替えた後もこれらの id をそのまま使えば workbench 側の変更は
--- 不要になる。
+-- issue #10 が管理するマスタ（0001_init.sql で定義）の初期値。**id/label の正はこのファイルだけ**で、
+-- packages/workbench は BFF `GET /api/masters` 経由でここから取得する（画面側に固定値は持たない）。
+-- id は material_candidates / materials の FK として保存されるため、既存データがある状態で id を
+-- 変えると参照が切れる。ラベルだけ直す場合は label の update を書き、id は据え置く。
 
 insert into specialties (id, label) values
   ('maternal-child', '母子保健'),

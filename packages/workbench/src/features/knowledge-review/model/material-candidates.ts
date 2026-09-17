@@ -35,39 +35,10 @@ export function materialCandidateStatusLabel(
 }
 
 /**
- * 却下理由の分類は issue #8 の Open Question のため暫定コード。issue #10 でマスタ管理する
- * 想定で、結論が出たらこの配列を差し替えるだけで済むようにする。
+ * 却下理由は `rejection_reason_codes` マスタの `code`。選択肢とラベルは BFF `/api/masters`
+ * から取得する（`features/masters`）ため、ここでは union に固定しない。
  */
-export const REJECTION_REASON_CODES = [
-  "insufficient_generality",
-  "personal_identifiable_info",
-  "duplicate_content",
-  "unclear_rationale",
-  "other",
-] as const;
-
-export type RejectionReasonCode = (typeof REJECTION_REASON_CODES)[number];
-
-export function isRejectionReasonCode(
-  value: unknown,
-): value is RejectionReasonCode {
-  return (
-    typeof value === "string" &&
-    (REJECTION_REASON_CODES as readonly string[]).includes(value)
-  );
-}
-
-const REJECTION_REASON_LABELS: Record<RejectionReasonCode, string> = {
-  insufficient_generality: "汎用性が低い",
-  personal_identifiable_info: "個人が特定できる情報を含む",
-  duplicate_content: "既存教材と重複",
-  unclear_rationale: "判断根拠が不明確",
-  other: "その他",
-};
-
-export function rejectionReasonLabel(code: RejectionReasonCode): string {
-  return REJECTION_REASON_LABELS[code];
-}
+export type RejectionReasonCode = string;
 
 export type MaterialCandidateStatusEvent = {
   fromStatus: MaterialCandidateStatus | null;

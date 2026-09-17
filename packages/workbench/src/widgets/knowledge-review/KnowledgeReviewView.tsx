@@ -8,13 +8,11 @@ import {
   canViewKnowledgeReview,
   commentTypeLabel,
   createCandidateFromComments,
-  DIFFICULTY_LEVELS,
   decideCandidateStatus,
   generateTeachingMaterialDraft,
   KNOWLEDGE_REVIEW_ROLES,
   type KnowledgeReviewRole,
   knowledgeReviewRoleLabel,
-  LEARNING_THEMES,
   listCommentsForVersion,
   listMaterialCandidates,
   listSoapRecords,
@@ -26,15 +24,16 @@ import {
   type ProfessionalComment,
   postComment,
   promoteCandidateToMaterial,
-  REJECTION_REASON_CODES,
   type RejectionReasonCode,
-  rejectionReasonLabel,
   type SoapRecordSummary,
   type SoapRecordVersion,
-  SPECIALTIES,
   type TeachingMaterialDraft,
-  tagLabel,
 } from "../../features/knowledge-review/index.ts";
+import {
+  rejectionReasonLabel,
+  tagLabel,
+  useMasters,
+} from "../../features/masters/index.ts";
 import {
   SOAP_RECORD_TYPES,
   type SoapCategory,
@@ -138,6 +137,7 @@ type CandidateTabProps = {
 };
 
 function CandidateTab({ authorName, canDecide }: CandidateTabProps) {
+  const masters = useMasters();
   const [filters, setFilters] = useState<MaterialCandidateFilters>({});
   const [candidates, setCandidates] = useState<MaterialCandidate[] | null>(
     null,
@@ -218,7 +218,7 @@ function CandidateTab({ authorName, canDecide }: CandidateTabProps) {
             }
           >
             <option value="">すべて</option>
-            {SPECIALTIES.map((option) => (
+            {masters.specialties.map((option) => (
               <option key={option.id} value={option.id}>
                 {option.label}
               </option>
@@ -259,7 +259,7 @@ function CandidateTab({ authorName, canDecide }: CandidateTabProps) {
             }
           >
             <option value="">すべて</option>
-            {LEARNING_THEMES.map((option) => (
+            {masters.learningThemes.map((option) => (
               <option key={option.id} value={option.id}>
                 {option.label}
               </option>
@@ -278,7 +278,7 @@ function CandidateTab({ authorName, canDecide }: CandidateTabProps) {
             }
           >
             <option value="">すべて</option>
-            {DIFFICULTY_LEVELS.map((option) => (
+            {masters.difficultyLevels.map((option) => (
               <option key={option.id} value={option.id}>
                 {option.label}
               </option>
@@ -338,7 +338,7 @@ function CandidateTab({ authorName, canDecide }: CandidateTabProps) {
             <div className="knowledge-review-tag-row">
               <span>
                 {candidate.specialtyId
-                  ? tagLabel(SPECIALTIES, candidate.specialtyId)
+                  ? tagLabel(masters.specialties, candidate.specialtyId)
                   : "未設定"}
               </span>
               <span>
@@ -348,12 +348,12 @@ function CandidateTab({ authorName, canDecide }: CandidateTabProps) {
               </span>
               <span>
                 {candidate.learningThemeId
-                  ? tagLabel(LEARNING_THEMES, candidate.learningThemeId)
+                  ? tagLabel(masters.learningThemes, candidate.learningThemeId)
                   : "未設定"}
               </span>
               <span>
                 {candidate.difficultyId
-                  ? tagLabel(DIFFICULTY_LEVELS, candidate.difficultyId)
+                  ? tagLabel(masters.difficultyLevels, candidate.difficultyId)
                   : "未設定"}
               </span>
             </div>
@@ -425,7 +425,10 @@ function CandidateTab({ authorName, canDecide }: CandidateTabProps) {
                 {candidate.rejectionReasonCode ? (
                   <p className="workbench-main-description">
                     却下理由:{" "}
-                    {rejectionReasonLabel(candidate.rejectionReasonCode)}
+                    {rejectionReasonLabel(
+                      masters.rejectionReasonCodes,
+                      candidate.rejectionReasonCode,
+                    )}
                   </p>
                 ) : null}
 
@@ -474,9 +477,9 @@ function CandidateTab({ authorName, canDecide }: CandidateTabProps) {
                         }
                       >
                         <option value="">選択してください</option>
-                        {REJECTION_REASON_CODES.map((code) => (
-                          <option key={code} value={code}>
-                            {rejectionReasonLabel(code)}
+                        {masters.rejectionReasonCodes.map((option) => (
+                          <option key={option.code} value={option.code}>
+                            {option.label}
                           </option>
                         ))}
                       </select>
@@ -537,6 +540,7 @@ type RecordTabProps = {
 };
 
 function RecordTab({ authorName, canPost }: RecordTabProps) {
+  const masters = useMasters();
   const [records, setRecords] = useState<SoapRecordSummary[] | null>(null);
   const [recordsStatus, setRecordsStatus] = useState<LoadStatus>("idle");
   const [recordsError, setRecordsError] = useState("");
@@ -556,20 +560,27 @@ function RecordTab({ authorName, canPost }: RecordTabProps) {
   const [createSummary, setCreateSummary] = useState("");
   const [createLearningObjective, setCreateLearningObjective] = useState("");
   const [createTeachingPointsText, setCreateTeachingPointsText] = useState("");
-  const [createSpecialtyId, setCreateSpecialtyId] = useState(
-    SPECIALTIES[0]?.id ?? "",
-  );
-  const [createLearningThemeId, setCreateLearningThemeId] = useState(
-    LEARNING_THEMES[0]?.id ?? "",
-  );
-  const [createDifficultyId, setCreateDifficultyId] = useState(
-    DIFFICULTY_LEVELS[0]?.id ?? "",
-  );
+  const [createSpecialtyId, setCreateSpecialtyId] = useState("");
+  const [createLearningThemeId, setCreateLearningThemeId] = useState("");
+  const [createDifficultyId, setCreateDifficultyId] = useState("");
   const [createNotice, setCreateNotice] = useState("");
   const [generatedDraft, setGeneratedDraft] =
     useState<TeachingMaterialDraft | null>(null);
   const [generateStatus, setGenerateStatus] = useState<LoadStatus>("idle");
   const [generateError, setGenerateError] = useState("");
+
+  // マスタは非同期で届くため、未選択のものだけ先頭を既定値にする（利用者の選択は上書きしない）。
+  useEffect(() => {
+    setCreateSpecialtyId(
+      (current) => current || masters.specialties[0]?.id || "",
+    );
+    setCreateLearningThemeId(
+      (current) => current || masters.learningThemes[0]?.id || "",
+    );
+    setCreateDifficultyId(
+      (current) => current || masters.difficultyLevels[0]?.id || "",
+    );
+  }, [masters]);
 
   useEffect(() => {
     let cancelled = false;
@@ -947,7 +958,7 @@ function RecordTab({ authorName, canPost }: RecordTabProps) {
                         setCreateSpecialtyId(event.target.value)
                       }
                     >
-                      {SPECIALTIES.map((option) => (
+                      {masters.specialties.map((option) => (
                         <option key={option.id} value={option.id}>
                           {option.label}
                         </option>
@@ -962,7 +973,7 @@ function RecordTab({ authorName, canPost }: RecordTabProps) {
                         setCreateLearningThemeId(event.target.value)
                       }
                     >
-                      {LEARNING_THEMES.map((option) => (
+                      {masters.learningThemes.map((option) => (
                         <option key={option.id} value={option.id}>
                           {option.label}
                         </option>
@@ -977,7 +988,7 @@ function RecordTab({ authorName, canPost }: RecordTabProps) {
                         setCreateDifficultyId(event.target.value)
                       }
                     >
-                      {DIFFICULTY_LEVELS.map((option) => (
+                      {masters.difficultyLevels.map((option) => (
                         <option key={option.id} value={option.id}>
                           {option.label}
                         </option>

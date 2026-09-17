@@ -5,7 +5,6 @@ import {
 } from "../../soap-draft/index.ts";
 import {
   isMaterialCandidateStatus,
-  isRejectionReasonCode,
   type MaterialCandidate,
   type MaterialCandidateFilters,
   type MaterialCandidateStatus,
@@ -351,7 +350,6 @@ function normalizeCandidate(
   }
 
   const rawRecordType = record.recordType;
-  const rawRejectionReasonCode = record.rejectionReasonCode;
 
   return {
     comments: normalizeComments(record.comments),
@@ -363,9 +361,7 @@ function normalizeCandidate(
     learningThemeId: trimmedText(record.learningThemeId) || undefined,
     materialId: trimmedText(record.materialId) || undefined,
     recordType: isSoapRecordType(rawRecordType) ? rawRecordType : undefined,
-    rejectionReasonCode: isRejectionReasonCode(rawRejectionReasonCode)
-      ? rawRejectionReasonCode
-      : undefined,
+    rejectionReasonCode: trimmedText(record.rejectionReasonCode) || undefined,
     specialtyId: trimmedText(record.specialtyId) || undefined,
     status,
     statusHistory: normalizeStatusHistory(record.statusHistory),

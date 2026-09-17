@@ -13,12 +13,7 @@ import {
   MessageMarkdown,
   postMaterialChat,
 } from "../../features/chat/index.ts";
-import {
-  DIFFICULTY_LEVELS,
-  LEARNING_THEMES,
-  SPECIALTIES,
-  tagLabel,
-} from "../../features/knowledge-review/index.ts";
+import { tagLabel, useMasters } from "../../features/masters/index.ts";
 import {
   canViewTraining,
   TRAINING_DEMO_ROLES,
@@ -73,6 +68,7 @@ export function TrainingView() {
  * 使わず、ここで保持している `messages` をそのまま毎回 `history` として送り直す。
  */
 function MaterialChatPanel() {
+  const masters = useMasters();
   const [materials, setMaterials] = useState<Material[] | null>(null);
   const [status, setStatus] = useState<LoadStatus>("idle");
   const [error, setError] = useState("");
@@ -265,17 +261,17 @@ function MaterialChatPanel() {
               <span>{materialTypeLabel(material.materialType)}</span>
               <span>
                 {material.specialtyId
-                  ? tagLabel(SPECIALTIES, material.specialtyId)
+                  ? tagLabel(masters.specialties, material.specialtyId)
                   : "未設定"}
               </span>
               <span>
                 {material.difficultyId
-                  ? tagLabel(DIFFICULTY_LEVELS, material.difficultyId)
+                  ? tagLabel(masters.difficultyLevels, material.difficultyId)
                   : "未設定"}
               </span>
               <span>
                 {material.learningThemeId
-                  ? tagLabel(LEARNING_THEMES, material.learningThemeId)
+                  ? tagLabel(masters.learningThemes, material.learningThemeId)
                   : "未設定"}
               </span>
             </div>

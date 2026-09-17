@@ -25,8 +25,6 @@ export type {
 export {
   MATERIAL_CANDIDATE_STATUSES,
   materialCandidateStatusLabel,
-  REJECTION_REASON_CODES,
-  rejectionReasonLabel,
 } from "./model/material-candidates.ts";
 export type {
   CommentType,
@@ -52,10 +50,3 @@ export type {
   SoapRecordVersionSource,
 } from "./model/soap-records.ts";
 export { latestVersion, versionsForRecord } from "./model/soap-records.ts";
-export type { TagOption } from "./model/tags.ts";
-export {
-  DIFFICULTY_LEVELS,
-  LEARNING_THEMES,
-  SPECIALTIES,
-  tagLabel,
-} from "./model/tags.ts";

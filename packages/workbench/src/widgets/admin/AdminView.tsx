@@ -42,12 +42,7 @@ import {
   setSoapKnowledgeItemActive,
   startTrainingDataCluster,
 } from "../../features/admin/index.ts";
-import {
-  DIFFICULTY_LEVELS,
-  LEARNING_THEMES,
-  SPECIALTIES,
-  tagLabel,
-} from "../../features/knowledge-review/index.ts";
+import { tagLabel, useMasters } from "../../features/masters/index.ts";
 
 type AdminTab = "materials" | "knowledge-base" | "rubrics" | "prompt-templates";
 
@@ -227,6 +222,7 @@ function TrainingDataClusterPanel() {
 }
 
 function MaterialsTab() {
+  const masters = useMasters();
   const [filters, setFilters] = useState<MaterialFilters>({});
   const [materials, setMaterials] = useState<Material[] | null>(null);
   const [nextStatusById, setNextStatusById] = useState<
@@ -236,17 +232,22 @@ function MaterialsTab() {
   const [newMaterialType, setNewMaterialType] = useState<MaterialType>(
     MATERIAL_TYPES[0],
   );
-  const [newSpecialtyId, setNewSpecialtyId] = useState(
-    SPECIALTIES[0]?.id ?? "",
-  );
-  const [newLearningThemeId, setNewLearningThemeId] = useState(
-    LEARNING_THEMES[0]?.id ?? "",
-  );
-  const [newDifficultyId, setNewDifficultyId] = useState(
-    DIFFICULTY_LEVELS[0]?.id ?? "",
-  );
+  const [newSpecialtyId, setNewSpecialtyId] = useState("");
+  const [newLearningThemeId, setNewLearningThemeId] = useState("");
+  const [newDifficultyId, setNewDifficultyId] = useState("");
   const [newLearningObjective, setNewLearningObjective] = useState("");
   const [newTeachingPointsText, setNewTeachingPointsText] = useState("");
+
+  // マスタは非同期で届くため、未選択のものだけ先頭を既定値にする（利用者の選択は上書きしない）。
+  useEffect(() => {
+    setNewSpecialtyId((current) => current || masters.specialties[0]?.id || "");
+    setNewLearningThemeId(
+      (current) => current || masters.learningThemes[0]?.id || "",
+    );
+    setNewDifficultyId(
+      (current) => current || masters.difficultyLevels[0]?.id || "",
+    );
+  }, [masters]);
 
   useEffect(() => {
     let cancelled = false;
@@ -365,17 +366,17 @@ function MaterialsTab() {
               <span>{materialTypeLabel(material.materialType)}</span>
               <span>
                 {material.specialtyId
-                  ? tagLabel(SPECIALTIES, material.specialtyId)
+                  ? tagLabel(masters.specialties, material.specialtyId)
                   : "未設定"}
               </span>
               <span>
                 {material.learningThemeId
-                  ? tagLabel(LEARNING_THEMES, material.learningThemeId)
+                  ? tagLabel(masters.learningThemes, material.learningThemeId)
                   : "未設定"}
               </span>
               <span>
                 {material.difficultyId
-                  ? tagLabel(DIFFICULTY_LEVELS, material.difficultyId)
+                  ? tagLabel(masters.difficultyLevels, material.difficultyId)
                   : "未設定"}
               </span>
             </div>
@@ -453,7 +454,7 @@ function MaterialsTab() {
             value={newSpecialtyId}
             onChange={(event) => setNewSpecialtyId(event.target.value)}
           >
-            {SPECIALTIES.map((option) => (
+            {masters.specialties.map((option) => (
               <option key={option.id} value={option.id}>
                 {option.label}
               </option>
@@ -466,7 +467,7 @@ function MaterialsTab() {
             value={newLearningThemeId}
             onChange={(event) => setNewLearningThemeId(event.target.value)}
           >
-            {LEARNING_THEMES.map((option) => (
+            {masters.learningThemes.map((option) => (
               <option key={option.id} value={option.id}>
                 {option.label}
               </option>
@@ -479,7 +480,7 @@ function MaterialsTab() {
             value={newDifficultyId}
             onChange={(event) => setNewDifficultyId(event.target.value)}
           >
-            {DIFFICULTY_LEVELS.map((option) => (
+            {masters.difficultyLevels.map((option) => (
               <option key={option.id} value={option.id}>
                 {option.label}
               </option>
