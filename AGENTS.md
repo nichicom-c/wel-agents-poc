@@ -69,6 +69,11 @@ See the directory tree in [`README.md`](./README.md#ディレクトリ構成) �
 - [OK] Reach the DB only from `packages/bff/infra/*-store.ts` via the RDS Data API helpers in `infra/training-data-sql.ts`. [NG] DB access from `packages/agentcore` (it stays stateless) or directly from a UI.
 - [OK] Values that belong to a master table (`specialties` / `learning_themes` / `difficulty_levels` / `rejection_reason_codes`) live in `0002_seed_masters.sql` only; UIs read them through `GET /api/masters`. [NG] re-declaring ids or labels as constants in `packages/workbench`. Their ids are foreign keys in `materials` / `material_candidates`, so change labels, not ids, once data exists.
 
+## Workbench UI work
+
+- **Use the `shadcn` skill** (`.agents/skills/shadcn/`) for any UI work in `packages/workbench/`. Its `rules/` are the binding conventions (`styling.md`, `forms.md`, `composition.md`, `icons.md`, `chat.md`), and `rules/base-vs-radix.md` matters here because this workspace is on `base` (Base UI), not Radix: triggers take `render`, not `asChild`. Add components with `bunx --bun shadcn@latest add <name>`, then pin the new deps exact and rewrite the CLI's `from "cn"` imports to `@/lib/utils`.
+- **Use the `dads` skill** (`.agents/skills/dads/`) for the Digital Agency Design System tokens and grid. Note its prose describes the sample project it was written for (`base-ui-react-sample`, `src/index.css`, `.claude/skills/`); here the equivalent file is `packages/workbench/src/app/styles.css`, and the tokens are already installed — read it for the token/grid reference, not for the setup steps.
+
 ## Strands Agents SDK work
 
 This repo targets the **Strands Agents TypeScript SDK** (`@strands-agents/sdk`) on Bun — not the Python `strands-agents` package.
