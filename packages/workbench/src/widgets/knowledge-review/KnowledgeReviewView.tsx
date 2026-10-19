@@ -162,9 +162,13 @@ export function KnowledgeReviewView() {
           value={activeTab}
           onValueChange={(value) => setActiveTab(value as KnowledgeReviewTab)}
         >
-          <TabsList>
-            <TabsTrigger value="candidates">教材候補</TabsTrigger>
-            <TabsTrigger value="records">記録から探す</TabsTrigger>
+          <TabsList variant="line">
+            <TabsTrigger value="candidates" className="flex-none px-3">
+              教材候補
+            </TabsTrigger>
+            <TabsTrigger value="records" className="flex-none px-3">
+              記録から探す
+            </TabsTrigger>
           </TabsList>
           <TabsContent value="candidates">
             <CandidateTab authorName={authorName} canDecide={canDecide} />

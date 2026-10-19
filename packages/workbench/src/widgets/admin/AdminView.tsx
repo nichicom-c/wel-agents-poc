@@ -155,9 +155,13 @@ export function AdminView() {
             value={activeTab}
             onValueChange={(value) => setActiveTab(value as AdminTab)}
           >
-            <TabsList>
+            <TabsList variant="line">
               {ADMIN_TABS.map((tab) => (
-                <TabsTrigger key={tab.id} value={tab.id}>
+                <TabsTrigger
+                  key={tab.id}
+                  value={tab.id}
+                  className="flex-none px-3"
+                >
                   {tab.label}
                 </TabsTrigger>
               ))}
