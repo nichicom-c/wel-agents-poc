@@ -37,6 +37,7 @@ import {
   handleWsUrlRequest,
 } from "../application/handle-ws-url-request.ts";
 import type { KnowledgeBaseIds } from "../contracts/knowledge-base-detail.ts";
+import type { Masters } from "../contracts/masters.ts";
 import { ALWAYS_INCLUDED_KNOWLEDGE_CATEGORIES } from "../contracts/soap-knowledge-base.ts";
 import { authContextFromJwtClaims } from "../domain/auth.ts";
 import {
@@ -329,6 +330,7 @@ export async function handleLambdaEvent(
       },
       {
         actorId: config.actorId,
+        getMasters: mastersLookup(config),
         invokeRuntime: (runtimeSessionId, payload) =>
           invokeAgentCoreRuntime(config, runtimeSessionId, payload, deps),
         logError:
@@ -770,6 +772,31 @@ function soapKnowledgeBaseOptions(
 }
 
 /** Prompt Template handler が使う options を組み立てる。3つとも未設定なら handler 側が 503 を返す。 */
+/**
+ * マスタ読み出しを組み立てる。Training Data Store 未設定なら undefined を返し、マスタが
+ * 無くても成立する呼び出し側（教材候補生成）はそれを分類の推奨を省く合図として使う。
+ */
+function mastersLookup(
+  config: LambdaConfig,
+): (() => Promise<Masters>) | undefined {
+  if (
+    !config.trainingDataClusterArn ||
+    !config.trainingDataDatabaseName ||
+    !config.trainingDataSecretArn
+  ) {
+    return undefined;
+  }
+
+  const storeConfig = {
+    clusterArn: config.trainingDataClusterArn,
+    database: config.trainingDataDatabaseName,
+    region: config.region,
+    secretArn: config.trainingDataSecretArn,
+  };
+
+  return () => getMasters(storeConfig);
+}
+
 /** マスタ handler が使う options を組み立てる。3つとも未設定なら handler 側が 503 を返す。 */
 function mastersOptions(
   config: LambdaConfig,

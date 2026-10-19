@@ -9,9 +9,17 @@
 import { StructuredOutputError } from "@strands-agents/sdk";
 
 import type { RuntimeRequest, RuntimeResponse } from "../contracts/runtime.ts";
-import type { TeachingMaterialOutput } from "../contracts/teaching-material.ts";
+import type {
+  TeachingMaterialClassificationOptions,
+  TeachingMaterialOption,
+  TeachingMaterialOutput,
+} from "../contracts/teaching-material.ts";
 import { getActorId, getSessionId } from "../domain/session.ts";
-import { getTeachingMaterialSourceText } from "../domain/teaching-material.ts";
+import {
+  getTeachingMaterialClassificationOptions,
+  getTeachingMaterialSourceText,
+  pickKnownOptionId,
+} from "../domain/teaching-material.ts";
 import { type Config, configFromEnv } from "../infra/config.ts";
 import type { AgentDeps } from "./agent-deps.ts";
 import { buildTeachingMaterialAgent } from "./teaching-material-agent.ts";
@@ -78,7 +86,9 @@ export async function buildTeachingMaterialResponse(
 
   const actorId = getActorId(payload);
   const sessionId = getSessionId(payload);
-  const message = `専門職コメント:\n${sourceText}`;
+  const classificationOptions =
+    getTeachingMaterialClassificationOptions(payload);
+  const message = buildMessage(sourceText, classificationOptions);
 
   const runTeachingMaterial =
     deps.teachingMaterialRunner ?? defaultTeachingMaterialRunner(config);
@@ -100,10 +110,53 @@ export async function buildTeachingMaterialResponse(
     status: "success",
     type: "teaching_material",
     title: output.title,
+    summary: output.summary,
     learningObjective: output.learningObjective,
     teachingPoints: output.teachingPoints,
+    specialtyId: pickKnownOptionId(
+      classificationOptions.specialties,
+      output.specialtyId,
+    ),
+    learningThemeId: pickKnownOptionId(
+      classificationOptions.learningThemes,
+      output.learningThemeId,
+    ),
+    difficultyId: pickKnownOptionId(
+      classificationOptions.difficultyLevels,
+      output.difficultyId,
+    ),
     session_id: sessionId,
     actor_id: actorId,
     model_id: config.modelId,
   };
+}
+
+/**
+ * agent へ渡す message を組み立てる。
+ *
+ * 分類マスタが渡されているときだけ選択肢を列挙する（空の節は出さず、model に存在しない分類を
+ * 選ばせない）。id はそのまま FK として保存されるため、`id: label` の形で明示する。
+ */
+function buildMessage(
+  sourceText: string,
+  options: TeachingMaterialClassificationOptions,
+): string {
+  const sections = [
+    optionSection("分野（specialtyId）", options.specialties),
+    optionSection("学習テーマ（learningThemeId）", options.learningThemes),
+    optionSection("難易度（difficultyId）", options.difficultyLevels),
+  ].filter((section) => section !== undefined);
+
+  return [`専門職コメント:\n${sourceText}`, ...sections].join("\n\n");
+}
+
+function optionSection(
+  heading: string,
+  options: TeachingMaterialOption[],
+): string | undefined {
+  if (options.length === 0) {
+    return undefined;
+  }
+  const lines = options.map((option) => `- ${option.id}: ${option.label}`);
+  return `${heading}の選択肢:\n${lines.join("\n")}`;
 }

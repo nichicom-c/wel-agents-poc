@@ -22,6 +22,8 @@ export const TEACHING_MATERIAL_AGENT_NAME = "teaching_material_agent";
  * （家庭血圧・既往歴・服薬状況・生活背景等）や「生活背景とアセスメントの関連付け」
  * 「一方的な指導ではなく本人が実行可能な計画を考える」といった指導観点を、指導可能な
  * 粒度の teachingPoints に分解する。コメントに書かれていない事実は創作しない。
+ * 併せて、入力に分類の選択肢（分野 / 学習テーマ / 難易度）が与えられていれば、その中から
+ * 最も適合する id を1つずつ選ぶ（与えられていない、または当てはまらなければ省略する）。
  */
 const TEACHING_MATERIAL_SYSTEM_PROMPT =
   "You are an instructional designer supporting the training of newly-qualified public health " +
@@ -32,9 +34,12 @@ const TEACHING_MATERIAL_SYSTEM_PROMPT =
   "life context (work, diet, sleep, alcohol use, etc.) to the assessment, or one-sided " +
   "instruction instead of a plan the client can actually follow. " +
   "Turn this single review comment into a reusable teaching material candidate that other " +
-  "trainees could learn from, with exactly three fields: " +
+  "trainees could learn from, with these fields: " +
   "title — a short, specific heading naming the clinical/teaching scenario (not a generic " +
   "label like 'SOAP review'); " +
+  "summary — one or two sentences describing what situation the material covers and what it " +
+  "is about, written for someone browsing a list of candidates; do not merely restate the " +
+  "learning objective in other words; " +
   "learningObjective — one or two sentences stating what a trainee should be able to do after " +
   "studying this case (e.g. gathering the right missing information, connecting objective " +
   "findings to life context before concluding an assessment); " +
@@ -45,6 +50,10 @@ const TEACHING_MATERIAL_SYSTEM_PROMPT =
   "at work or eating out often — to the assessment instead of stating it separately', 'do not " +
   "end the assessment with a mere restatement of the objective findings', 'design a plan the " +
   "client can realistically carry out together with them, rather than one-sided instruction'). " +
+  "The message may also list classification options (specialty, learning theme, difficulty), " +
+  "each as an 'id: label' pair. When it does, set specialtyId / learningThemeId / difficultyId " +
+  "to the id of the single best-fitting option, copying the id exactly as given; never invent " +
+  "an id, and omit the field when no option is offered for it or none of them fits. " +
   "Ground every field in what the comment actually says; do not invent clinical facts, patient " +
   "details, or advice that is not present in or a reasonable generalization of the comment. " +
   "Respond in Japanese.";

@@ -375,6 +375,13 @@ export async function handleBffDevRequest(
   }
 
   if (url.pathname === "/api/teaching-material-draft") {
+    const storeConfig = {
+      clusterArn: config.trainingDataClusterArn ?? "",
+      database: config.trainingDataDatabaseName ?? "",
+      region: config.region,
+      secretArn: config.trainingDataSecretArn ?? "",
+    };
+
     const bffResponse = await handleTeachingMaterialRequest(
       {
         body,
@@ -383,6 +390,12 @@ export async function handleBffDevRequest(
       },
       {
         actorId: config.actorId,
+        getMasters:
+          storeConfig.clusterArn &&
+          storeConfig.database &&
+          storeConfig.secretArn
+            ? () => getMasters(storeConfig)
+            : undefined,
         invokeRuntime: (_runtimeSessionId, payload) =>
           invokeLocalRuntime(config, payload, fetchFn),
         logError: (message, detail) => console.error(message, detail),

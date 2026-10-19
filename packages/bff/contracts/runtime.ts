@@ -1,3 +1,5 @@
+import type { MasterOption } from "./masters.ts";
+
 /**
  * AgentCore Runtime `/invocations` に渡す payload。
  *
@@ -7,7 +9,8 @@
  * `gap`（呼び出し側が優先度順に選んだ「今回扱う1件の不足」、`soap_gaps` の出力の1要素）と
  * `message`（利用者の今回の発言、初回の提示ターンは省略）を使う。
  * `type: "teaching_material"`（Knowledge Review 画面の教材候補生成）のときは `text`
- * （専門職コメント本文）を使う。`type: "material_chat"`（Training 画面の教材チャット）の
+ * （専門職コメント本文）と `classification_options`（BFF が読んだ分野 / 学習テーマ / 難易度の
+ * マスタ。model はこの中から推奨値を選ぶ）を使う。`type: "material_chat"`（Training 画面の教材チャット）の
  * ときは `material`（対話対象の教材、全体の文脈）/ `teaching_point`（呼び出し側がキューとして
  * 選ぶ「今回扱う1件の指導のポイント」、省略時は教材全体の自由対話）/ `history`（client が
  * 保持するこれまでの会話）/ `message`（今回の発言、初回は省略）を使う。いずれも agentcore 側
@@ -44,6 +47,12 @@ export type RuntimePayload = {
   history?: unknown;
   /** type: "soap_draft" / "soap_gaps" / "soap_gaps_chat" のときの Knowledge Base 補足コンテキスト。 */
   knowledge_context?: { category: string; title: string; content: string }[];
+  /** type: "teaching_material" のときに model が分類の推奨値を選ぶ選択肢（マスタの id/label）。 */
+  classification_options?: {
+    specialties: MasterOption[];
+    learningThemes: MasterOption[];
+    difficultyLevels: MasterOption[];
+  };
 };
 
 /** Runtime invoke の成否を BFF core が扱いやすい形に正規化した結果。 */

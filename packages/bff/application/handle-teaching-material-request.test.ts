@@ -5,8 +5,15 @@ import { handleTeachingMaterialRequest } from "./handle-teaching-material-reques
 const ACTOR_ID = "web-user";
 const SESSION_ID = "teaching-00000000-0000-4000-8000-000000000000";
 
+const MASTERS = {
+  specialties: [{ id: "sp-adult", label: "成人保健" }],
+  learningThemes: [{ id: "th-assessment", label: "アセスメント" }],
+  difficultyLevels: [{ id: "df-basic", label: "基礎" }],
+  rejectionReasonCodes: [{ code: "duplicate", label: "重複" }],
+};
+
 describe("handleTeachingMaterialRequest", () => {
-  test("BFF request を runtime payload に変換し title/learningObjective/teachingPoints を返す", async () => {
+  test("BFF request を runtime payload に変換し title/summary/learningObjective/teachingPoints を返す", async () => {
     let runtimeSessionId = "";
     let runtimePayload: unknown;
 
@@ -30,9 +37,11 @@ describe("handleTeachingMaterialRequest", () => {
               status: "success",
               type: "teaching_material",
               title: "血圧高値と生活背景の統合",
+              summary: "単回の血圧高値から生活背景を確認せず指導へ進んだ場面",
               learningObjective:
                 "不足情報を確認し、S/Oを関連付けてAssessmentできるようになる",
               teachingPoints: ["単回の測定値だけで結論を出さない"],
+              specialtyId: "sp-adult",
               session_id: sessionId,
               actor_id: ACTOR_ID,
               model_id: "test-model",
@@ -46,9 +55,11 @@ describe("handleTeachingMaterialRequest", () => {
     expect(response.statusCode).toBe(200);
     expect(JSON.parse(response.body)).toEqual({
       title: "血圧高値と生活背景の統合",
+      summary: "単回の血圧高値から生活背景を確認せず指導へ進んだ場面",
       learningObjective:
         "不足情報を確認し、S/Oを関連付けてAssessmentできるようになる",
       teachingPoints: ["単回の測定値だけで結論を出さない"],
+      specialtyId: "sp-adult",
     });
     expect(runtimeSessionId).toBe(SESSION_ID);
     expect(runtimePayload).toEqual({
@@ -57,6 +68,66 @@ describe("handleTeachingMaterialRequest", () => {
       text: "血圧が高いので食生活を見直すよう指導しました。",
       session_id: SESSION_ID,
     });
+  });
+
+  test("getMasters があれば分類の選択肢を runtime payload に載せる", async () => {
+    let runtimePayload: Record<string, unknown> = {};
+
+    await handleTeachingMaterialRequest(
+      {
+        body: JSON.stringify({ text: "x" }),
+        method: "POST",
+        path: "/api/teaching-material-draft",
+      },
+      {
+        actorId: ACTOR_ID,
+        createSessionId: () => SESSION_ID,
+        getMasters: async () => MASTERS,
+        invokeRuntime: async (_sessionId, payload) => {
+          runtimePayload = payload as unknown as Record<string, unknown>;
+          return { ok: true, payload: { status: "success" }, statusCode: 200 };
+        },
+      },
+    );
+
+    expect(runtimePayload.classification_options).toEqual({
+      difficultyLevels: MASTERS.difficultyLevels,
+      learningThemes: MASTERS.learningThemes,
+      specialties: MASTERS.specialties,
+    });
+  });
+
+  test("マスタ読み出しの失敗は生成を止めず、選択肢なしで呼ぶ", async () => {
+    let runtimePayload: Record<string, unknown> = {};
+    const logged: string[] = [];
+
+    const response = await handleTeachingMaterialRequest(
+      {
+        body: JSON.stringify({ text: "x" }),
+        method: "POST",
+        path: "/api/teaching-material-draft",
+      },
+      {
+        actorId: ACTOR_ID,
+        createSessionId: () => SESSION_ID,
+        getMasters: async () => {
+          throw new Error("training data store unavailable");
+        },
+        invokeRuntime: async (_sessionId, payload) => {
+          runtimePayload = payload as unknown as Record<string, unknown>;
+          return {
+            ok: true,
+            payload: { status: "success", title: "t" },
+            statusCode: 200,
+          };
+        },
+        logError: (message) => logged.push(message),
+      },
+    );
+
+    expect(response.statusCode).toBe(200);
+    expect(runtimePayload).not.toHaveProperty("classification_options");
+    expect(logged).toContain("teaching material masters lookup failed");
   });
 
   test("text 欠落は 400 にする", async () => {

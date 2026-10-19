@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 
 import type { BffHttpRequest, BffHttpResponse } from "../contracts/http.ts";
 import { BFF_JSON_HEADERS } from "../contracts/http.ts";
+import type { Masters } from "../contracts/masters.ts";
 import type { RuntimeInvoker, RuntimePayload } from "../contracts/runtime.ts";
 import { textField } from "../domain/chat-session.ts";
 
@@ -11,6 +12,11 @@ export type HandleTeachingMaterialOptions = {
   actorId: string;
   /** AgentCore Runtime を呼び出す adapter 実装。 */
   invokeRuntime: RuntimeInvoker;
+  /**
+   * 分類の推奨に使うマスタの読み出し（Training Data Store）。未設定・失敗時は分類の選択肢を
+   * 渡さず、本文の生成だけを行う（生成そのものは DB に依存しない）。
+   */
+  getMasters?: () => Promise<Masters>;
   /** 想定外 error の記録先。省略時は握りつぶして構造化 response のみ返す。 */
   logError?: (message: string, detail: Record<string, unknown>) => void;
   /** runtime session ID 生成（テスト用。省略時は randomUUID）。 */
@@ -22,9 +28,13 @@ export type HandleTeachingMaterialOptions = {
  *
  * 会話ではなく stateless な一回限りの生成リクエストなので、client からの conversationId は
  * 受け取らず、呼び出しごとに新しい runtime session ID を生成して AgentCore Runtime へ渡す。
- * `invokeRuntime` は `/api/chat` と同じ seam を再利用する（transport は agnostic）。投稿された
- * 専門職コメント本文から教材候補（title / learningObjective / teachingPoints）を生成するだけで、
- * この handler 自体は何も永続化しない（保存は `POST /api/material-candidates` が担う）。
+ * `invokeRuntime` は `/api/chat` と同じ seam を再利用する（transport は agnostic）。専門職
+ * コメント本文から教材候補（title / summary / learningObjective / teachingPoints と、分野・
+ * 学習テーマ・難易度の推奨）を生成するだけで、この handler 自体は何も永続化しない
+ * （保存は `POST /api/material-candidates` が担う）。
+ *
+ * 分類の推奨に使うマスタは AgentCore が DB を持たないためこの handler が読み、選択肢として
+ * payload に載せる。
  */
 export async function handleTeachingMaterialRequest(
   request: BffHttpRequest,
@@ -53,12 +63,16 @@ export async function handleTeachingMaterialRequest(
     }
 
     const sessionId = (options.createSessionId ?? randomUUID)();
+    const classificationOptions = await loadClassificationOptions(options);
 
     const runtimePayload: RuntimePayload = {
       actor_id: options.actorId,
       type: "teaching_material",
       text,
       session_id: sessionId,
+      ...(classificationOptions
+        ? { classification_options: classificationOptions }
+        : {}),
     };
 
     const runtimeResponse = await options.invokeRuntime(
@@ -86,8 +100,12 @@ export async function handleTeachingMaterialRequest(
 
     return response(200, {
       title: textField(payload.title),
+      summary: textField(payload.summary),
       learningObjective: textField(payload.learningObjective),
       teachingPoints: stringArray(payload.teachingPoints),
+      specialtyId: textField(payload.specialtyId) || undefined,
+      learningThemeId: textField(payload.learningThemeId) || undefined,
+      difficultyId: textField(payload.difficultyId) || undefined,
     });
   } catch (error) {
     const statusCode =
@@ -112,6 +130,35 @@ export async function handleTeachingMaterialRequest(
             ? "AgentCore invoke timed out"
             : "internal server error",
     });
+  }
+}
+
+/**
+ * 分類マスタを読んで runtime payload 用の選択肢に整える。
+ *
+ * 教材候補の本文生成はマスタに依存しないため、未設定（`getMasters` 無し）も読み出し失敗も
+ * error にはせず、分類の推奨だけを諦める。
+ */
+async function loadClassificationOptions(
+  options: HandleTeachingMaterialOptions,
+): Promise<RuntimePayload["classification_options"]> {
+  if (!options.getMasters) {
+    return undefined;
+  }
+
+  try {
+    const masters = await options.getMasters();
+    return {
+      difficultyLevels: masters.difficultyLevels,
+      learningThemes: masters.learningThemes,
+      specialties: masters.specialties,
+    };
+  } catch (error) {
+    options.logError?.("teaching material masters lookup failed", {
+      message: error instanceof Error ? error.message : String(error),
+      name: error instanceof Error ? error.name : undefined,
+    });
+    return undefined;
   }
 }
 

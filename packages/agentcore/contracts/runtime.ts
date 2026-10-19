@@ -7,7 +7,10 @@ import type { Gap } from "./soap-gaps.ts";
  * `type` 省略時（または `"soap_draft"` / `"soap_gaps"` / `"soap_gaps_chat"` /
  * `"teaching_material"` / `"material_chat"` 以外）は chat（supervisor）として扱う。
  * `text` は `type: "soap_draft"` / `"teaching_material"` のとき
- * だけ使う（`teaching_material` では教材候補化したい専門職コメント本文）。記録種別は入力では
+ * だけ使う（`teaching_material` では教材候補化したい専門職コメント本文）。
+ * `classification_options` は `type: "teaching_material"` のときに BFF が渡す分類マスタ
+ * （分野 / 学習テーマ / 難易度の id/label、`domain/teaching-material.ts` が抽出する）で、
+ * model はこの中から推奨値を選ぶ（省略時は分類を推奨しない）。記録種別は入力では
  * なく、分類後に入力全体に対する反映候補（`recommendedRecordTypes`）として model が出力する
  * （個々の候補ではない）。`candidates` は `type: "soap_gaps"` / `"soap_gaps_chat"` のときに
  * 使い、既存の SOAP 下書き候補（`soap_draft` の出力）を渡す。`gap` は `type: "soap_gaps_chat"`
@@ -39,6 +42,7 @@ export type RuntimeRequest = {
   teaching_point?: unknown;
   history?: unknown;
   knowledge_context?: unknown;
+  classification_options?: unknown;
 };
 
 /** AgentCore Runtime からの出力 JSON。 */
@@ -88,8 +92,13 @@ export type RuntimeResponse =
       status: "success";
       type: "teaching_material";
       title: string;
+      summary: string;
       learningObjective: string;
       teachingPoints: string[];
+      /** 分類の推奨値。入力の選択肢に実在する id だけを返し、推奨なしなら省略する。 */
+      specialtyId?: string;
+      learningThemeId?: string;
+      difficultyId?: string;
       session_id: string;
       actor_id: string;
       model_id: string;

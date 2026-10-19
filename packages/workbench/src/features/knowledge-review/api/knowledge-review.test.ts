@@ -3,6 +3,7 @@ import { describe, expect, test } from "bun:test";
 import {
   createCandidateFromComments,
   decideCandidateStatus,
+  generateTeachingMaterialDraft,
   listCommentsForVersion,
   listMaterialCandidates,
   listSoapRecords,
@@ -294,5 +295,70 @@ describe("listVersionsForRecord", () => {
 
     const result = await listVersionsForRecord("record-1", fetchFn);
     expect(result).toEqual([]);
+  });
+});
+
+describe("generateTeachingMaterialDraft", () => {
+  test("生成元テキストを POST し、分類の推奨を含む draft を返す", async () => {
+    let requestedUrl: string | URL | Request | undefined;
+    let requestedInit: RequestInit | undefined;
+    const fetchFn = async (
+      input: string | URL | Request,
+      init?: RequestInit,
+    ) => {
+      requestedUrl = input;
+      requestedInit = init;
+      return Response.json({
+        difficultyId: "intermediate",
+        learningObjective: "不足情報を確認できるようになる",
+        learningThemeId: "support-planning",
+        specialtyId: "maternal-child",
+        summary: "血圧高値の場面の教材",
+        teachingPoints: ["単回の測定値だけで結論を出さない", "  "],
+        title: "血圧高値と生活背景の統合",
+      });
+    };
+
+    const result = await generateTeachingMaterialDraft("コメント本文", fetchFn);
+
+    expect(requestedUrl).toBe("/api/teaching-material-draft");
+    expect(requestedInit?.method).toBe("POST");
+    expect(JSON.parse(String(requestedInit?.body))).toEqual({
+      text: "コメント本文",
+    });
+    expect(result).toEqual({
+      difficultyId: "intermediate",
+      learningObjective: "不足情報を確認できるようになる",
+      learningThemeId: "support-planning",
+      specialtyId: "maternal-child",
+      summary: "血圧高値の場面の教材",
+      teachingPoints: ["単回の測定値だけで結論を出さない"],
+      title: "血圧高値と生活背景の統合",
+    });
+  });
+
+  test("summary と分類が無ければ要約は学習目標で埋め、分類は undefined にする", async () => {
+    const fetchFn = async () =>
+      Response.json({
+        learningObjective: "不足情報を確認できるようになる",
+        teachingPoints: ["単回の測定値だけで結論を出さない"],
+        title: "血圧高値と生活背景の統合",
+      });
+
+    const result = await generateTeachingMaterialDraft("x", fetchFn);
+
+    expect(result.summary).toBe("不足情報を確認できるようになる");
+    expect(result.specialtyId).toBeUndefined();
+    expect(result.learningThemeId).toBeUndefined();
+    expect(result.difficultyId).toBeUndefined();
+  });
+
+  test("title / teachingPoints を欠く応答は error にする", async () => {
+    const fetchFn = async () =>
+      Response.json({ learningObjective: "x", teachingPoints: [], title: "" });
+
+    await expect(generateTeachingMaterialDraft("x", fetchFn)).rejects.toThrow(
+      "invalid response from /api/teaching-material-draft",
+    );
   });
 });

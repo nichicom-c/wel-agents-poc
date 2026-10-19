@@ -110,6 +110,17 @@ function toOptions(
   return allLabel ? [{ label: allLabel, value: "" }, ...options] : options;
 }
 
+/** AI が推奨した id を、マスタに実在する場合だけ select へ反映する。 */
+function applyRecommendedId(
+  entries: ReadonlyArray<{ id: string; label: string }>,
+  recommendedId: string | undefined,
+  setValue: (value: string) => void,
+) {
+  if (recommendedId && entries.some((entry) => entry.id === recommendedId)) {
+    setValue(recommendedId);
+  }
+}
+
 export function KnowledgeReviewView() {
   const [role, setRole] = useState<KnowledgeReviewRole>("nurse");
   const [activeTab, setActiveTab] = useState<KnowledgeReviewTab>("candidates");
@@ -734,30 +745,70 @@ function RecordTab({ authorName, canPost }: RecordTabProps) {
   }
 
   /**
-   * 投稿したコメント本文から教材候補（title/学習目標/指導のポイント）を AI 生成し、
-   * 「教材候補の作成」フォームへ下書きとして反映する。生成失敗はコメント投稿自体を
-   * 妨げないよう best-effort とし、エラーはフォーム上に表示するだけに留める。
+   * コメント本文から教材候補（title/要約/学習目標/指導のポイントと分類）を AI 生成し、
+   * 「教材候補の作成」フォームへ下書きとして反映する。生成失敗は呼び出し元の操作
+   * （コメント投稿・推奨）自体を妨げないよう best-effort とし、エラーはフォーム上に
+   * 表示するだけに留める。反映できたかどうかを返す。
    */
-  async function generateDraftForComment(commentId: string, body: string) {
+  async function generateDraftFromText(sourceText: string): Promise<boolean> {
     setGenerateStatus("loading");
     setGenerateError("");
     try {
-      const draft = await generateTeachingMaterialDraft(body);
+      const draft = await generateTeachingMaterialDraft(sourceText);
       setGeneratedDraft(draft);
       setCreateTitle(draft.title);
-      setCreateSummary(draft.learningObjective);
+      setCreateSummary(draft.summary);
       setCreateLearningObjective(draft.learningObjective);
       setCreateTeachingPointsText(draft.teachingPoints.join("\n"));
-      setSelectedCommentIds((prev) =>
-        prev.includes(commentId) ? prev : [...prev, commentId],
+      // 分類はマスタに実在する id のときだけ反映し、選べなかったものは現在の選択を残す。
+      applyRecommendedId(
+        masters.specialties,
+        draft.specialtyId,
+        setCreateSpecialtyId,
       );
-      setShowCreateForm(true);
+      applyRecommendedId(
+        masters.learningThemes,
+        draft.learningThemeId,
+        setCreateLearningThemeId,
+      );
+      applyRecommendedId(
+        masters.difficultyLevels,
+        draft.difficultyId,
+        setCreateDifficultyId,
+      );
       setGenerateStatus("idle");
+      return true;
     } catch (caught) {
       setGenerateStatus("error");
       setGenerateError(
         caught instanceof Error ? caught.message : String(caught),
       );
+      return false;
+    }
+  }
+
+  /** 投稿直後のコメントを生成元にし、そのコメントを選択済みにしてフォームを開く。 */
+  async function generateDraftForComment(commentId: string, body: string) {
+    if (await generateDraftFromText(body)) {
+      setSelectedCommentIds((prev) =>
+        prev.includes(commentId) ? prev : [...prev, commentId],
+      );
+      setShowCreateForm(true);
+    }
+  }
+
+  /** 「推奨」: 選択中のコメントをまとめて生成元にし、フォームの各欄を埋め直す。 */
+  async function handleRecommend() {
+    const sourceText = (comments ?? [])
+      .filter((comment) => selectedCommentIds.includes(comment.id))
+      .map(
+        (comment) =>
+          `【${commentTypeLabel(comment.commentType)}】${comment.body}`,
+      )
+      .join("\n\n");
+
+    if (sourceText) {
+      await generateDraftFromText(sourceText);
     }
   }
 
@@ -975,7 +1026,7 @@ function RecordTab({ authorName, canPost }: RecordTabProps) {
                 {generateStatus === "loading" ? (
                   <p className="flex items-center gap-2 text-muted-foreground text-std-16N-170">
                     <Spinner />
-                    投稿したコメントから教材候補を生成しています…
+                    コメントから教材候補を生成しています…
                   </p>
                 ) : null}
                 {generateStatus === "error" ? (
@@ -994,14 +1045,27 @@ function RecordTab({ authorName, canPost }: RecordTabProps) {
 
                 {showCreateForm ? (
                   <div className="flex flex-col gap-3 border-t border-border pt-3">
-                    <h5 className="text-std-16B-170">教材候補の作成</h5>
-                    {generatedDraft ? (
-                      <p className="text-muted-foreground text-std-16N-170">
-                        AIがコメントから title / learning_objective /
-                        teaching_points
-                        を生成しました。内容を確認・編集してから保存してください。
-                      </p>
-                    ) : null}
+                    <div className="flex flex-wrap items-center gap-3">
+                      <h5 className="text-std-16B-170">教材候補の作成</h5>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        disabled={
+                          generateStatus === "loading" ||
+                          selectedCommentIds.length === 0
+                        }
+                        onClick={() => void handleRecommend()}
+                      >
+                        {generateStatus === "loading" ? <Spinner /> : null}
+                        推奨
+                      </Button>
+                    </div>
+                    <p className="text-muted-foreground text-std-16N-170">
+                      {generatedDraft
+                        ? "AIが選択中のコメントから各項目を生成しました。内容を確認・編集してから保存してください。"
+                        : "「推奨」を押すと、選択中のコメントからタイトル・要約・学習目標・指導のポイントと分野／学習テーマ／難易度をAIが下書きします。"}
+                    </p>
                     <Field>
                       <FieldLabel htmlFor="kr-create-title">
                         タイトル

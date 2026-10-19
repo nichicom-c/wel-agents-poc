@@ -205,14 +205,20 @@ export type NewProfessionalCommentInput = {
 
 export type TeachingMaterialDraft = {
   title: string;
+  summary: string;
   learningObjective: string;
   teachingPoints: string[];
+  /** 分類の推奨値（マスタの id）。model が選べなかった分類は undefined。 */
+  specialtyId?: string;
+  learningThemeId?: string;
+  difficultyId?: string;
 };
 
 /**
  * BFF `/api/teaching-material-draft` を呼び、専門職コメント本文から教材候補
- * （title / learningObjective / teachingPoints）を AI 生成する。何も永続化しない
- * stateless な生成のみで、保存は別途 {@link createCandidateFromComments} で行う。
+ * （title / summary / learningObjective / teachingPoints と分野・学習テーマ・難易度の推奨）
+ * を AI 生成する。何も永続化しない stateless な生成のみで、保存は別途
+ * {@link createCandidateFromComments} で行う。
  */
 export async function generateTeachingMaterialDraft(
   sourceText: string,
@@ -242,7 +248,16 @@ export async function generateTeachingMaterialDraft(
     throw new Error("invalid response from /api/teaching-material-draft");
   }
 
-  return { learningObjective, teachingPoints, title };
+  return {
+    difficultyId: trimmedText(payload.difficultyId) || undefined,
+    learningObjective,
+    learningThemeId: trimmedText(payload.learningThemeId) || undefined,
+    specialtyId: trimmedText(payload.specialtyId) || undefined,
+    // 要約は学習目標と別立てだが、生成されなかった場合だけ学習目標で埋めて欄を空にしない。
+    summary: trimmedText(payload.summary) || learningObjective,
+    teachingPoints,
+    title,
+  };
 }
 
 export async function postComment(
