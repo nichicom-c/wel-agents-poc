@@ -1,6 +1,7 @@
 import { SendIcon, SkipForwardIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 
+import { DemoRoleSwitcher } from "@/components/demo-role-switcher";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -17,19 +18,13 @@ import {
   EmptyHeader,
   EmptyTitle,
 } from "@/components/ui/empty";
-import {
-  Field,
-  FieldLabel,
-  FieldLegend,
-  FieldSet,
-} from "@/components/ui/field";
+import { Field, FieldLabel } from "@/components/ui/field";
 import {
   Message,
   MessageContent,
   MessageGroup,
   MessageHeader,
 } from "@/components/ui/message";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -69,25 +64,13 @@ export function TrainingView() {
         </p>
       </div>
 
-      <FieldSet>
-        <FieldLegend variant="label">
-          ロール（デモ用の切り替え。実際の認可は未実装）
-        </FieldLegend>
-        <RadioGroup
-          className="flex flex-wrap gap-x-6 gap-y-2"
-          value={role}
-          onValueChange={(value) => setRole(value as TrainingDemoRole)}
-        >
-          {TRAINING_DEMO_ROLES.map((option) => (
-            <Field key={option} orientation="horizontal">
-              <RadioGroupItem id={`training-role-${option}`} value={option} />
-              <FieldLabel htmlFor={`training-role-${option}`}>
-                {trainingDemoRoleLabel(option)}
-              </FieldLabel>
-            </Field>
-          ))}
-        </RadioGroup>
-      </FieldSet>
+      <DemoRoleSwitcher
+        idPrefix="training-role"
+        label={trainingDemoRoleLabel}
+        roles={TRAINING_DEMO_ROLES}
+        value={role}
+        onValueChange={setRole}
+      />
 
       {canView ? (
         <MaterialChatPanel />

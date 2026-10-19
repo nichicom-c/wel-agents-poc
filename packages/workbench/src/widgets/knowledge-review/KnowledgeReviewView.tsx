@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-
+import { DemoRoleSwitcher } from "@/components/demo-role-switcher";
 import { OptionSelect } from "@/components/option-select";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -19,7 +19,6 @@ import {
   FieldSet,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Spinner } from "@/components/ui/spinner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
@@ -128,28 +127,13 @@ export function KnowledgeReviewView() {
         </p>
       </div>
 
-      <FieldSet>
-        <FieldLegend variant="label">
-          ロール（デモ用の切り替え。実際の認可は未実装）
-        </FieldLegend>
-        <RadioGroup
-          className="flex flex-wrap gap-x-6 gap-y-2"
-          value={role}
-          onValueChange={(value) => setRole(value as KnowledgeReviewRole)}
-        >
-          {KNOWLEDGE_REVIEW_ROLES.map((option) => (
-            <Field key={option} orientation="horizontal">
-              <RadioGroupItem
-                id={`knowledge-review-role-${option}`}
-                value={option}
-              />
-              <FieldLabel htmlFor={`knowledge-review-role-${option}`}>
-                {knowledgeReviewRoleLabel(option)}
-              </FieldLabel>
-            </Field>
-          ))}
-        </RadioGroup>
-      </FieldSet>
+      <DemoRoleSwitcher
+        idPrefix="knowledge-review-role"
+        label={knowledgeReviewRoleLabel}
+        roles={KNOWLEDGE_REVIEW_ROLES}
+        value={role}
+        onValueChange={setRole}
+      />
 
       {!canView ? (
         <Alert variant="destructive" role="alert">
