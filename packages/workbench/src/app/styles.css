@@ -11,6 +11,14 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* shadcn の生成コンポーネントは `data-horizontal:` / `data-vertical:` という向きの
+   スタイルフックを使うが、Base UI が実際に出すのは `data-orientation="..."`。
+   上流は `shadcn/tailwind.css` でこの対応を宣言しており、それを読み込んでいない
+   このリポジトリでは自前で宣言しないとクラスが一切生成されない（Tabs が横並びのまま
+   になり、選択中タブの下線も出なくなる）。 */
+@custom-variant data-horizontal (&[data-orientation="horizontal"]);
+@custom-variant data-vertical (&[data-orientation="vertical"]);
+
 /* shadcn のセマンティックトークンを DADS のパレット(key / solid-gray / error)に割り当てる。DADS にダークテーマは無いので light 固定。 */
 :root {
   color-scheme: light;
@@ -24,7 +32,10 @@
   --primary-foreground: #fff;
   --secondary: var(--color-solid-gray-100);
   --secondary-foreground: var(--color-solid-gray-900);
-  --muted: var(--color-solid-gray-50);
+  /* `--background` と同値にしないこと。shadcn は「背景の上に muted の面を重ね、その上に
+     background 色の要素を乗せる」構成を取る（Tabs の選択中タブ、Message の吹き出しなど）ため、
+     同値にすると選択状態や面の境界が完全に見えなくなる。 */
+  --muted: var(--color-solid-gray-100);
   --muted-foreground: var(--color-solid-gray-600);
   --accent: var(--color-key-50);
   --accent-foreground: var(--color-key-900);

@@ -40,6 +40,20 @@ CLI が吐くコードはこのリポジトリの規約に合っていない。`
    ```
 3. **上書きプロンプトに注意。** 既存コンポーネント(特に `button.tsx`)があると、`-y` を付けていても `Would you like to overwrite?` で**対話待ちのまま止まる**。`printf 'N\n' | bunx --bun shadcn@latest add <name> -y` のように答えを流し込む。
 4. 追加されたファイルを読む。上流レジストリ由来のものは import パスやアイコンライブラリがこのリポジトリと合わないことがある。
+5. **`data-xxx:` スタイルフックに対応する `@custom-variant` があるか確認する。** 下記参照。
+
+## スタイルフック(`@custom-variant`)
+
+上流の生成コンポーネントは `data-horizontal:` / `data-vertical:` のような**真偽値属性を前提にした variant** を書く。ところが Base UI が実際に出すのは `data-orientation="horizontal"` という**列挙属性**で、両者は噛み合わない。上流プロジェクトはこの対応を `shadcn/tailwind.css` で宣言しているが、このリポジトリはそれを読み込んでいないので `src/app/styles.css` で自前で宣言している。
+
+```css
+@custom-variant data-horizontal (&[data-orientation="horizontal"]);
+@custom-variant data-vertical (&[data-orientation="vertical"]);
+```
+
+**宣言が無いとクラスが1つも生成されず、しかもエラーにならない。** 実際に Tabs がこれで壊れた: 根要素の `data-horizontal:flex-col` が効かず `flex`(横並び)のままになり、**タブが左・内容が右**に並んだ上、選択中タブの下線(`group-data-horizontal/tabs:after:*` で位置と太さを与えている)も出なかった。型検査もビルドも通るので、気づけるのは画面を見たときだけ。
+
+`data-checked` / `data-active` / `data-disabled` のような**真偽値**のフックは Base UI がそのまま出すので宣言は要らない。新しく `add` したコンポーネントが列挙属性ベースのフック(`data-side` / `data-align` など)を使っていたら、同じ要領で宣言を足す。`src/app/styles.test.ts` が `components/ui/` の使用箇所と宣言の突き合わせを検証している。
 
 ## 書くときの約束
 
