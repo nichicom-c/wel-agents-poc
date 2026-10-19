@@ -72,7 +72,7 @@ See the directory tree in [`README.md`](./README.md#ディレクトリ構成) �
 ## Workbench UI work
 
 - **Use the `shadcn` skill** (`.agents/skills/shadcn/`) for any UI work in `packages/workbench/`. Its `rules/` are the binding conventions (`styling.md`, `forms.md`, `composition.md`, `icons.md`, `chat.md`), and `rules/base-vs-radix.md` matters here because this workspace is on `base` (Base UI), not Radix: triggers take `render`, not `asChild`. Add components with `bunx --bun shadcn@latest add <name>`, then pin the new deps exact and rewrite the CLI's `from "cn"` imports to `@/lib/utils`.
-- **Use the `dads` skill** (`.agents/skills/dads/`) for the Digital Agency Design System tokens and grid. Note its prose describes the sample project it was written for (`base-ui-react-sample`, `src/index.css`, `.claude/skills/`); here the equivalent file is `packages/workbench/src/app/styles.css`, and the tokens are already installed — read it for the token/grid reference, not for the setup steps.
+- **Use the `dads` skill** (`.agents/skills/dads/`) for the Digital Agency Design System tokens and grid. DADS is already fully applied to the Workbench, so it is a usage reference, not a setup guide: `rules/tokens.md` carries the shadcn↔DADS token mapping held in `src/app/styles.css` (write colour through shadcn's semantic names; raw `--color-key-*` only for meanings shadcn has no name for) plus the list of typography utilities that actually exist — the naming scheme reads as free-form but is not, and a plausible-looking `text-std-14N-170` silently leaves text unsized.
 
 ## Strands Agents SDK work
 
