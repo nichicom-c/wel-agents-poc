@@ -59,10 +59,13 @@ export function App() {
                   <li key={item.id}>
                     <Button
                       type="button"
-                      variant={item.id === activeNavId ? "secondary" : "ghost"}
+                      variant="ghost"
                       className={cn(
                         "w-full justify-start",
-                        item.id === activeNavId && "font-bold",
+                        // ghost の hover は bg-muted（灰）なので、選択中は hover も
+                        // accent に固定しないとポインタを乗せた瞬間に選択色が消える。
+                        item.id === activeNavId &&
+                          "bg-accent font-bold text-accent-foreground hover:bg-accent hover:text-accent-foreground",
                       )}
                       aria-current={
                         item.id === activeNavId ? "page" : undefined
