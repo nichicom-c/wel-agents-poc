@@ -56,7 +56,7 @@ describe("buildWorkbenchViteConfig", () => {
 
     expect(config.root).toEndWith("/packages/workbench/");
     expect(config.envDir).toBe(config.root);
-    expect(config.plugins).toHaveLength(1);
+    expect(config.plugins).toHaveLength(2);
     expect(config.build?.outDir).toBe("../../dist/workbench");
     expect(config.server).toMatchObject({
       host: "127.0.0.1",
@@ -123,7 +123,7 @@ describe("buildWorkbenchViteConfig", () => {
     );
     const httpConfig = buildWorkbenchViteConfig(resolveWorkbenchDevConfig({}));
 
-    expect(httpsConfig.plugins).toHaveLength(2);
-    expect(httpConfig.plugins).toHaveLength(1);
+    expect(httpsConfig.plugins).toHaveLength(3);
+    expect(httpConfig.plugins).toHaveLength(2);
   });
 });

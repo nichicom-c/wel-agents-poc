@@ -1,4 +1,27 @@
+import { SendIcon, SkipForwardIcon } from "lucide-react";
 import { useEffect, useState } from "react";
+
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Field,
+  FieldLabel,
+  FieldLegend,
+  FieldSet,
+} from "@/components/ui/field";
+import { Message, MessageContent, MessageGroup } from "@/components/ui/message";
+import { Spinner } from "@/components/ui/spinner";
+import { Textarea } from "@/components/ui/textarea";
+import { cn } from "@/lib/utils";
 
 import {
   addManualCandidate,
@@ -8,6 +31,7 @@ import {
   groupByCategory,
   postSoapDraft,
   type ReflectionSelections,
+  SOAP_CATEGORY_ACCENTS,
   SOAP_RECORD_TYPES,
   type SoapCandidateStatus,
   type SoapCategory,
@@ -48,6 +72,15 @@ const STATUS_LABELS: Record<SoapCandidateStatus, string> = {
   edited: "編集済み",
   rejected: "却下",
   deferred: "後で確認",
+};
+
+const CONFIDENCE_BADGE_VARIANTS: Record<
+  ReturnType<typeof confidenceTier>,
+  "default" | "secondary" | "destructive"
+> = {
+  high: "default",
+  medium: "secondary",
+  low: "destructive",
 };
 
 type AnalyzeStatus = "idle" | "loading" | "error";
@@ -407,171 +440,217 @@ export function SoapStudioView({
   const groups = candidates ? groupByCategory(candidates) : [];
 
   return (
-    <>
-      <h2>SOAP Studio</h2>
-      <p className="workbench-main-description">
-        入力素材から SOAP 下書きと不足確認を作る作業画面
-      </p>
+    <div className="flex flex-col gap-6">
+      <div className="flex flex-col gap-2">
+        <h2 className="text-std-24B-150">SOAP Studio</h2>
+        <p className="text-muted-foreground text-std-16N-170">
+          入力素材から SOAP 下書きと不足確認を作る作業画面
+        </p>
+      </div>
 
       <section
-        className="soap-draft-form"
         aria-label="SOAP 下書き生成"
         aria-busy={analyzeStatus === "loading"}
       >
-        <h3>SOAP 下書き生成</h3>
-        {sourceLabel ? (
-          <p className="soap-draft-source-tag">由来: {sourceLabel}</p>
-        ) : null}
-        <textarea
-          className="soap-draft-input"
-          aria-label="入力素材テキスト"
-          placeholder="テキスト、編集済み transcript、会議メモなどを貼り付けてください"
-          value={text}
-          disabled={analyzeStatus === "loading"}
-          onChange={(event) => setText(event.target.value)}
-        />
-        <div className="soap-draft-form-actions">
-          {analyzeStatus === "loading" ? (
-            <p className="soap-draft-progress" role="status" aria-live="polite">
-              <span className="soap-draft-progress-pulse" aria-hidden="true" />
-              解析中…（30秒ほどかかることがあります）
-            </p>
-          ) : null}
-          <button
-            type="button"
-            className="soap-draft-analyze-button"
-            disabled={!text.trim() || analyzeStatus === "loading"}
-            onClick={() => void handleAnalyze()}
-          >
-            {analyzeStatus === "loading" ? "解析中…" : "解析"}
-          </button>
-        </div>
-        {analyzeStatus === "error" ? (
-          <p className="soap-draft-error">{error}</p>
-        ) : null}
+        <Card>
+          <CardHeader>
+            <CardTitle>SOAP 下書き生成</CardTitle>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-3">
+            {sourceLabel ? (
+              <div>
+                <Badge variant="outline">由来: {sourceLabel}</Badge>
+              </div>
+            ) : null}
+            <Textarea
+              className="min-h-48"
+              aria-label="入力素材テキスト"
+              placeholder="テキスト、編集済み transcript、会議メモなどを貼り付けてください"
+              value={text}
+              disabled={analyzeStatus === "loading"}
+              onChange={(event) => setText(event.target.value)}
+            />
+            {analyzeStatus === "error" ? (
+              <Alert variant="destructive">
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            ) : null}
+          </CardContent>
+          <CardFooter className="flex flex-wrap items-center gap-3">
+            <Button
+              type="button"
+              disabled={!text.trim() || analyzeStatus === "loading"}
+              onClick={() => void handleAnalyze()}
+            >
+              {analyzeStatus === "loading" ? "解析中…" : "解析"}
+            </Button>
+            {analyzeStatus === "loading" ? (
+              <p
+                className="flex items-center gap-2 text-muted-foreground text-std-16N-170"
+                role="status"
+                aria-live="polite"
+              >
+                <Spinner />
+                解析中…（30秒ほどかかることがあります）
+              </p>
+            ) : null}
+          </CardFooter>
+        </Card>
       </section>
 
       {candidates && reflectionSelections ? (
-        <section className="soap-draft-results" aria-label="SOAP 下書き候補">
-          <fieldset className="soap-reflection-targets">
-            <legend>反映候補</legend>
-            {SOAP_RECORD_TYPES.map((recordType) => (
-              <label key={recordType} className="soap-reflection-target">
-                <input
-                  type="checkbox"
-                  checked={reflectionSelections[recordType]}
-                  onChange={() => handleReflectionToggle(recordType)}
-                />
-                {soapRecordTypeLabel(recordType)}
-              </label>
-            ))}
-          </fieldset>
+        <section aria-label="SOAP 下書き候補" className="flex flex-col gap-4">
+          <FieldSet>
+            <FieldLegend variant="label">反映候補</FieldLegend>
+            <div className="flex flex-wrap gap-x-6 gap-y-2">
+              {SOAP_RECORD_TYPES.map((recordType) => (
+                <Field key={recordType} orientation="horizontal">
+                  <Checkbox
+                    id={`soap-reflection-${recordType}`}
+                    checked={reflectionSelections[recordType]}
+                    onCheckedChange={() => handleReflectionToggle(recordType)}
+                  />
+                  <FieldLabel htmlFor={`soap-reflection-${recordType}`}>
+                    {soapRecordTypeLabel(recordType)}
+                  </FieldLabel>
+                </Field>
+              ))}
+            </div>
+          </FieldSet>
 
           {candidates.length === 0 ? (
-            <p className="workbench-main-description">
+            <p className="text-muted-foreground text-std-16N-170">
               候補が見つかりませんでした。
             </p>
           ) : (
             groups.map((group) => (
-              <div
-                key={group.category}
-                className="soap-draft-category-group"
-                data-category={group.category}
-              >
-                <h4>{CATEGORY_LABELS[group.category]}</h4>
+              <div key={group.category} className="flex flex-col gap-2">
+                <h4
+                  className={cn(
+                    "text-std-16N-170 font-bold",
+                    SOAP_CATEGORY_ACCENTS[group.category].text,
+                  )}
+                >
+                  {CATEGORY_LABELS[group.category]}
+                </h4>
                 {group.candidates.length === 0 ? (
-                  <p className="workbench-main-description">該当なし</p>
+                  <p className="text-muted-foreground text-std-16N-170">
+                    該当なし
+                  </p>
                 ) : (
-                  <ul className="soap-draft-candidate-list">
+                  <ul className="flex flex-col gap-3">
                     {group.candidates.map((candidate) => (
-                      <li
-                        key={candidate.id}
-                        className="soap-draft-candidate"
-                        data-category={candidate.category}
-                        data-status={candidate.status}
-                      >
-                        <div className="soap-draft-candidate-header">
-                          <span
-                            className="soap-confidence-badge"
-                            data-tier={confidenceTier(candidate.confidence)}
-                          >
-                            確信度 {Math.round(candidate.confidence * 100)}%
-                          </span>
-                          <span className="soap-candidate-status">
-                            {STATUS_LABELS[candidate.status]}
-                          </span>
-                        </div>
-                        {editingId === candidate.id ? (
-                          <>
-                            <textarea
-                              className="soap-draft-edit-input"
-                              aria-label="下書き文章を編集"
-                              value={editingText}
-                              onChange={(event) =>
-                                setEditingText(event.target.value)
-                              }
-                            />
-                            <div className="soap-draft-candidate-actions">
-                              <button type="button" onClick={saveEditing}>
-                                保存
-                              </button>
-                              <button
-                                type="button"
-                                className="secondary-button"
-                                onClick={cancelEditing}
+                      <li key={candidate.id}>
+                        <Card
+                          size="sm"
+                          className={cn(
+                            "border-l-4",
+                            SOAP_CATEGORY_ACCENTS[candidate.category].border,
+                            candidate.status === "rejected" && "opacity-60",
+                            candidate.status === "adopted" &&
+                              "ring-2 ring-primary/40",
+                          )}
+                        >
+                          <CardContent className="flex flex-col gap-3">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <Badge
+                                variant={
+                                  CONFIDENCE_BADGE_VARIANTS[
+                                    confidenceTier(candidate.confidence)
+                                  ]
+                                }
                               >
-                                キャンセル
-                              </button>
+                                確信度 {Math.round(candidate.confidence * 100)}%
+                              </Badge>
+                              <Badge variant="outline">
+                                {STATUS_LABELS[candidate.status]}
+                              </Badge>
                             </div>
-                          </>
-                        ) : (
-                          <>
-                            <p className="soap-draft-text">
-                              {candidate.draftText}
-                            </p>
-                            <blockquote className="soap-evidence-quote">
-                              {candidate.evidenceQuote}
-                            </blockquote>
-                            <p className="soap-reasoning">
-                              {candidate.reasoning}
-                            </p>
-                            <div className="soap-draft-candidate-actions">
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  handleStatusChange(candidate.id, "adopted")
+                            {editingId === candidate.id ? (
+                              <Textarea
+                                className="min-h-32"
+                                aria-label="下書き文章を編集"
+                                value={editingText}
+                                onChange={(event) =>
+                                  setEditingText(event.target.value)
                                 }
-                              >
-                                採用
-                              </button>
-                              <button
-                                type="button"
-                                className="secondary-button"
-                                onClick={() => startEditing(candidate)}
-                              >
-                                編集
-                              </button>
-                              <button
-                                type="button"
-                                className="secondary-button"
-                                onClick={() =>
-                                  handleStatusChange(candidate.id, "rejected")
-                                }
-                              >
-                                却下
-                              </button>
-                              <button
-                                type="button"
-                                className="secondary-button"
-                                onClick={() =>
-                                  handleStatusChange(candidate.id, "deferred")
-                                }
-                              >
-                                後で確認
-                              </button>
-                            </div>
-                          </>
-                        )}
+                              />
+                            ) : (
+                              <>
+                                <p className="text-std-16N-170">
+                                  {candidate.draftText}
+                                </p>
+                                <blockquote className="border-l-2 border-border pl-3 text-muted-foreground text-std-16N-170">
+                                  {candidate.evidenceQuote}
+                                </blockquote>
+                                <p className="text-muted-foreground text-dns-14N-130">
+                                  {candidate.reasoning}
+                                </p>
+                              </>
+                            )}
+                          </CardContent>
+                          <CardFooter className="flex flex-wrap gap-2">
+                            {editingId === candidate.id ? (
+                              <>
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  onClick={saveEditing}
+                                >
+                                  保存
+                                </Button>
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={cancelEditing}
+                                >
+                                  キャンセル
+                                </Button>
+                              </>
+                            ) : (
+                              <>
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  onClick={() =>
+                                    handleStatusChange(candidate.id, "adopted")
+                                  }
+                                >
+                                  採用
+                                </Button>
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => startEditing(candidate)}
+                                >
+                                  編集
+                                </Button>
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() =>
+                                    handleStatusChange(candidate.id, "rejected")
+                                  }
+                                >
+                                  却下
+                                </Button>
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() =>
+                                    handleStatusChange(candidate.id, "deferred")
+                                  }
+                                >
+                                  後で確認
+                                </Button>
+                              </>
+                            )}
+                          </CardFooter>
+                        </Card>
                       </li>
                     ))}
                   </ul>
@@ -584,157 +663,179 @@ export function SoapStudioView({
 
       {candidates && candidates.length > 0 ? (
         <section
-          className="soap-gaps-section"
           aria-label="不足確認"
           aria-busy={gapsStatus === "loading" || chatStatus === "loading"}
         >
-          <h3>不足確認</h3>
-          <p className="workbench-main-description">
-            検出した不足を優先度順にAIとチャットで1件ずつ埋め、SOAPを完成させます。
-          </p>
-          <button
-            type="button"
-            className="soap-gaps-check-button"
-            disabled={gapsStatus === "loading" || chatStatus === "loading"}
-            onClick={() => void handleStartGapChat()}
-          >
-            {gapsStatus === "loading" || chatStatus === "loading"
-              ? "確認中…"
-              : "不足をチャットで確認"}
-          </button>
-          {gapsStatus === "error" ? (
-            <p className="soap-draft-error">{gapsError}</p>
-          ) : null}
+          <Card>
+            <CardHeader>
+              <CardTitle>不足確認</CardTitle>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-4">
+              <p className="text-muted-foreground text-std-16N-170">
+                検出した不足を優先度順にAIとチャットで1件ずつ埋め、SOAPを完成させます。
+              </p>
+              <div>
+                <Button
+                  type="button"
+                  disabled={
+                    gapsStatus === "loading" || chatStatus === "loading"
+                  }
+                  onClick={() => void handleStartGapChat()}
+                >
+                  {gapsStatus === "loading" || chatStatus === "loading"
+                    ? "確認中…"
+                    : "不足をチャットで確認"}
+                </Button>
+              </div>
+              {gapsStatus === "error" ? (
+                <Alert variant="destructive">
+                  <AlertDescription>{gapsError}</AlertDescription>
+                </Alert>
+              ) : null}
 
-          {chatMessages.length > 0 ? (
-            <div
-              className="soap-gaps-chat-thread"
-              role="log"
-              aria-label="不足確認チャット"
-            >
-              <ul className="soap-gaps-chat-message-list">
-                {chatMessages.map((message) => (
-                  <li
-                    key={message.id}
-                    className="soap-gaps-chat-message"
-                    data-role={message.role}
-                  >
-                    <p className="soap-gaps-chat-message-text">
-                      {message.text}
-                    </p>
-                  </li>
-                ))}
-              </ul>
+              {chatMessages.length > 0 ? (
+                <div
+                  className="flex flex-col gap-4"
+                  role="log"
+                  aria-label="不足確認チャット"
+                >
+                  <MessageGroup className="gap-4">
+                    {chatMessages.map((message) => (
+                      <Message
+                        key={message.id}
+                        align={message.role === "user" ? "end" : "start"}
+                      >
+                        <MessageContent>
+                          <p className="rounded-lg bg-muted px-3 py-2 text-std-16N-170">
+                            {message.text}
+                          </p>
+                        </MessageContent>
+                      </Message>
+                    ))}
+                  </MessageGroup>
 
-              {activeGap && chatStatus !== "loading" ? (
-                <>
-                  {latestAssistantSuggestions(chatMessages).length > 0 ? (
-                    <div className="soap-gaps-chat-suggestions">
-                      {latestAssistantSuggestions(chatMessages).map(
-                        (suggestion) => (
-                          <button
+                  {activeGap && chatStatus !== "loading" ? (
+                    <>
+                      {latestAssistantSuggestions(chatMessages).length > 0 ? (
+                        <div className="flex flex-wrap gap-2">
+                          {latestAssistantSuggestions(chatMessages).map(
+                            (suggestion) => (
+                              <Button
+                                type="button"
+                                key={suggestion}
+                                variant="outline"
+                                size="sm"
+                                onClick={() =>
+                                  handleSuggestionClick(suggestion)
+                                }
+                              >
+                                {suggestion}
+                              </Button>
+                            ),
+                          )}
+                        </div>
+                      ) : null}
+
+                      <Field>
+                        <FieldLabel
+                          htmlFor="soap-gaps-chat-input"
+                          title={activeGap.detail}
+                        >
+                          {gapTypeLabel(activeGap.gapType)} ／{" "}
+                          {CATEGORY_LABELS[activeGap.soapCategory]}
+                        </FieldLabel>
+                        <Textarea
+                          id="soap-gaps-chat-input"
+                          aria-label="チャットへの返信"
+                          placeholder="回答を入力してください"
+                          value={chatInputText}
+                          onChange={(event) =>
+                            setChatInputText(event.target.value)
+                          }
+                        />
+                      </Field>
+                      <div className="flex flex-wrap gap-3">
+                        <Button
+                          type="button"
+                          disabled={!chatInputText.trim()}
+                          onClick={handleSendChatMessage}
+                        >
+                          <SendIcon data-icon="inline-start" />
+                          送信
+                        </Button>
+                        {activeGap.skippable ? (
+                          <Button
                             type="button"
-                            key={suggestion}
-                            className="soap-gaps-chat-suggestion-chip"
-                            onClick={() => handleSuggestionClick(suggestion)}
+                            variant="outline"
+                            onClick={handleSkipCurrentGap}
                           >
-                            {suggestion}
-                          </button>
-                        ),
-                      )}
-                    </div>
+                            <SkipForwardIcon data-icon="inline-start" />
+                            スキップ
+                          </Button>
+                        ) : null}
+                      </div>
+                    </>
                   ) : null}
 
-                  <div
-                    className="soap-gaps-chat-input-row"
-                    data-category={activeGap.soapCategory}
-                  >
-                    <span
-                      className="soap-gap-type-badge"
-                      title={activeGap.detail}
+                  {chatStatus === "loading" ? (
+                    <p
+                      className="flex items-center gap-2 text-muted-foreground text-std-16N-170"
+                      role="status"
+                      aria-live="polite"
                     >
-                      {gapTypeLabel(activeGap.gapType)} ／{" "}
-                      {CATEGORY_LABELS[activeGap.soapCategory]}
-                    </span>
-                    <textarea
-                      className="soap-gaps-chat-input"
-                      aria-label="チャットへの返信"
-                      placeholder="回答を入力してください"
-                      value={chatInputText}
-                      onChange={(event) => setChatInputText(event.target.value)}
-                    />
-                    <div className="soap-draft-candidate-actions">
-                      <button
-                        type="button"
-                        disabled={!chatInputText.trim()}
-                        onClick={handleSendChatMessage}
-                      >
-                        送信
-                      </button>
-                      {activeGap.skippable ? (
-                        <button
-                          type="button"
-                          className="secondary-button"
-                          onClick={handleSkipCurrentGap}
-                        >
-                          スキップ
-                        </button>
-                      ) : null}
-                    </div>
-                  </div>
-                </>
+                      <Spinner />
+                      返信を作成中…
+                    </p>
+                  ) : null}
+                  {chatStatus === "error" ? (
+                    <Alert variant="destructive">
+                      <AlertDescription>{chatError}</AlertDescription>
+                    </Alert>
+                  ) : null}
+                </div>
               ) : null}
-
-              {chatStatus === "loading" ? (
-                <p
-                  className="soap-draft-progress"
-                  role="status"
-                  aria-live="polite"
-                >
-                  <span
-                    className="soap-draft-progress-pulse"
-                    aria-hidden="true"
-                  />
-                  返信を作成中…
-                </p>
-              ) : null}
-              {chatStatus === "error" ? (
-                <p className="soap-draft-error">{chatError}</p>
-              ) : null}
-            </div>
-          ) : null}
+            </CardContent>
+          </Card>
         </section>
       ) : null}
 
       {candidates && reflectionSelections ? (
         <section
-          className="soap-save-record-section"
           aria-label="正式記録として保存"
           aria-busy={saveStatus === "loading"}
         >
-          <h3>正式記録として保存</h3>
-          <p className="workbench-main-description">
-            反映候補でチェックした記録種別ごとに、採用/編集済みの候補を正式記録として保存します
-            （このセッションで同じ記録種別を再度保存すると、新しい版として追記されます）。
-          </p>
-          <button
-            type="button"
-            className="soap-save-record-button"
-            disabled={saveStatus === "loading"}
-            onClick={() => void handleSaveRecords()}
-          >
-            {saveStatus === "loading" ? "保存中…" : "正式記録として保存"}
-          </button>
-          {saveStatus === "error" ? (
-            <p className="soap-draft-error">{saveError}</p>
-          ) : null}
-          {saveNotice ? (
-            <p className="soap-save-record-notice" role="status">
-              {saveNotice}
-            </p>
-          ) : null}
+          <Card>
+            <CardHeader>
+              <CardTitle>正式記録として保存</CardTitle>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-3">
+              <p className="text-muted-foreground text-std-16N-170">
+                反映候補でチェックした記録種別ごとに、採用/編集済みの候補を正式記録として保存します
+                （このセッションで同じ記録種別を再度保存すると、新しい版として追記されます）。
+              </p>
+              {saveStatus === "error" ? (
+                <Alert variant="destructive">
+                  <AlertDescription>{saveError}</AlertDescription>
+                </Alert>
+              ) : null}
+              {saveNotice ? (
+                <Alert role="status">
+                  <AlertDescription>{saveNotice}</AlertDescription>
+                </Alert>
+              ) : null}
+            </CardContent>
+            <CardFooter>
+              <Button
+                type="button"
+                disabled={saveStatus === "loading"}
+                onClick={() => void handleSaveRecords()}
+              >
+                {saveStatus === "loading" ? "保存中…" : "正式記録として保存"}
+              </Button>
+            </CardFooter>
+          </Card>
         </section>
       ) : null}
-    </>
+    </div>
   );
 }

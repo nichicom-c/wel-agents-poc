@@ -1,5 +1,27 @@
 import { useEffect, useState } from "react";
 
+import { OptionSelect } from "@/components/option-select";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import {
+  Field,
+  FieldLabel,
+  FieldLegend,
+  FieldSet,
+} from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Textarea } from "@/components/ui/textarea";
+
 import {
   ADMIN_DEMO_ROLES,
   type AdminDemoRole,
@@ -53,69 +75,109 @@ const ADMIN_TABS: ReadonlyArray<{ id: AdminTab; label: string }> = [
   { id: "prompt-templates", label: "Prompt Template" },
 ];
 
+const PUBLICATION_BADGE_VARIANTS: Record<
+  PublicationStatus,
+  "default" | "secondary" | "destructive" | "outline"
+> = {
+  archived: "destructive",
+  draft: "secondary",
+  published: "default",
+  reviewing: "outline",
+};
+
+const KNOWLEDGE_BASE_BADGE_VARIANTS: Record<
+  KnowledgeBaseStatus,
+  "default" | "secondary" | "destructive"
+> = {
+  active: "default",
+  archived: "destructive",
+  draft: "secondary",
+};
+
+/** マスタ配列を `OptionSelect` の options 形へ。先頭に「すべて」を足す用途も兼ねる。 */
+function toOptions(
+  entries: ReadonlyArray<{ id: string; label: string }>,
+  allLabel?: string,
+) {
+  const options = entries.map((entry) => ({
+    label: entry.label,
+    value: entry.id,
+  }));
+  return allLabel ? [{ label: allLabel, value: "" }, ...options] : options;
+}
+
 export function AdminView() {
   const [role, setRole] = useState<AdminDemoRole>("admin");
   const [activeTab, setActiveTab] = useState<AdminTab>("materials");
   const canView = canViewAdmin(role);
 
   return (
-    <>
-      <h2>Admin</h2>
-      <p className="workbench-main-description">
-        教材・Knowledge Base・評価ルーブリック・Prompt
-        Template・マスタ対応を管理する作業画面
-      </p>
+    <div className="flex flex-col gap-6">
+      <div className="flex flex-col gap-2">
+        <h2 className="text-std-24B-150">Admin</h2>
+        <p className="text-muted-foreground text-std-16N-170">
+          教材・Knowledge Base・評価ルーブリック・Prompt
+          Template・マスタ対応を管理する作業画面
+        </p>
+      </div>
 
-      <fieldset className="knowledge-review-role-select">
-        <legend>ロール（デモ用の切り替え。実際の認可は未実装）</legend>
-        {ADMIN_DEMO_ROLES.map((option) => (
-          <label key={option} className="knowledge-review-role-option">
-            <input
-              type="radio"
-              name="admin-role"
-              checked={role === option}
-              onChange={() => setRole(option)}
-            />
-            {adminDemoRoleLabel(option)}
-          </label>
-        ))}
-      </fieldset>
+      <FieldSet>
+        <FieldLegend variant="label">
+          ロール（デモ用の切り替え。実際の認可は未実装）
+        </FieldLegend>
+        <RadioGroup
+          className="flex flex-wrap gap-x-6 gap-y-2"
+          value={role}
+          onValueChange={(value) => setRole(value as AdminDemoRole)}
+        >
+          {ADMIN_DEMO_ROLES.map((option) => (
+            <Field key={option} orientation="horizontal">
+              <RadioGroupItem id={`admin-role-${option}`} value={option} />
+              <FieldLabel htmlFor={`admin-role-${option}`}>
+                {adminDemoRoleLabel(option)}
+              </FieldLabel>
+            </Field>
+          ))}
+        </RadioGroup>
+      </FieldSet>
 
       {!canView ? (
-        <p className="knowledge-review-forbidden" role="alert">
-          この画面を利用する権限がありません。ロールを「管理者」に切り替えてください。
-        </p>
+        <Alert variant="destructive" role="alert">
+          <AlertDescription>
+            この画面を利用する権限がありません。ロールを「管理者」に切り替えてください。
+          </AlertDescription>
+        </Alert>
       ) : (
         <>
           <TrainingDataClusterPanel />
 
-          <div className="knowledge-review-tabs" role="tablist">
-            {ADMIN_TABS.map((tab) => (
-              <button
-                type="button"
-                role="tab"
-                key={tab.id}
-                aria-selected={activeTab === tab.id}
-                data-active={activeTab === tab.id}
-                onClick={() => setActiveTab(tab.id)}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
-
-          {activeTab === "materials" ? (
-            <MaterialsTab />
-          ) : activeTab === "knowledge-base" ? (
-            <KnowledgeBaseTab />
-          ) : activeTab === "rubrics" ? (
-            <RubricsTab />
-          ) : (
-            <PromptTemplatesTab />
-          )}
+          <Tabs
+            value={activeTab}
+            onValueChange={(value) => setActiveTab(value as AdminTab)}
+          >
+            <TabsList>
+              {ADMIN_TABS.map((tab) => (
+                <TabsTrigger key={tab.id} value={tab.id}>
+                  {tab.label}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+            <TabsContent value="materials">
+              <MaterialsTab />
+            </TabsContent>
+            <TabsContent value="knowledge-base">
+              <KnowledgeBaseTab />
+            </TabsContent>
+            <TabsContent value="rubrics">
+              <RubricsTab />
+            </TabsContent>
+            <TabsContent value="prompt-templates">
+              <PromptTemplatesTab />
+            </TabsContent>
+          </Tabs>
         </>
       )}
-    </>
+    </div>
   );
 }
 
@@ -186,37 +248,52 @@ function TrainingDataClusterPanel() {
   }
 
   return (
-    <section
-      className="admin-infra-panel"
-      aria-label="Training Data Store（Aurora）の状態"
-    >
-      <h3>Training Data Store（Aurora）</h3>
-      <p className="workbench-main-description">
-        教材候補・専門職コメントなどが使う Aurora Serverless v2 cluster が手動
-        stop されている場合、ここから起動できます。
-      </p>
-      <p>
-        現在の status:{" "}
-        {statusLoadState === "loading" ? "確認中…" : (status ?? "unknown")}
-      </p>
-      <div>
-        <button type="button" onClick={() => void handleCheckStatus()}>
-          状態を確認
-        </button>{" "}
-        <button
-          type="button"
-          disabled={startState === "starting"}
-          onClick={() => void handleStart()}
-        >
-          {startState === "starting" ? "起動中…" : "Aurora クラスターを起動"}
-        </button>
-      </div>
-      {message ? <p>{message}</p> : null}
-      {statusLoadState === "error" ? (
-        <p className="soap-draft-error">
-          Training Data Store の状態取得に失敗しました。
-        </p>
-      ) : null}
+    <section aria-label="Training Data Store（Aurora）の状態">
+      <Card size="sm">
+        <CardHeader>
+          <CardTitle>Training Data Store（Aurora）</CardTitle>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-2">
+          <p className="text-muted-foreground text-std-16N-170">
+            教材候補・専門職コメントなどが使う Aurora Serverless v2 cluster
+            が手動 stop されている場合、ここから起動できます。
+          </p>
+          <p className="text-std-16N-170">
+            現在の status:{" "}
+            {statusLoadState === "loading" ? "確認中…" : (status ?? "unknown")}
+          </p>
+          {message ? (
+            <Alert role="status">
+              <AlertDescription>{message}</AlertDescription>
+            </Alert>
+          ) : null}
+          {statusLoadState === "error" ? (
+            <Alert variant="destructive">
+              <AlertDescription>
+                Training Data Store の状態取得に失敗しました。
+              </AlertDescription>
+            </Alert>
+          ) : null}
+        </CardContent>
+        <CardFooter className="flex flex-wrap gap-2">
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() => void handleCheckStatus()}
+          >
+            状態を確認
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            disabled={startState === "starting"}
+            onClick={() => void handleStart()}
+          >
+            {startState === "starting" ? "起動中…" : "Aurora クラスターを起動"}
+          </Button>
+        </CardFooter>
+      </Card>
     </section>
   );
 }
@@ -302,217 +379,247 @@ function MaterialsTab() {
   }
 
   return (
-    <section aria-label="教材一覧">
-      <fieldset className="knowledge-review-filters">
-        <legend>検索</legend>
-        <label>
-          教材種別
-          <select
-            value={filters.materialType ?? ""}
-            onChange={(event) =>
-              setFilters((prev) => ({
-                ...prev,
-                materialType: (event.target.value as MaterialType) || undefined,
-              }))
-            }
-          >
-            <option value="">すべて</option>
-            {MATERIAL_TYPES.map((type) => (
-              <option key={type} value={type}>
-                {materialTypeLabel(type)}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          公開状態
-          <select
-            value={filters.publicationStatus ?? ""}
-            onChange={(event) =>
-              setFilters((prev) => ({
-                ...prev,
-                publicationStatus:
-                  (event.target.value as PublicationStatus) || undefined,
-              }))
-            }
-          >
-            <option value="">すべて</option>
-            {PUBLICATION_STATUSES.map((status) => (
-              <option key={status} value={status}>
-                {publicationStatusLabel(status)}
-              </option>
-            ))}
-          </select>
-        </label>
-      </fieldset>
+    <section aria-label="教材一覧" className="flex flex-col gap-4">
+      <FieldSet>
+        <FieldLegend variant="label">検索</FieldLegend>
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-3 md:gap-8">
+          <Field>
+            <FieldLabel htmlFor="admin-filter-material-type">
+              教材種別
+            </FieldLabel>
+            <OptionSelect
+              id="admin-filter-material-type"
+              options={[
+                { label: "すべて", value: "" },
+                ...MATERIAL_TYPES.map((type) => ({
+                  label: materialTypeLabel(type),
+                  value: type,
+                })),
+              ]}
+              value={filters.materialType ?? ""}
+              onValueChange={(value) =>
+                setFilters((prev) => ({
+                  ...prev,
+                  materialType: (value as MaterialType) || undefined,
+                }))
+              }
+            />
+          </Field>
+          <Field>
+            <FieldLabel htmlFor="admin-filter-publication">公開状態</FieldLabel>
+            <OptionSelect
+              id="admin-filter-publication"
+              options={[
+                { label: "すべて", value: "" },
+                ...PUBLICATION_STATUSES.map((status) => ({
+                  label: publicationStatusLabel(status),
+                  value: status,
+                })),
+              ]}
+              value={filters.publicationStatus ?? ""}
+              onValueChange={(value) =>
+                setFilters((prev) => ({
+                  ...prev,
+                  publicationStatus: (value as PublicationStatus) || undefined,
+                }))
+              }
+            />
+          </Field>
+        </div>
+      </FieldSet>
 
-      <ul className="knowledge-review-candidate-list">
+      <ul className="flex flex-col gap-3">
         {(materials ?? []).map((material) => (
-          <li
-            key={material.id}
-            className="knowledge-review-candidate"
-            data-status={material.publicationStatus}
-          >
-            <div className="knowledge-review-candidate-header">
-              <h4>{material.title}</h4>
-              <span
-                className="knowledge-review-status-badge"
-                data-status={material.publicationStatus}
-              >
-                {publicationStatusLabel(material.publicationStatus)}
-              </span>
-            </div>
-            <div className="knowledge-review-tag-row">
-              <span>{materialTypeLabel(material.materialType)}</span>
-              <span>
-                {material.specialtyId
-                  ? tagLabel(masters.specialties, material.specialtyId)
-                  : "未設定"}
-              </span>
-              <span>
-                {material.learningThemeId
-                  ? tagLabel(masters.learningThemes, material.learningThemeId)
-                  : "未設定"}
-              </span>
-              <span>
-                {material.difficultyId
-                  ? tagLabel(masters.difficultyLevels, material.difficultyId)
-                  : "未設定"}
-              </span>
-            </div>
-            {material.learningObjective ? (
-              <p className="soap-draft-text">
-                学習目標: {material.learningObjective}
-              </p>
-            ) : null}
-            {material.teachingPoints && material.teachingPoints.length > 0 ? (
-              <ul className="knowledge-review-status-history">
-                {material.teachingPoints.map((point) => (
-                  <li key={point}>{point}</li>
-                ))}
-              </ul>
-            ) : null}
-            <div className="knowledge-review-decision-form">
-              <label>
-                変更後の公開状態
-                <select
-                  value={nextStatusById[material.id] ?? ""}
-                  onChange={(event) =>
-                    setNextStatusById((prev) => ({
-                      ...prev,
-                      [material.id]: event.target.value as PublicationStatus,
-                    }))
-                  }
+          <li key={material.id}>
+            <Card size="sm">
+              <CardHeader>
+                <CardTitle className="flex flex-wrap items-center gap-2">
+                  {material.title}
+                  <Badge
+                    variant={
+                      PUBLICATION_BADGE_VARIANTS[material.publicationStatus]
+                    }
+                  >
+                    {publicationStatusLabel(material.publicationStatus)}
+                  </Badge>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="flex flex-col gap-3">
+                <div className="flex flex-wrap gap-2">
+                  <Badge variant="outline">
+                    {materialTypeLabel(material.materialType)}
+                  </Badge>
+                  <Badge variant="outline">
+                    {material.specialtyId
+                      ? tagLabel(masters.specialties, material.specialtyId)
+                      : "未設定"}
+                  </Badge>
+                  <Badge variant="outline">
+                    {material.learningThemeId
+                      ? tagLabel(
+                          masters.learningThemes,
+                          material.learningThemeId,
+                        )
+                      : "未設定"}
+                  </Badge>
+                  <Badge variant="outline">
+                    {material.difficultyId
+                      ? tagLabel(
+                          masters.difficultyLevels,
+                          material.difficultyId,
+                        )
+                      : "未設定"}
+                  </Badge>
+                </div>
+                {material.learningObjective ? (
+                  <p className="text-std-16N-170">
+                    学習目標: {material.learningObjective}
+                  </p>
+                ) : null}
+                {material.teachingPoints &&
+                material.teachingPoints.length > 0 ? (
+                  <ul className="list-disc pl-5 text-std-16N-170">
+                    {material.teachingPoints.map((point) => (
+                      <li key={point}>{point}</li>
+                    ))}
+                  </ul>
+                ) : null}
+              </CardContent>
+              <CardFooter className="flex flex-wrap items-end gap-3">
+                <Field className="w-56">
+                  <FieldLabel htmlFor={`admin-next-status-${material.id}`}>
+                    変更後の公開状態
+                  </FieldLabel>
+                  <OptionSelect
+                    id={`admin-next-status-${material.id}`}
+                    options={[
+                      { label: "選択してください", value: "" },
+                      ...PUBLICATION_STATUSES.filter(
+                        (status) => status !== material.publicationStatus,
+                      ).map((status) => ({
+                        label: publicationStatusLabel(status),
+                        value: status,
+                      })),
+                    ]}
+                    value={nextStatusById[material.id] ?? ""}
+                    onValueChange={(value) =>
+                      setNextStatusById((prev) => ({
+                        ...prev,
+                        [material.id]: value as PublicationStatus,
+                      }))
+                    }
+                  />
+                </Field>
+                <Button
+                  type="button"
+                  size="sm"
+                  disabled={!nextStatusById[material.id]}
+                  onClick={() => void handleChangeStatus(material.id)}
                 >
-                  <option value="">選択してください</option>
-                  {PUBLICATION_STATUSES.filter(
-                    (status) => status !== material.publicationStatus,
-                  ).map((status) => (
-                    <option key={status} value={status}>
-                      {publicationStatusLabel(status)}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <button
-                type="button"
-                disabled={!nextStatusById[material.id]}
-                onClick={() => void handleChangeStatus(material.id)}
-              >
-                変更
-              </button>
-            </div>
+                  変更
+                </Button>
+              </CardFooter>
+            </Card>
           </li>
         ))}
       </ul>
 
-      <div className="knowledge-review-create-form">
-        <h5>新規教材の登録</h5>
-        <input
-          placeholder="タイトル"
-          value={newTitle}
-          onChange={(event) => setNewTitle(event.target.value)}
-        />
-        <label>
-          教材種別
-          <select
-            value={newMaterialType}
-            onChange={(event) =>
-              setNewMaterialType(event.target.value as MaterialType)
-            }
+      <Card size="sm">
+        <CardHeader>
+          <CardTitle>新規教材の登録</CardTitle>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-3">
+          <Field>
+            <FieldLabel htmlFor="admin-new-title">タイトル</FieldLabel>
+            <Input
+              id="admin-new-title"
+              placeholder="タイトル"
+              value={newTitle}
+              onChange={(event) => setNewTitle(event.target.value)}
+            />
+          </Field>
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 md:gap-8">
+            <Field>
+              <FieldLabel htmlFor="admin-new-material-type">
+                教材種別
+              </FieldLabel>
+              <OptionSelect
+                id="admin-new-material-type"
+                options={MATERIAL_TYPES.map((type) => ({
+                  label: materialTypeLabel(type),
+                  value: type,
+                }))}
+                value={newMaterialType}
+                onValueChange={(value) =>
+                  setNewMaterialType(value as MaterialType)
+                }
+              />
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="admin-new-specialty">分野</FieldLabel>
+              <OptionSelect
+                id="admin-new-specialty"
+                options={toOptions(masters.specialties)}
+                value={newSpecialtyId}
+                onValueChange={setNewSpecialtyId}
+              />
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="admin-new-theme">学習テーマ</FieldLabel>
+              <OptionSelect
+                id="admin-new-theme"
+                options={toOptions(masters.learningThemes)}
+                value={newLearningThemeId}
+                onValueChange={setNewLearningThemeId}
+              />
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="admin-new-difficulty">難易度</FieldLabel>
+              <OptionSelect
+                id="admin-new-difficulty"
+                options={toOptions(masters.difficultyLevels)}
+                value={newDifficultyId}
+                onValueChange={setNewDifficultyId}
+              />
+            </Field>
+          </div>
+          <Field>
+            <FieldLabel htmlFor="admin-new-objective">
+              学習目標（任意。Training
+              画面の教材チャットが会話の文脈として使う）
+            </FieldLabel>
+            <Textarea
+              id="admin-new-objective"
+              placeholder="この教材で新人が身につけるべき学習目標"
+              value={newLearningObjective}
+              onChange={(event) => setNewLearningObjective(event.target.value)}
+            />
+          </Field>
+          <Field>
+            <FieldLabel htmlFor="admin-new-points">
+              指導のポイント（任意。1行1項目）
+            </FieldLabel>
+            <Textarea
+              id="admin-new-points"
+              placeholder={
+                "単回の測定値だけで結論を出さない\n不足情報を明確にする"
+              }
+              value={newTeachingPointsText}
+              onChange={(event) => setNewTeachingPointsText(event.target.value)}
+            />
+          </Field>
+        </CardContent>
+        <CardFooter>
+          <Button
+            type="button"
+            size="sm"
+            disabled={!newTitle.trim()}
+            onClick={() => void handleAddMaterial()}
           >
-            {MATERIAL_TYPES.map((type) => (
-              <option key={type} value={type}>
-                {materialTypeLabel(type)}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          分野
-          <select
-            value={newSpecialtyId}
-            onChange={(event) => setNewSpecialtyId(event.target.value)}
-          >
-            {masters.specialties.map((option) => (
-              <option key={option.id} value={option.id}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          学習テーマ
-          <select
-            value={newLearningThemeId}
-            onChange={(event) => setNewLearningThemeId(event.target.value)}
-          >
-            {masters.learningThemes.map((option) => (
-              <option key={option.id} value={option.id}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          難易度
-          <select
-            value={newDifficultyId}
-            onChange={(event) => setNewDifficultyId(event.target.value)}
-          >
-            {masters.difficultyLevels.map((option) => (
-              <option key={option.id} value={option.id}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          学習目標(任意。Training 画面の教材チャットが会話の文脈として使う)
-          <textarea
-            placeholder="この教材で新人が身につけるべき学習目標"
-            value={newLearningObjective}
-            onChange={(event) => setNewLearningObjective(event.target.value)}
-          />
-        </label>
-        <label>
-          指導のポイント(任意。1行1項目)
-          <textarea
-            placeholder={
-              "単回の測定値だけで結論を出さない\n不足情報を明確にする"
-            }
-            value={newTeachingPointsText}
-            onChange={(event) => setNewTeachingPointsText(event.target.value)}
-          />
-        </label>
-        <button
-          type="button"
-          disabled={!newTitle.trim()}
-          onClick={() => void handleAddMaterial()}
-        >
-          登録
-        </button>
-      </div>
+            登録
+          </Button>
+        </CardFooter>
+      </Card>
     </section>
   );
 }
@@ -603,118 +710,159 @@ function RubricsTab() {
   }
 
   return (
-    <section aria-label="ルーブリック一覧">
-      <ul className="knowledge-review-candidate-list">
+    <section aria-label="ルーブリック一覧" className="flex flex-col gap-4">
+      <ul className="flex flex-col gap-3">
         {(rubrics ?? []).map((rubric) => (
-          <li
-            key={rubric.id}
-            className="knowledge-review-candidate"
-            data-status={rubric.isActive ? "active" : "inactive"}
-          >
-            <div className="knowledge-review-candidate-header">
-              <h4>
-                {rubric.code} — {rubric.name}
-              </h4>
-              <span
-                className="knowledge-review-status-badge"
-                data-status={rubric.isActive ? "active" : "inactive"}
-              >
-                {rubric.isActive ? "有効" : "無効"}
-              </span>
-            </div>
-            <p className="soap-draft-text">{rubric.objective}</p>
-            {rubric.levels.length > 0 ? (
-              <ul className="knowledge-review-comment-list">
-                {rubric.levels.map((level) => (
-                  <li key={level.level} className="knowledge-review-comment">
-                    <div className="knowledge-review-comment-header">
-                      <span>
-                        レベル{level.level}: {level.levelName}
-                      </span>
-                    </div>
-                    <p className="soap-draft-text">{level.definition}</p>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="workbench-main-description">
-                レベル定義は未登録です。
-              </p>
-            )}
-            <div className="soap-draft-candidate-actions">
-              <button type="button" onClick={() => void toggleActive(rubric)}>
-                {rubric.isActive ? "無効にする" : "有効にする"}
-              </button>
-            </div>
+          <li key={rubric.id}>
+            <Card size="sm">
+              <CardHeader>
+                <CardTitle className="flex flex-wrap items-center gap-2">
+                  {rubric.code} — {rubric.name}
+                  <Badge variant={rubric.isActive ? "default" : "secondary"}>
+                    {rubric.isActive ? "有効" : "無効"}
+                  </Badge>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="flex flex-col gap-3">
+                <p className="text-std-16N-170">{rubric.objective}</p>
+                {rubric.levels.length > 0 ? (
+                  <ul className="flex flex-col gap-2">
+                    {rubric.levels.map((level) => (
+                      <li
+                        key={level.level}
+                        className="rounded-lg bg-muted px-3 py-2"
+                      >
+                        <p className="text-muted-foreground text-dns-14N-130">
+                          レベル{level.level}: {level.levelName}
+                        </p>
+                        <p className="text-std-16N-170">{level.definition}</p>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-muted-foreground text-std-16N-170">
+                    レベル定義は未登録です。
+                  </p>
+                )}
+              </CardContent>
+              <CardFooter>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => void toggleActive(rubric)}
+                >
+                  {rubric.isActive ? "無効にする" : "有効にする"}
+                </Button>
+              </CardFooter>
+            </Card>
           </li>
         ))}
       </ul>
 
-      <div className="knowledge-review-create-form">
-        <h5>新規ルーブリックの登録</h5>
-        <label>
-          Knowledge Base
-          <select
-            value={selectedKnowledgeBaseId}
-            onChange={(event) => setSelectedKnowledgeBaseId(event.target.value)}
+      <Card size="sm">
+        <CardHeader>
+          <CardTitle>新規ルーブリックの登録</CardTitle>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-3">
+          <Field>
+            <FieldLabel htmlFor="admin-rubric-kb">Knowledge Base</FieldLabel>
+            <OptionSelect
+              id="admin-rubric-kb"
+              options={knowledgeBases.map((kb) => ({
+                label: `${kb.name} (${kb.version})`,
+                value: kb.id,
+              }))}
+              value={selectedKnowledgeBaseId}
+              onValueChange={setSelectedKnowledgeBaseId}
+            />
+          </Field>
+          <Field>
+            <FieldLabel htmlFor="admin-rubric-code">コード</FieldLabel>
+            <Input
+              id="admin-rubric-code"
+              placeholder="コード（例: ASSESSMENT）"
+              value={newCode}
+              onChange={(event) => setNewCode(event.target.value)}
+            />
+          </Field>
+          <Field>
+            <FieldLabel htmlFor="admin-rubric-name">ルーブリック名</FieldLabel>
+            <Input
+              id="admin-rubric-name"
+              placeholder="ルーブリック名"
+              value={newName}
+              onChange={(event) => setNewName(event.target.value)}
+            />
+          </Field>
+          <Field>
+            <FieldLabel htmlFor="admin-rubric-objective">評価目的</FieldLabel>
+            <Input
+              id="admin-rubric-objective"
+              placeholder="評価目的"
+              value={newObjective}
+              onChange={(event) => setNewObjective(event.target.value)}
+            />
+          </Field>
+          {RUBRIC_LEVEL_NUMBERS.map((level) => (
+            <FieldSet key={level}>
+              <FieldLegend variant="label">レベル{level}</FieldLegend>
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2 md:gap-8">
+                <Field>
+                  <FieldLabel htmlFor={`admin-rubric-level-name-${level}`}>
+                    レベル名
+                  </FieldLabel>
+                  <Input
+                    id={`admin-rubric-level-name-${level}`}
+                    placeholder="レベル名（例: 要支援）"
+                    value={newLevels[level].levelName}
+                    onChange={(event) =>
+                      setNewLevels((prev) => ({
+                        ...prev,
+                        [level]: {
+                          ...prev[level],
+                          levelName: event.target.value,
+                        },
+                      }))
+                    }
+                  />
+                </Field>
+                <Field>
+                  <FieldLabel htmlFor={`admin-rubric-level-def-${level}`}>
+                    定義
+                  </FieldLabel>
+                  <Input
+                    id={`admin-rubric-level-def-${level}`}
+                    placeholder="定義"
+                    value={newLevels[level].definition}
+                    onChange={(event) =>
+                      setNewLevels((prev) => ({
+                        ...prev,
+                        [level]: {
+                          ...prev[level],
+                          definition: event.target.value,
+                        },
+                      }))
+                    }
+                  />
+                </Field>
+              </div>
+            </FieldSet>
+          ))}
+        </CardContent>
+        <CardFooter>
+          <Button
+            type="button"
+            size="sm"
+            disabled={
+              !selectedKnowledgeBaseId || !newCode.trim() || !newName.trim()
+            }
+            onClick={() => void handleAddRubric()}
           >
-            {knowledgeBases.map((kb) => (
-              <option key={kb.id} value={kb.id}>
-                {kb.name} ({kb.version})
-              </option>
-            ))}
-          </select>
-        </label>
-        <input
-          placeholder="コード（例: ASSESSMENT）"
-          value={newCode}
-          onChange={(event) => setNewCode(event.target.value)}
-        />
-        <input
-          placeholder="ルーブリック名"
-          value={newName}
-          onChange={(event) => setNewName(event.target.value)}
-        />
-        <input
-          placeholder="評価目的"
-          value={newObjective}
-          onChange={(event) => setNewObjective(event.target.value)}
-        />
-        {RUBRIC_LEVEL_NUMBERS.map((level) => (
-          <fieldset key={level}>
-            <legend>レベル{level}</legend>
-            <input
-              placeholder="レベル名（例: 要支援）"
-              value={newLevels[level].levelName}
-              onChange={(event) =>
-                setNewLevels((prev) => ({
-                  ...prev,
-                  [level]: { ...prev[level], levelName: event.target.value },
-                }))
-              }
-            />
-            <input
-              placeholder="定義"
-              value={newLevels[level].definition}
-              onChange={(event) =>
-                setNewLevels((prev) => ({
-                  ...prev,
-                  [level]: { ...prev[level], definition: event.target.value },
-                }))
-              }
-            />
-          </fieldset>
-        ))}
-        <button
-          type="button"
-          disabled={
-            !selectedKnowledgeBaseId || !newCode.trim() || !newName.trim()
-          }
-          onClick={() => void handleAddRubric()}
-        >
-          登録
-        </button>
-      </div>
+            登録
+          </Button>
+        </CardFooter>
+      </Card>
     </section>
   );
 }
@@ -812,148 +960,199 @@ function KnowledgeBaseTab() {
   }
 
   return (
-    <section aria-label="Knowledge Base 一覧">
-      <ul className="knowledge-review-candidate-list">
+    <section aria-label="Knowledge Base 一覧" className="flex flex-col gap-4">
+      <ul className="flex flex-col gap-3">
         {knowledgeBases.map((kb) => (
-          <li
-            key={kb.id}
-            className="knowledge-review-candidate"
-            data-status={kb.status}
-            data-selected={kb.id === selectedId}
-          >
-            <div className="knowledge-review-candidate-header">
-              <h4>
-                {kb.code} — {kb.name}
-              </h4>
-              <span
-                className="knowledge-review-status-badge"
-                data-status={kb.status}
-              >
-                {knowledgeBaseStatusLabel(kb.status)}
-              </span>
-            </div>
-            <p className="soap-draft-text">
-              version {kb.version}
-              {kb.description ? ` / ${kb.description}` : ""}
-            </p>
-            <div className="soap-draft-candidate-actions">
-              <button type="button" onClick={() => setSelectedId(kb.id)}>
-                項目を表示
-              </button>
-              {KNOWLEDGE_BASE_STATUSES.filter(
-                (status) => status !== kb.status,
-              ).map((status) => (
-                <button
+          <li key={kb.id}>
+            <Card
+              size="sm"
+              className={kb.id === selectedId ? "ring-2 ring-primary/40" : ""}
+            >
+              <CardHeader>
+                <CardTitle className="flex flex-wrap items-center gap-2">
+                  {kb.code} — {kb.name}
+                  <Badge variant={KNOWLEDGE_BASE_BADGE_VARIANTS[kb.status]}>
+                    {knowledgeBaseStatusLabel(kb.status)}
+                  </Badge>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-std-16N-170">
+                  version {kb.version}
+                  {kb.description ? ` / ${kb.description}` : ""}
+                </p>
+              </CardContent>
+              <CardFooter className="flex flex-wrap gap-2">
+                <Button
                   type="button"
-                  key={status}
-                  onClick={() => void handleSetStatus(kb, status)}
+                  size="sm"
+                  variant={kb.id === selectedId ? "secondary" : "default"}
+                  onClick={() => setSelectedId(kb.id)}
                 >
-                  {knowledgeBaseStatusLabel(status)}にする
-                </button>
-              ))}
-            </div>
+                  項目を表示
+                </Button>
+                {KNOWLEDGE_BASE_STATUSES.filter(
+                  (status) => status !== kb.status,
+                ).map((status) => (
+                  <Button
+                    type="button"
+                    key={status}
+                    size="sm"
+                    variant="outline"
+                    onClick={() => void handleSetStatus(kb, status)}
+                  >
+                    {knowledgeBaseStatusLabel(status)}にする
+                  </Button>
+                ))}
+              </CardFooter>
+            </Card>
           </li>
         ))}
       </ul>
 
-      <div className="knowledge-review-create-form">
-        <h5>新規 Knowledge Base の登録</h5>
-        <input
-          placeholder="コード（例: PHN_SOAP_TRAINING）"
-          value={newCode}
-          onChange={(event) => setNewCode(event.target.value)}
-        />
-        <input
-          placeholder="名称"
-          value={newName}
-          onChange={(event) => setNewName(event.target.value)}
-        />
-        <input
-          placeholder="バージョン（例: 1.0）"
-          value={newVersion}
-          onChange={(event) => setNewVersion(event.target.value)}
-        />
-        <button
-          type="button"
-          disabled={!newCode.trim() || !newName.trim() || !newVersion.trim()}
-          onClick={() => void handleAddKnowledgeBase()}
-        >
-          登録
-        </button>
-      </div>
+      <Card size="sm">
+        <CardHeader>
+          <CardTitle>新規 Knowledge Base の登録</CardTitle>
+        </CardHeader>
+        <CardContent className="grid grid-cols-1 gap-3 md:grid-cols-3 md:gap-8">
+          <Field>
+            <FieldLabel htmlFor="admin-kb-code">コード</FieldLabel>
+            <Input
+              id="admin-kb-code"
+              placeholder="コード（例: PHN_SOAP_TRAINING）"
+              value={newCode}
+              onChange={(event) => setNewCode(event.target.value)}
+            />
+          </Field>
+          <Field>
+            <FieldLabel htmlFor="admin-kb-name">名称</FieldLabel>
+            <Input
+              id="admin-kb-name"
+              placeholder="名称"
+              value={newName}
+              onChange={(event) => setNewName(event.target.value)}
+            />
+          </Field>
+          <Field>
+            <FieldLabel htmlFor="admin-kb-version">バージョン</FieldLabel>
+            <Input
+              id="admin-kb-version"
+              placeholder="バージョン（例: 1.0）"
+              value={newVersion}
+              onChange={(event) => setNewVersion(event.target.value)}
+            />
+          </Field>
+        </CardContent>
+        <CardFooter>
+          <Button
+            type="button"
+            size="sm"
+            disabled={!newCode.trim() || !newName.trim() || !newVersion.trim()}
+            onClick={() => void handleAddKnowledgeBase()}
+          >
+            登録
+          </Button>
+        </CardFooter>
+      </Card>
 
       {selectedId ? (
-        <section aria-label="知識項目一覧">
-          <h5>知識項目（SOAP_RULE / SAFETY / FEEDBACK_POLICY 等）</h5>
-          <ul className="knowledge-review-comment-list">
+        <section aria-label="知識項目一覧" className="flex flex-col gap-3">
+          <h5 className="text-std-16B-170">
+            知識項目（SOAP_RULE / SAFETY / FEEDBACK_POLICY 等）
+          </h5>
+          <ul className="flex flex-col gap-2">
             {items.map((item) => (
-              <li key={item.id} className="knowledge-review-comment">
-                <div className="knowledge-review-comment-header">
-                  <span>
-                    [{knowledgeItemCategoryLabel(item.category)}] {item.title}
-                  </span>
-                </div>
-                <p className="soap-draft-text knowledge-item-content">
-                  {item.content}
-                </p>
-                <div className="soap-draft-candidate-actions">
-                  <button
-                    type="button"
-                    onClick={() => void toggleItemActive(item)}
-                  >
-                    {item.isActive ? "無効にする" : "有効にする"}
-                  </button>
-                </div>
+              <li key={item.id}>
+                <Card size="sm">
+                  <CardContent className="flex flex-col gap-2">
+                    <p className="text-muted-foreground text-dns-14N-130">
+                      [{knowledgeItemCategoryLabel(item.category)}] {item.title}
+                    </p>
+                    <p className="whitespace-pre-wrap text-std-16N-170">
+                      {item.content}
+                    </p>
+                  </CardContent>
+                  <CardFooter>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => void toggleItemActive(item)}
+                    >
+                      {item.isActive ? "無効にする" : "有効にする"}
+                    </Button>
+                  </CardFooter>
+                </Card>
               </li>
             ))}
           </ul>
 
-          <div className="knowledge-review-create-form">
-            <h5>知識項目の追加</h5>
-            <label>
-              カテゴリ
-              <select
-                value={newItemCategory}
-                onChange={(event) =>
-                  setNewItemCategory(
-                    event.target.value as KnowledgeItemCategory,
-                  )
+          <Card size="sm">
+            <CardHeader>
+              <CardTitle>知識項目の追加</CardTitle>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-3">
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-3 md:gap-8">
+                <Field>
+                  <FieldLabel htmlFor="admin-item-category">
+                    カテゴリ
+                  </FieldLabel>
+                  <OptionSelect
+                    id="admin-item-category"
+                    options={KNOWLEDGE_ITEM_CATEGORIES.map((category) => ({
+                      label: knowledgeItemCategoryLabel(category),
+                      value: category,
+                    }))}
+                    value={newItemCategory}
+                    onValueChange={(value) =>
+                      setNewItemCategory(value as KnowledgeItemCategory)
+                    }
+                  />
+                </Field>
+                <Field>
+                  <FieldLabel htmlFor="admin-item-key">項目キー</FieldLabel>
+                  <Input
+                    id="admin-item-key"
+                    placeholder="項目キー"
+                    value={newItemKey}
+                    onChange={(event) => setNewItemKey(event.target.value)}
+                  />
+                </Field>
+                <Field>
+                  <FieldLabel htmlFor="admin-item-title">表示名</FieldLabel>
+                  <Input
+                    id="admin-item-title"
+                    placeholder="表示名"
+                    value={newItemTitle}
+                    onChange={(event) => setNewItemTitle(event.target.value)}
+                  />
+                </Field>
+              </div>
+              <Field>
+                <FieldLabel htmlFor="admin-item-content">本文</FieldLabel>
+                <Textarea
+                  id="admin-item-content"
+                  placeholder="本文（Prompt投入可能な内容）"
+                  value={newItemContent}
+                  onChange={(event) => setNewItemContent(event.target.value)}
+                />
+              </Field>
+            </CardContent>
+            <CardFooter>
+              <Button
+                type="button"
+                size="sm"
+                disabled={
+                  !newItemKey.trim() ||
+                  !newItemTitle.trim() ||
+                  !newItemContent.trim()
                 }
+                onClick={() => void handleAddItem()}
               >
-                {KNOWLEDGE_ITEM_CATEGORIES.map((category) => (
-                  <option key={category} value={category}>
-                    {knowledgeItemCategoryLabel(category)}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <input
-              placeholder="項目キー"
-              value={newItemKey}
-              onChange={(event) => setNewItemKey(event.target.value)}
-            />
-            <input
-              placeholder="表示名"
-              value={newItemTitle}
-              onChange={(event) => setNewItemTitle(event.target.value)}
-            />
-            <textarea
-              placeholder="本文（Prompt投入可能な内容）"
-              value={newItemContent}
-              onChange={(event) => setNewItemContent(event.target.value)}
-            />
-            <button
-              type="button"
-              disabled={
-                !newItemKey.trim() ||
-                !newItemTitle.trim() ||
-                !newItemContent.trim()
-              }
-              onClick={() => void handleAddItem()}
-            >
-              追加
-            </button>
-          </div>
+                追加
+              </Button>
+            </CardFooter>
+          </Card>
         </section>
       ) : null}
     </section>
@@ -1017,73 +1216,107 @@ function PromptTemplatesTab() {
   }
 
   return (
-    <section aria-label="Prompt Template 一覧">
-      <p className="workbench-main-description">
+    <section aria-label="Prompt Template 一覧" className="flex flex-col gap-4">
+      <p className="text-muted-foreground text-std-16N-170">
         現時点では AgentCore
         の実行には未接続で、管理・保管のみを行う（将来対応）。
       </p>
-      <ul className="knowledge-review-candidate-list">
+      <ul className="flex flex-col gap-3">
         {(templates ?? []).map((template) => (
-          <li key={template.id} className="knowledge-review-candidate">
-            <div className="knowledge-review-candidate-header">
-              <h4>
-                {template.code} — {template.name}
-              </h4>
-              <span className="knowledge-review-status-badge">
-                version {template.version}
-              </span>
-            </div>
-            <p className="soap-draft-text">{template.systemPrompt}</p>
-            <p className="soap-draft-text">{template.userPromptTemplate}</p>
+          <li key={template.id}>
+            <Card size="sm">
+              <CardHeader>
+                <CardTitle className="flex flex-wrap items-center gap-2">
+                  {template.code} — {template.name}
+                  <Badge variant="outline">version {template.version}</Badge>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="flex flex-col gap-2">
+                <p className="whitespace-pre-wrap text-std-16N-170">
+                  {template.systemPrompt}
+                </p>
+                <p className="whitespace-pre-wrap text-std-16N-170">
+                  {template.userPromptTemplate}
+                </p>
+              </CardContent>
+            </Card>
           </li>
         ))}
       </ul>
 
-      <div className="knowledge-review-create-form">
-        <h5>新規 Prompt Template の登録</h5>
-        <label>
-          Knowledge Base
-          <select
-            value={selectedKnowledgeBaseId}
-            onChange={(event) => setSelectedKnowledgeBaseId(event.target.value)}
+      <Card size="sm">
+        <CardHeader>
+          <CardTitle>新規 Prompt Template の登録</CardTitle>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-3">
+          <Field>
+            <FieldLabel htmlFor="admin-template-kb">Knowledge Base</FieldLabel>
+            <OptionSelect
+              id="admin-template-kb"
+              options={knowledgeBases.map((kb) => ({
+                label: `${kb.name} (${kb.version})`,
+                value: kb.id,
+              }))}
+              value={selectedKnowledgeBaseId}
+              onValueChange={setSelectedKnowledgeBaseId}
+            />
+          </Field>
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 md:gap-8">
+            <Field>
+              <FieldLabel htmlFor="admin-template-code">コード</FieldLabel>
+              <Input
+                id="admin-template-code"
+                placeholder="コード"
+                value={newCode}
+                onChange={(event) => setNewCode(event.target.value)}
+              />
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="admin-template-name">名称</FieldLabel>
+              <Input
+                id="admin-template-name"
+                placeholder="名称"
+                value={newName}
+                onChange={(event) => setNewName(event.target.value)}
+              />
+            </Field>
+          </div>
+          <Field>
+            <FieldLabel htmlFor="admin-template-system">
+              System Prompt
+            </FieldLabel>
+            <Textarea
+              id="admin-template-system"
+              placeholder="System Prompt"
+              value={newSystemPrompt}
+              onChange={(event) => setNewSystemPrompt(event.target.value)}
+            />
+          </Field>
+          <Field>
+            <FieldLabel htmlFor="admin-template-user">
+              User Prompt Template
+            </FieldLabel>
+            <Textarea
+              id="admin-template-user"
+              placeholder="User Prompt Template"
+              value={newUserPromptTemplate}
+              onChange={(event) => setNewUserPromptTemplate(event.target.value)}
+            />
+          </Field>
+        </CardContent>
+        <CardFooter>
+          <Button
+            type="button"
+            size="sm"
+            disabled={
+              !selectedKnowledgeBaseId || !newCode.trim() || !newName.trim()
+            }
+            onClick={() => void handleAdd()}
           >
-            {knowledgeBases.map((kb) => (
-              <option key={kb.id} value={kb.id}>
-                {kb.name} ({kb.version})
-              </option>
-            ))}
-          </select>
-        </label>
-        <input
-          placeholder="コード"
-          value={newCode}
-          onChange={(event) => setNewCode(event.target.value)}
-        />
-        <input
-          placeholder="名称"
-          value={newName}
-          onChange={(event) => setNewName(event.target.value)}
-        />
-        <textarea
-          placeholder="System Prompt"
-          value={newSystemPrompt}
-          onChange={(event) => setNewSystemPrompt(event.target.value)}
-        />
-        <textarea
-          placeholder="User Prompt Template"
-          value={newUserPromptTemplate}
-          onChange={(event) => setNewUserPromptTemplate(event.target.value)}
-        />
-        <button
-          type="button"
-          disabled={
-            !selectedKnowledgeBaseId || !newCode.trim() || !newName.trim()
-          }
-          onClick={() => void handleAdd()}
-        >
-          登録
-        </button>
-      </div>
+            登録
+          </Button>
+        </CardFooter>
+      </Card>
     </section>
   );
 }

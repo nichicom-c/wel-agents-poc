@@ -1,5 +1,8 @@
 import { useState } from "react";
 
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
 import { AdminView } from "../widgets/admin/index.ts";
 import { KnowledgeReviewView } from "../widgets/knowledge-review/index.ts";
 import { SoapStudioView } from "../widgets/soap-studio/index.ts";
@@ -36,54 +39,85 @@ export function App() {
   }
 
   return (
-    <div className="workbench-shell">
-      <header className="workbench-header">
-        <h1>WEL Agents Workbench</h1>
+    <div className="mx-auto flex min-h-screen w-full max-w-[1720px] flex-col gap-4 px-4 py-4 md:px-6">
+      <header>
+        <Card size="sm">
+          <CardHeader>
+            <h1 className="text-std-24B-150">WEL Agents Workbench</h1>
+          </CardHeader>
+        </Card>
       </header>
-      <div className="workbench-body">
-        <nav className="workspace-nav" aria-label="Workspace Nav">
-          <p className="panel-eyebrow">Workspace Nav</p>
-          <ul>
-            {WORKSPACE_NAV_ITEMS.map((item) => (
-              <li key={item.id}>
-                <button
-                  type="button"
-                  className="workspace-nav-item"
-                  data-active={item.id === activeNavId}
-                  onClick={() => handleNavSelect(item.id)}
-                >
-                  {item.label}
-                </button>
-              </li>
-            ))}
-          </ul>
+      <div className="grid flex-1 grid-cols-1 gap-4 min-[1180px]:grid-cols-[280px_minmax(0,1fr)_320px] md:gap-8">
+        <nav aria-label="Workspace Nav">
+          <Card size="sm">
+            <CardContent className="flex flex-col gap-3">
+              <p className="font-bold text-muted-foreground text-dns-14N-130">
+                Workspace Nav
+              </p>
+              <ul className="flex flex-col gap-2">
+                {WORKSPACE_NAV_ITEMS.map((item) => (
+                  <li key={item.id}>
+                    <Button
+                      type="button"
+                      variant={item.id === activeNavId ? "secondary" : "ghost"}
+                      className={cn(
+                        "w-full justify-start",
+                        item.id === activeNavId && "font-bold",
+                      )}
+                      aria-current={
+                        item.id === activeNavId ? "page" : undefined
+                      }
+                      onClick={() => handleNavSelect(item.id)}
+                    >
+                      {item.label}
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+            </CardContent>
+          </Card>
         </nav>
-        <main className="workbench-main">
-          {activeNavId === "soap-studio" ? (
-            <SoapStudioView
-              seedText={soapSeed?.text}
-              seedSourceLabel={soapSeed?.sourceLabel}
-              onSeedConsumed={() => setSoapSeed(null)}
-            />
-          ) : activeNavId === "voice-capture" ? (
-            <VoiceCaptureView onSendToSoapStudio={handleSendToSoapStudio} />
-          ) : activeNavId === "knowledge-review" ? (
-            <KnowledgeReviewView />
-          ) : activeNavId === "admin" ? (
-            <AdminView />
-          ) : activeNavId === "training" ? (
-            <TrainingView />
-          ) : (
-            <ComingSoonView navId={activeNavId} />
-          )}
+        <main className="min-w-0">
+          <Card className="overflow-y-auto">
+            <CardContent>
+              {activeNavId === "soap-studio" ? (
+                <SoapStudioView
+                  seedText={soapSeed?.text}
+                  seedSourceLabel={soapSeed?.sourceLabel}
+                  onSeedConsumed={() => setSoapSeed(null)}
+                />
+              ) : activeNavId === "voice-capture" ? (
+                <VoiceCaptureView onSendToSoapStudio={handleSendToSoapStudio} />
+              ) : activeNavId === "knowledge-review" ? (
+                <KnowledgeReviewView />
+              ) : activeNavId === "admin" ? (
+                <AdminView />
+              ) : activeNavId === "training" ? (
+                <TrainingView />
+              ) : (
+                <ComingSoonView navId={activeNavId} />
+              )}
+            </CardContent>
+          </Card>
         </main>
-        <aside className="context-inspector" aria-label="Context Inspector">
-          <p className="panel-eyebrow">Context Inspector</p>
-          <ul>
-            {CONTEXT_INSPECTOR_ITEMS.map((item) => (
-              <li key={item}>{item}</li>
-            ))}
-          </ul>
+        <aside aria-label="Context Inspector">
+          <Card size="sm">
+            <CardContent className="flex flex-col gap-3">
+              <p className="font-bold text-muted-foreground text-dns-14N-130">
+                Context Inspector
+              </p>
+              <ul className="flex flex-col gap-2">
+                {CONTEXT_INSPECTOR_ITEMS.map((item) => (
+                  <li
+                    key={item}
+                    className="text-std-16N-170 text-muted-foreground"
+                  >
+                    {item}
+                  </li>
+                ))}
+              </ul>
+            </CardContent>
+          </Card>
         </aside>
       </div>
     </div>
@@ -103,7 +137,7 @@ function ComingSoonView({ navId }: { navId: WorkspaceNavId }) {
   return (
     <>
       <h2>{NAV_LABELS[navId]}</h2>
-      <p className="workbench-main-description">準備中です。</p>
+      <p className="text-muted-foreground text-std-16N-170">準備中です。</p>
     </>
   );
 }

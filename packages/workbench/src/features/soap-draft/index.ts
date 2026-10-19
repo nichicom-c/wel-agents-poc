@@ -30,3 +30,4 @@ export {
   withEditedText,
   withStatus,
 } from "./model/soap-draft-candidates.ts";
+export { SOAP_CATEGORY_ACCENTS } from "./ui/category-accents.ts";

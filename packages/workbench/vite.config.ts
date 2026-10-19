@@ -1,4 +1,5 @@
 import { fileURLToPath } from "node:url";
+import tailwindcss from "@tailwindcss/vite";
 import basicSsl from "@vitejs/plugin-basic-ssl";
 import react from "@vitejs/plugin-react";
 import { defineConfig, loadEnv, type UserConfig } from "vite";
@@ -103,7 +104,12 @@ export function buildWorkbenchViteConfig(
     // basicSsl は自己署名証明書で dev/preview server を https 化する（WORKBENCH_HTTPS=true の時だけ）。
     // マイク録音（getUserMedia）は secure context 必須で、localhost 以外（ネットワークIP経由）から
     // 使う場合はこれが無いと動かない。ブラウザは自己署名証明書の警告を出すので、初回は許可する。
-    plugins: config.https ? [react(), basicSsl()] : [react()],
+    plugins: config.https
+      ? [react(), tailwindcss(), basicSsl()]
+      : [react(), tailwindcss()],
+    resolve: {
+      alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) },
+    },
     publicDir: "public",
     server: {
       host: config.host,

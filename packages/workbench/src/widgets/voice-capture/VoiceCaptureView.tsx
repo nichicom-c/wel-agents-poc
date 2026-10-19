@@ -1,5 +1,18 @@
+import {
+  MicIcon,
+  RotateCcwIcon,
+  SendIcon,
+  SquareIcon,
+  UploadIcon,
+} from "lucide-react";
 import { type ChangeEvent, useEffect, useRef, useState } from "react";
 
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import {
   type AudioRecorderHandle,
   blobToBase64,
@@ -201,126 +214,156 @@ export function VoiceCaptureView({
     phase === "recording" || phase === "uploading" || isPollingPhase(phase);
 
   return (
-    <>
-      <h2>Voice Capture</h2>
-      <p className="workbench-main-description">
-        面談・訪問・電話・会議の音声原本を保存し、文字起こし結果を確認・編集して
-        SOAP Studio へ引き継ぐ作業画面
-      </p>
+    <div className="flex flex-col gap-6">
+      <div className="flex flex-col gap-2">
+        <h2 className="text-std-24B-150">Voice Capture</h2>
+        <p className="text-muted-foreground text-std-16N-170">
+          面談・訪問・電話・会議の音声原本を保存し、文字起こし結果を確認・編集して
+          SOAP Studio へ引き継ぐ作業画面
+        </p>
+      </div>
 
-      <section className="voice-capture-form" aria-label="音声入力">
-        <div className="voice-capture-actions">
-          {phase === "recording" ? (
-            <button type="button" onClick={() => void handleStopRecording()}>
-              録音停止
-            </button>
-          ) : (
-            <button
-              type="button"
-              disabled={isBusy || !canRecord}
-              title={canRecord ? undefined : UNSUPPORTED_RECORDING_MESSAGE}
-              onClick={() => void handleStartRecording()}
-            >
-              録音開始
-            </button>
-          )}
-          <label className="voice-capture-file-label">
-            音声ファイルを選択
-            <input
+      <section aria-label="音声入力">
+        <FieldGroup>
+          <div className="flex flex-wrap items-center gap-3">
+            {phase === "recording" ? (
+              <Button
+                type="button"
+                variant="destructive"
+                onClick={() => void handleStopRecording()}
+              >
+                <SquareIcon data-icon="inline-start" />
+                録音停止
+              </Button>
+            ) : (
+              <Button
+                type="button"
+                disabled={isBusy || !canRecord}
+                title={canRecord ? undefined : UNSUPPORTED_RECORDING_MESSAGE}
+                onClick={() => void handleStartRecording()}
+              >
+                <MicIcon data-icon="inline-start" />
+                録音開始
+              </Button>
+            )}
+          </div>
+
+          <Field>
+            <FieldLabel htmlFor="voice-capture-file">
+              音声ファイルを選択
+            </FieldLabel>
+            <Input
+              id="voice-capture-file"
               type="file"
               accept="audio/*"
               disabled={isBusy}
               onChange={handleFileChange}
             />
-          </label>
-        </div>
+          </Field>
 
-        {!canRecord ? (
-          <p className="voice-capture-status">
-            {UNSUPPORTED_RECORDING_MESSAGE}
-          </p>
-        ) : null}
-
-        {previewUrl ? (
-          // biome-ignore lint/a11y/useMediaCaption: 録音/アップロード直後のプレビュー用途で字幕データは存在しない。
-          <audio className="voice-capture-preview" controls src={previewUrl} />
-        ) : null}
-
-        <p className="voice-capture-status" role="status" aria-live="polite">
-          状態: {PHASE_LABELS[phase]}
-        </p>
-
-        <div className="voice-capture-actions">
-          <button
-            type="button"
-            disabled={!audioBlob || phase !== "recorded"}
-            onClick={() => void handleUpload()}
-          >
-            アップロードして文字起こし開始
-          </button>
-          {phase !== "idle" ? (
-            <button
-              type="button"
-              className="secondary-button"
-              onClick={resetRecording}
-            >
-              やり直す
-            </button>
+          {!canRecord ? (
+            <Alert>
+              <AlertDescription>
+                {UNSUPPORTED_RECORDING_MESSAGE}
+              </AlertDescription>
+            </Alert>
           ) : null}
-        </div>
 
-        {errorMessage ? (
-          <p className="soap-draft-error">{errorMessage}</p>
-        ) : null}
+          {previewUrl ? (
+            // biome-ignore lint/a11y/useMediaCaption: 録音/アップロード直後のプレビュー用途で字幕データは存在しない。
+            <audio className="w-full" controls src={previewUrl} />
+          ) : null}
+
+          <p
+            className="font-bold text-muted-foreground text-std-16N-170"
+            role="status"
+            aria-live="polite"
+          >
+            状態: {PHASE_LABELS[phase]}
+          </p>
+
+          <div className="flex flex-wrap items-center gap-3">
+            <Button
+              type="button"
+              disabled={!audioBlob || phase !== "recorded"}
+              onClick={() => void handleUpload()}
+            >
+              <UploadIcon data-icon="inline-start" />
+              アップロードして文字起こし開始
+            </Button>
+            {phase !== "idle" ? (
+              <Button type="button" variant="outline" onClick={resetRecording}>
+                <RotateCcwIcon data-icon="inline-start" />
+                やり直す
+              </Button>
+            ) : null}
+          </div>
+
+          {errorMessage ? (
+            <Alert variant="destructive">
+              <AlertDescription>{errorMessage}</AlertDescription>
+            </Alert>
+          ) : null}
+        </FieldGroup>
       </section>
 
       {phase === "succeeded" ? (
-        <section
-          className="voice-capture-transcript"
-          aria-label="文字起こし結果"
-        >
-          <h3>文字起こし結果（編集可）</h3>
-          <textarea
-            className="soap-draft-input"
-            aria-label="文字起こし結果"
-            value={transcript}
-            onChange={(event) => setTranscript(event.target.value)}
-          />
-          <div className="voice-capture-actions">
-            <button
-              type="button"
-              disabled={!transcript.trim()}
-              onClick={() => void handleSendTranscript()}
-            >
-              SOAP Studio へ送る
-            </button>
-          </div>
+        <section aria-label="文字起こし結果">
+          <Card>
+            <CardHeader>
+              <CardTitle>文字起こし結果（編集可）</CardTitle>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-3">
+              <Textarea
+                className="min-h-48"
+                aria-label="文字起こし結果"
+                value={transcript}
+                onChange={(event) => setTranscript(event.target.value)}
+              />
+              <div>
+                <Button
+                  type="button"
+                  disabled={!transcript.trim()}
+                  onClick={() => void handleSendTranscript()}
+                >
+                  <SendIcon data-icon="inline-start" />
+                  SOAP Studio へ送る
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
         </section>
       ) : null}
 
       {phase === "failed" ? (
-        <section
-          className="voice-capture-transcript"
-          aria-label="手動テキスト入力"
-        >
-          <h3>文字起こしに失敗しました。手動でテキストを入力してください</h3>
-          <textarea
-            className="soap-draft-input"
-            aria-label="手動入力テキスト"
-            value={manualText}
-            onChange={(event) => setManualText(event.target.value)}
-          />
-          <div className="voice-capture-actions">
-            <button
-              type="button"
-              disabled={!manualText.trim()}
-              onClick={handleSendManualText}
-            >
-              SOAP Studio へ送る
-            </button>
-          </div>
+        <section aria-label="手動テキスト入力">
+          <Card>
+            <CardHeader>
+              <CardTitle>
+                文字起こしに失敗しました。手動でテキストを入力してください
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-3">
+              <Textarea
+                className="min-h-48"
+                aria-label="手動入力テキスト"
+                value={manualText}
+                onChange={(event) => setManualText(event.target.value)}
+              />
+              <div>
+                <Button
+                  type="button"
+                  disabled={!manualText.trim()}
+                  onClick={handleSendManualText}
+                >
+                  <SendIcon data-icon="inline-start" />
+                  SOAP Studio へ送る
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
         </section>
       ) : null}
-    </>
+    </div>
   );
 }

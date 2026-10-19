@@ -1,5 +1,30 @@
 import { useEffect, useState } from "react";
 
+import { OptionSelect } from "@/components/option-select";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Field,
+  FieldLabel,
+  FieldLegend,
+  FieldSet,
+} from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Spinner } from "@/components/ui/spinner";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Textarea } from "@/components/ui/textarea";
+import { cn } from "@/lib/utils";
+
 import {
   COMMENT_TYPES,
   type CommentType,
@@ -35,6 +60,7 @@ import {
   useMasters,
 } from "../../features/masters/index.ts";
 import {
+  SOAP_CATEGORY_ACCENTS,
   SOAP_RECORD_TYPES,
   type SoapCategory,
   soapRecordTypeLabel,
@@ -63,6 +89,28 @@ const DEMO_ROLE_LABELS: Record<KnowledgeReviewRole, string> = {
   trainee: "新人保健師（デモ）",
 };
 
+const STATUS_BADGE_VARIANTS: Record<
+  (typeof MATERIAL_CANDIDATE_STATUSES)[number],
+  "default" | "secondary" | "destructive" | "outline"
+> = {
+  approved: "default",
+  candidate: "secondary",
+  needs_revision: "outline",
+  rejected: "destructive",
+};
+
+/** マスタ配列を `OptionSelect` の options 形へ。先頭に「すべて」を足す用途も兼ねる。 */
+function toOptions(
+  entries: ReadonlyArray<{ id: string; label: string }>,
+  allLabel?: string,
+) {
+  const options = entries.map((entry) => ({
+    label: entry.label,
+    value: entry.id,
+  }));
+  return allLabel ? [{ label: allLabel, value: "" }, ...options] : options;
+}
+
 export function KnowledgeReviewView() {
   const [role, setRole] = useState<KnowledgeReviewRole>("nurse");
   const [activeTab, setActiveTab] = useState<KnowledgeReviewTab>("candidates");
@@ -72,62 +120,61 @@ export function KnowledgeReviewView() {
   const authorName = DEMO_ROLE_LABELS[role];
 
   return (
-    <>
-      <h2>Knowledge Review</h2>
-      <p className="workbench-main-description">
-        専門職コメントからノウハウと教材候補を蓄積する作業画面（issue #8）
-      </p>
+    <div className="flex flex-col gap-6">
+      <div className="flex flex-col gap-2">
+        <h2 className="text-std-24B-150">Knowledge Review</h2>
+        <p className="text-muted-foreground text-std-16N-170">
+          専門職コメントからノウハウと教材候補を蓄積する作業画面（issue #8）
+        </p>
+      </div>
 
-      <fieldset className="knowledge-review-role-select">
-        <legend>ロール（デモ用の切り替え。実際の認可は未実装）</legend>
-        {KNOWLEDGE_REVIEW_ROLES.map((option) => (
-          <label key={option} className="knowledge-review-role-option">
-            <input
-              type="radio"
-              name="knowledge-review-role"
-              checked={role === option}
-              onChange={() => setRole(option)}
-            />
-            {knowledgeReviewRoleLabel(option)}
-          </label>
-        ))}
-      </fieldset>
+      <FieldSet>
+        <FieldLegend variant="label">
+          ロール（デモ用の切り替え。実際の認可は未実装）
+        </FieldLegend>
+        <RadioGroup
+          className="flex flex-wrap gap-x-6 gap-y-2"
+          value={role}
+          onValueChange={(value) => setRole(value as KnowledgeReviewRole)}
+        >
+          {KNOWLEDGE_REVIEW_ROLES.map((option) => (
+            <Field key={option} orientation="horizontal">
+              <RadioGroupItem
+                id={`knowledge-review-role-${option}`}
+                value={option}
+              />
+              <FieldLabel htmlFor={`knowledge-review-role-${option}`}>
+                {knowledgeReviewRoleLabel(option)}
+              </FieldLabel>
+            </Field>
+          ))}
+        </RadioGroup>
+      </FieldSet>
 
       {!canView ? (
-        <p className="knowledge-review-forbidden" role="alert">
-          この画面を利用する権限がありません。ロールを「専門職」「レビュー承認者」「管理者」に切り替えてください。
-        </p>
+        <Alert variant="destructive" role="alert">
+          <AlertDescription>
+            この画面を利用する権限がありません。ロールを「専門職」「レビュー承認者」「管理者」に切り替えてください。
+          </AlertDescription>
+        </Alert>
       ) : (
-        <>
-          <div className="knowledge-review-tabs" role="tablist">
-            <button
-              type="button"
-              role="tab"
-              aria-selected={activeTab === "candidates"}
-              data-active={activeTab === "candidates"}
-              onClick={() => setActiveTab("candidates")}
-            >
-              教材候補
-            </button>
-            <button
-              type="button"
-              role="tab"
-              aria-selected={activeTab === "records"}
-              data-active={activeTab === "records"}
-              onClick={() => setActiveTab("records")}
-            >
-              記録から探す
-            </button>
-          </div>
-
-          {activeTab === "candidates" ? (
+        <Tabs
+          value={activeTab}
+          onValueChange={(value) => setActiveTab(value as KnowledgeReviewTab)}
+        >
+          <TabsList>
+            <TabsTrigger value="candidates">教材候補</TabsTrigger>
+            <TabsTrigger value="records">記録から探す</TabsTrigger>
+          </TabsList>
+          <TabsContent value="candidates">
             <CandidateTab authorName={authorName} canDecide={canDecide} />
-          ) : (
+          </TabsContent>
+          <TabsContent value="records">
             <RecordTab authorName={authorName} canPost={canPost} />
-          )}
-        </>
+          </TabsContent>
+        </Tabs>
       )}
-    </>
+    </div>
   );
 }
 
@@ -203,330 +250,356 @@ function CandidateTab({ authorName, canDecide }: CandidateTabProps) {
   }
 
   return (
-    <section className="knowledge-review-candidates" aria-label="教材候補一覧">
-      <fieldset className="knowledge-review-filters">
-        <legend>検索</legend>
-        <label>
-          分野
-          <select
-            value={filters.specialtyId ?? ""}
-            onChange={(event) =>
-              setFilters((prev) => ({
-                ...prev,
-                specialtyId: event.target.value || undefined,
-              }))
-            }
-          >
-            <option value="">すべて</option>
-            {masters.specialties.map((option) => (
-              <option key={option.id} value={option.id}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          記録種別
-          <select
-            value={filters.recordType ?? ""}
-            onChange={(event) =>
-              setFilters((prev) => ({
-                ...prev,
-                recordType:
-                  (event.target
-                    .value as MaterialCandidateFilters["recordType"]) ||
-                  undefined,
-              }))
-            }
-          >
-            <option value="">すべて</option>
-            {SOAP_RECORD_TYPES.map((type) => (
-              <option key={type} value={type}>
-                {soapRecordTypeLabel(type)}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          学習テーマ
-          <select
-            value={filters.learningThemeId ?? ""}
-            onChange={(event) =>
-              setFilters((prev) => ({
-                ...prev,
-                learningThemeId: event.target.value || undefined,
-              }))
-            }
-          >
-            <option value="">すべて</option>
-            {masters.learningThemes.map((option) => (
-              <option key={option.id} value={option.id}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          難易度
-          <select
-            value={filters.difficultyId ?? ""}
-            onChange={(event) =>
-              setFilters((prev) => ({
-                ...prev,
-                difficultyId: event.target.value || undefined,
-              }))
-            }
-          >
-            <option value="">すべて</option>
-            {masters.difficultyLevels.map((option) => (
-              <option key={option.id} value={option.id}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          状態
-          <select
-            value={filters.status ?? ""}
-            onChange={(event) =>
-              setFilters((prev) => ({
-                ...prev,
-                status:
-                  (event.target.value as MaterialCandidateFilters["status"]) ||
-                  undefined,
-              }))
-            }
-          >
-            <option value="">すべて</option>
-            {MATERIAL_CANDIDATE_STATUSES.map((option) => (
-              <option key={option} value={option}>
-                {materialCandidateStatusLabel(option)}
-              </option>
-            ))}
-          </select>
-        </label>
-      </fieldset>
+    <section aria-label="教材候補一覧" className="flex flex-col gap-4">
+      <FieldSet>
+        <FieldLegend variant="label">検索</FieldLegend>
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-3 md:gap-8">
+          <Field>
+            <FieldLabel htmlFor="kr-filter-specialty">分野</FieldLabel>
+            <OptionSelect
+              id="kr-filter-specialty"
+              options={toOptions(masters.specialties, "すべて")}
+              value={filters.specialtyId ?? ""}
+              onValueChange={(value) =>
+                setFilters((prev) => ({
+                  ...prev,
+                  specialtyId: value || undefined,
+                }))
+              }
+            />
+          </Field>
+          <Field>
+            <FieldLabel htmlFor="kr-filter-record-type">記録種別</FieldLabel>
+            <OptionSelect
+              id="kr-filter-record-type"
+              options={[
+                { label: "すべて", value: "" },
+                ...SOAP_RECORD_TYPES.map((type) => ({
+                  label: soapRecordTypeLabel(type),
+                  value: type,
+                })),
+              ]}
+              value={filters.recordType ?? ""}
+              onValueChange={(value) =>
+                setFilters((prev) => ({
+                  ...prev,
+                  recordType:
+                    (value as MaterialCandidateFilters["recordType"]) ||
+                    undefined,
+                }))
+              }
+            />
+          </Field>
+          <Field>
+            <FieldLabel htmlFor="kr-filter-theme">学習テーマ</FieldLabel>
+            <OptionSelect
+              id="kr-filter-theme"
+              options={toOptions(masters.learningThemes, "すべて")}
+              value={filters.learningThemeId ?? ""}
+              onValueChange={(value) =>
+                setFilters((prev) => ({
+                  ...prev,
+                  learningThemeId: value || undefined,
+                }))
+              }
+            />
+          </Field>
+          <Field>
+            <FieldLabel htmlFor="kr-filter-difficulty">難易度</FieldLabel>
+            <OptionSelect
+              id="kr-filter-difficulty"
+              options={toOptions(masters.difficultyLevels, "すべて")}
+              value={filters.difficultyId ?? ""}
+              onValueChange={(value) =>
+                setFilters((prev) => ({
+                  ...prev,
+                  difficultyId: value || undefined,
+                }))
+              }
+            />
+          </Field>
+          <Field>
+            <FieldLabel htmlFor="kr-filter-status">状態</FieldLabel>
+            <OptionSelect
+              id="kr-filter-status"
+              options={[
+                { label: "すべて", value: "" },
+                ...MATERIAL_CANDIDATE_STATUSES.map((option) => ({
+                  label: materialCandidateStatusLabel(option),
+                  value: option,
+                })),
+              ]}
+              value={filters.status ?? ""}
+              onValueChange={(value) =>
+                setFilters((prev) => ({
+                  ...prev,
+                  status:
+                    (value as MaterialCandidateFilters["status"]) || undefined,
+                }))
+              }
+            />
+          </Field>
+        </div>
+      </FieldSet>
 
       {status === "error" ? (
-        <p className="soap-draft-error">
-          教材候補の取得に失敗しました: {loadError}
-        </p>
+        <Alert variant="destructive">
+          <AlertDescription>
+            教材候補の取得に失敗しました: {loadError}
+          </AlertDescription>
+        </Alert>
       ) : null}
 
       {candidates ? (
-        <p className="workbench-main-description">{candidates.length}件</p>
+        <p className="text-muted-foreground text-std-16N-170">
+          {candidates.length}件
+        </p>
       ) : null}
 
-      <ul className="knowledge-review-candidate-list">
+      <ul className="flex flex-col gap-3">
         {(candidates ?? []).map((candidate) => (
-          <li
-            key={candidate.id}
-            className="knowledge-review-candidate"
-            data-status={candidate.status}
-          >
-            <div className="knowledge-review-candidate-header">
-              <h4>{candidate.title}</h4>
-              <span
-                className="knowledge-review-status-badge"
-                data-status={candidate.status}
-              >
-                {materialCandidateStatusLabel(candidate.status)}
-              </span>
-            </div>
-            <p className="soap-draft-text">{candidate.summary}</p>
-            <div className="knowledge-review-tag-row">
-              <span>
-                {candidate.specialtyId
-                  ? tagLabel(masters.specialties, candidate.specialtyId)
-                  : "未設定"}
-              </span>
-              <span>
-                {candidate.recordType
-                  ? soapRecordTypeLabel(candidate.recordType)
-                  : "未設定"}
-              </span>
-              <span>
-                {candidate.learningThemeId
-                  ? tagLabel(masters.learningThemes, candidate.learningThemeId)
-                  : "未設定"}
-              </span>
-              <span>
-                {candidate.difficultyId
-                  ? tagLabel(masters.difficultyLevels, candidate.difficultyId)
-                  : "未設定"}
-              </span>
-            </div>
-            <div className="soap-draft-candidate-actions">
-              <button
-                type="button"
-                className="secondary-button"
-                onClick={() =>
-                  setSelectedId((prev) =>
-                    prev === candidate.id ? null : candidate.id,
-                  )
-                }
-              >
-                {selectedId === candidate.id ? "閉じる" : "詳細"}
-              </button>
-            </div>
+          <li key={candidate.id}>
+            <Card size="sm">
+              <CardHeader>
+                <CardTitle className="flex flex-wrap items-center gap-2">
+                  {candidate.title}
+                  <Badge variant={STATUS_BADGE_VARIANTS[candidate.status]}>
+                    {materialCandidateStatusLabel(candidate.status)}
+                  </Badge>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="flex flex-col gap-3">
+                <p className="text-std-16N-170">{candidate.summary}</p>
+                <div className="flex flex-wrap gap-2">
+                  <Badge variant="outline">
+                    {candidate.specialtyId
+                      ? tagLabel(masters.specialties, candidate.specialtyId)
+                      : "未設定"}
+                  </Badge>
+                  <Badge variant="outline">
+                    {candidate.recordType
+                      ? soapRecordTypeLabel(candidate.recordType)
+                      : "未設定"}
+                  </Badge>
+                  <Badge variant="outline">
+                    {candidate.learningThemeId
+                      ? tagLabel(
+                          masters.learningThemes,
+                          candidate.learningThemeId,
+                        )
+                      : "未設定"}
+                  </Badge>
+                  <Badge variant="outline">
+                    {candidate.difficultyId
+                      ? tagLabel(
+                          masters.difficultyLevels,
+                          candidate.difficultyId,
+                        )
+                      : "未設定"}
+                  </Badge>
+                </div>
 
-            {selectedId === candidate.id ? (
-              <div className="knowledge-review-candidate-detail">
-                {candidate.learningObjective ? (
-                  <>
-                    <h5>学習目標（learning_objective）</h5>
-                    <p className="soap-draft-text">
-                      {candidate.learningObjective}
-                    </p>
-                  </>
-                ) : null}
-                {candidate.teachingPoints &&
-                candidate.teachingPoints.length > 0 ? (
-                  <>
-                    <h5>指導のポイント（teaching_points）</h5>
-                    <ul className="knowledge-review-status-history">
-                      {candidate.teachingPoints.map((point) => (
-                        <li key={point}>{point}</li>
-                      ))}
-                    </ul>
-                  </>
-                ) : null}
-                <h5>紐づく専門職コメント</h5>
-                {candidate.comments.length === 0 ? (
-                  <p className="workbench-main-description">
-                    紐づくコメントはありません。
-                  </p>
-                ) : (
-                  <ul className="knowledge-review-comment-list">
-                    {candidate.comments.map((comment) => (
-                      <li key={comment.id} className="knowledge-review-comment">
-                        <div className="knowledge-review-comment-header">
-                          <span>{commentTypeLabel(comment.commentType)}</span>
-                          <span>{comment.authorName}</span>
-                        </div>
-                        <p className="soap-draft-text">{comment.body}</p>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-
-                <h5>状態の履歴</h5>
-                <ul className="knowledge-review-status-history">
-                  {candidate.statusHistory.map((event) => (
-                    <li key={`${event.toStatus}:${event.changedAt}`}>
-                      {materialCandidateStatusLabel(event.toStatus)} —{" "}
-                      {event.changedByRole}
-                      {event.reasonText ? `（${event.reasonText}）` : ""}
-                    </li>
-                  ))}
-                </ul>
-
-                {candidate.rejectionReasonCode ? (
-                  <p className="workbench-main-description">
-                    却下理由:{" "}
-                    {rejectionReasonLabel(
-                      masters.rejectionReasonCodes,
-                      candidate.rejectionReasonCode,
-                    )}
-                  </p>
-                ) : null}
-
-                {candidate.status === "approved" ? (
-                  <div className="knowledge-review-decision-form">
-                    <h5>教材化</h5>
-                    {candidate.materialId ? (
-                      <p className="workbench-main-description">
-                        教材化済み（教材ID: {candidate.materialId}）。Admin の
-                        「教材」タブから確認できます。
-                      </p>
-                    ) : canDecide ? (
-                      <>
-                        <p className="workbench-main-description">
-                          issue #10 の教材（status: draft）として登録します。
+                {selectedId === candidate.id ? (
+                  <div className="flex flex-col gap-4 border-t border-border pt-3">
+                    {candidate.learningObjective ? (
+                      <div className="flex flex-col gap-1">
+                        <h5 className="text-std-16B-170">
+                          学習目標（learning_objective）
+                        </h5>
+                        <p className="text-std-16N-170">
+                          {candidate.learningObjective}
                         </p>
-                        <button
-                          type="button"
-                          onClick={() => void handlePromote(candidate.id)}
-                        >
-                          教材にする
-                        </button>
-                        {promoteError ? (
-                          <p className="soap-draft-error">{promoteError}</p>
-                        ) : null}
-                      </>
+                      </div>
+                    ) : null}
+                    {candidate.teachingPoints &&
+                    candidate.teachingPoints.length > 0 ? (
+                      <div className="flex flex-col gap-1">
+                        <h5 className="text-std-16B-170">
+                          指導のポイント（teaching_points）
+                        </h5>
+                        <ul className="list-disc pl-5 text-std-16N-170">
+                          {candidate.teachingPoints.map((point) => (
+                            <li key={point}>{point}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    ) : null}
+
+                    <div className="flex flex-col gap-2">
+                      <h5 className="text-std-16B-170">紐づく専門職コメント</h5>
+                      {candidate.comments.length === 0 ? (
+                        <p className="text-muted-foreground text-std-16N-170">
+                          紐づくコメントはありません。
+                        </p>
+                      ) : (
+                        <ul className="flex flex-col gap-2">
+                          {candidate.comments.map((comment) => (
+                            <li
+                              key={comment.id}
+                              className="rounded-lg bg-muted px-3 py-2"
+                            >
+                              <div className="flex flex-wrap gap-2 text-muted-foreground text-dns-14N-130">
+                                <span>
+                                  {commentTypeLabel(comment.commentType)}
+                                </span>
+                                <span>{comment.authorName}</span>
+                              </div>
+                              <p className="text-std-16N-170">{comment.body}</p>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+
+                    <div className="flex flex-col gap-1">
+                      <h5 className="text-std-16B-170">状態の履歴</h5>
+                      <ul className="list-disc pl-5 text-muted-foreground text-std-16N-170">
+                        {candidate.statusHistory.map((event) => (
+                          <li key={`${event.toStatus}:${event.changedAt}`}>
+                            {materialCandidateStatusLabel(event.toStatus)} —{" "}
+                            {event.changedByRole}
+                            {event.reasonText ? `（${event.reasonText}）` : ""}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+
+                    {candidate.rejectionReasonCode ? (
+                      <p className="text-muted-foreground text-std-16N-170">
+                        却下理由:{" "}
+                        {rejectionReasonLabel(
+                          masters.rejectionReasonCodes,
+                          candidate.rejectionReasonCode,
+                        )}
+                      </p>
+                    ) : null}
+
+                    {candidate.status === "approved" ? (
+                      <div className="flex flex-col gap-2">
+                        <h5 className="text-std-16B-170">教材化</h5>
+                        {candidate.materialId ? (
+                          <p className="text-muted-foreground text-std-16N-170">
+                            教材化済み（教材ID: {candidate.materialId}）。Admin
+                            の「教材」タブから確認できます。
+                          </p>
+                        ) : canDecide ? (
+                          <>
+                            <p className="text-muted-foreground text-std-16N-170">
+                              issue #10 の教材（status:
+                              draft）として登録します。
+                            </p>
+                            <div>
+                              <Button
+                                type="button"
+                                size="sm"
+                                onClick={() => void handlePromote(candidate.id)}
+                              >
+                                教材にする
+                              </Button>
+                            </div>
+                            {promoteError ? (
+                              <Alert variant="destructive">
+                                <AlertDescription>
+                                  {promoteError}
+                                </AlertDescription>
+                              </Alert>
+                            ) : null}
+                          </>
+                        ) : (
+                          <p className="text-muted-foreground text-std-16N-170">
+                            教材化にはレビュー承認者または管理者の権限が必要です。
+                          </p>
+                        )}
+                      </div>
+                    ) : null}
+
+                    {canDecide ? (
+                      <div className="flex flex-col gap-3">
+                        <h5 className="text-std-16B-170">状態を変更</h5>
+                        <Field>
+                          <FieldLabel htmlFor={`kr-reason-${candidate.id}`}>
+                            却下理由（却下する場合は必須）
+                          </FieldLabel>
+                          <OptionSelect
+                            id={`kr-reason-${candidate.id}`}
+                            options={[
+                              { label: "選択してください", value: "" },
+                              ...masters.rejectionReasonCodes.map((option) => ({
+                                label: option.label,
+                                value: option.code,
+                              })),
+                            ]}
+                            value={reasonCode}
+                            onValueChange={(value) =>
+                              setReasonCode(value as RejectionReasonCode | "")
+                            }
+                          />
+                        </Field>
+                        <Input
+                          aria-label="補足コメント"
+                          placeholder="補足コメント（要修正の場合はここに修正依頼を書く）"
+                          value={reasonText}
+                          onChange={(event) =>
+                            setReasonText(event.target.value)
+                          }
+                        />
+                        <div className="flex flex-wrap gap-2">
+                          <Button
+                            type="button"
+                            size="sm"
+                            onClick={() =>
+                              void handleDecide(candidate.id, "approved")
+                            }
+                          >
+                            承認
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            disabled={!reasonCode}
+                            onClick={() =>
+                              void handleDecide(candidate.id, "rejected")
+                            }
+                          >
+                            却下
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            disabled={!reasonText.trim()}
+                            onClick={() =>
+                              void handleDecide(candidate.id, "needs_revision")
+                            }
+                          >
+                            要修正
+                          </Button>
+                        </div>
+                      </div>
                     ) : (
-                      <p className="workbench-main-description">
-                        教材化にはレビュー承認者または管理者の権限が必要です。
+                      <p className="text-muted-foreground text-std-16N-170">
+                        状態の変更にはレビュー承認者または管理者の権限が必要です。
                       </p>
                     )}
                   </div>
                 ) : null}
-
-                {canDecide ? (
-                  <div className="knowledge-review-decision-form">
-                    <h5>状態を変更</h5>
-                    <label>
-                      却下理由（却下する場合は必須）
-                      <select
-                        value={reasonCode}
-                        onChange={(event) =>
-                          setReasonCode(
-                            event.target.value as RejectionReasonCode | "",
-                          )
-                        }
-                      >
-                        <option value="">選択してください</option>
-                        {masters.rejectionReasonCodes.map((option) => (
-                          <option key={option.code} value={option.code}>
-                            {option.label}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <input
-                      placeholder="補足コメント（要修正の場合はここに修正依頼を書く）"
-                      value={reasonText}
-                      onChange={(event) => setReasonText(event.target.value)}
-                    />
-                    <div className="soap-draft-candidate-actions">
-                      <button
-                        type="button"
-                        onClick={() =>
-                          void handleDecide(candidate.id, "approved")
-                        }
-                      >
-                        承認
-                      </button>
-                      <button
-                        type="button"
-                        className="secondary-button"
-                        disabled={!reasonCode}
-                        onClick={() =>
-                          void handleDecide(candidate.id, "rejected")
-                        }
-                      >
-                        却下
-                      </button>
-                      <button
-                        type="button"
-                        className="secondary-button"
-                        disabled={!reasonText.trim()}
-                        onClick={() =>
-                          void handleDecide(candidate.id, "needs_revision")
-                        }
-                      >
-                        要修正
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <p className="workbench-main-description">
-                    状態の変更にはレビュー承認者または管理者の権限が必要です。
-                  </p>
-                )}
-              </div>
-            ) : null}
+              </CardContent>
+              <CardFooter>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() =>
+                    setSelectedId((prev) =>
+                      prev === candidate.id ? null : candidate.id,
+                    )
+                  }
+                >
+                  {selectedId === candidate.id ? "閉じる" : "詳細"}
+                </Button>
+              </CardFooter>
+            </Card>
           </li>
         ))}
       </ul>
@@ -755,25 +828,28 @@ function RecordTab({ authorName, canPost }: RecordTabProps) {
   );
 
   return (
-    <section className="knowledge-review-records" aria-label="記録から探す">
+    <section aria-label="記録から探す" className="flex flex-col gap-4">
       {recordsStatus === "error" ? (
-        <p className="soap-draft-error">
-          記録一覧の取得に失敗しました: {recordsError}
-        </p>
+        <Alert variant="destructive">
+          <AlertDescription>
+            記録一覧の取得に失敗しました: {recordsError}
+          </AlertDescription>
+        </Alert>
       ) : null}
       {recordsStatus === "idle" && (records ?? []).length === 0 ? (
-        <p className="workbench-main-description">
+        <p className="text-muted-foreground text-std-16N-170">
           正式記録として保存された記録はまだありません。SOAP Studio
           の「正式記録として保存」から作成できます。
         </p>
       ) : null}
-      <ul className="knowledge-review-record-list">
+      <ul className="flex flex-col gap-2">
         {(records ?? []).map((record) => (
           <li key={record.id}>
-            <button
+            <Button
               type="button"
-              className="secondary-button"
-              data-active={record.id === selectedRecordId}
+              className="w-full justify-start"
+              variant={record.id === selectedRecordId ? "secondary" : "ghost"}
+              aria-pressed={record.id === selectedRecordId}
               onClick={() =>
                 setSelectedRecordId((prev) =>
                   prev === record.id ? null : record.id,
@@ -782,231 +858,262 @@ function RecordTab({ authorName, canPost }: RecordTabProps) {
             >
               {soapRecordTypeLabel(record.recordType)} / {record.id}（
               {record.createdBy}）
-            </button>
+            </Button>
           </li>
         ))}
       </ul>
 
       {versionsStatus === "error" ? (
-        <p className="soap-draft-error">
-          版一覧の取得に失敗しました: {versionsError}
-        </p>
+        <Alert variant="destructive">
+          <AlertDescription>
+            版一覧の取得に失敗しました: {versionsError}
+          </AlertDescription>
+        </Alert>
       ) : null}
 
       {versions ? (
-        <div className="knowledge-review-version-tabs">
+        <div className="flex flex-wrap gap-2">
           {versions.map((version) => (
-            <button
+            <Button
               type="button"
               key={version.id}
-              className="secondary-button"
-              data-active={version.id === selectedVersionId}
+              size="sm"
+              variant={
+                version.id === selectedVersionId ? "secondary" : "outline"
+              }
+              aria-pressed={version.id === selectedVersionId}
               onClick={() => setSelectedVersionId(version.id)}
             >
               版 {version.versionNo}
-            </button>
+            </Button>
           ))}
         </div>
       ) : null}
 
       {selectedVersion ? (
-        <div className="knowledge-review-record-version">
-          <ul className="soap-draft-candidate-list">
+        <div className="flex flex-col gap-4">
+          <ul className="flex flex-col gap-2">
             {selectedVersion.items.map((item) => (
               <li
                 key={`${selectedVersion.id}:${item.category}:${item.text}`}
-                className="soap-draft-candidate"
-                data-category={item.category}
+                className={cn(
+                  "flex flex-col gap-1 border-l-4 bg-muted/50 px-3 py-2",
+                  SOAP_CATEGORY_ACCENTS[item.category].border,
+                )}
               >
-                <span className="soap-candidate-status">
+                <span className="text-muted-foreground text-dns-14N-130">
                   {CATEGORY_LABELS[item.category]}
                 </span>
-                <p className="soap-draft-text">{item.text}</p>
+                <p className="text-std-16N-170">{item.text}</p>
               </li>
             ))}
           </ul>
 
-          <h4>コメント</h4>
-          <ul className="knowledge-review-comment-list">
-            {(comments ?? []).map((comment) => (
-              <li key={comment.id} className="knowledge-review-comment">
-                <div className="knowledge-review-comment-header">
-                  {canPost ? (
-                    <input
-                      type="checkbox"
-                      aria-label="教材候補作成のために選択"
-                      checked={selectedCommentIds.includes(comment.id)}
-                      onChange={() => toggleCommentSelection(comment.id)}
-                    />
-                  ) : null}
-                  <span>{commentTypeLabel(comment.commentType)}</span>
-                  {comment.soapCategory ? (
-                    <span>{CATEGORY_LABELS[comment.soapCategory]}</span>
-                  ) : null}
-                  <span>{comment.authorName}</span>
-                </div>
-                <p className="soap-draft-text">{comment.body}</p>
-              </li>
-            ))}
-          </ul>
+          <div className="flex flex-col gap-2">
+            <h4 className="text-std-16B-170">コメント</h4>
+            <ul className="flex flex-col gap-2">
+              {(comments ?? []).map((comment) => (
+                <li key={comment.id} className="rounded-lg bg-muted px-3 py-2">
+                  <div className="flex flex-wrap items-center gap-2 text-muted-foreground text-dns-14N-130">
+                    {canPost ? (
+                      <Checkbox
+                        aria-label="教材候補作成のために選択"
+                        checked={selectedCommentIds.includes(comment.id)}
+                        onCheckedChange={() =>
+                          toggleCommentSelection(comment.id)
+                        }
+                      />
+                    ) : null}
+                    <span>{commentTypeLabel(comment.commentType)}</span>
+                    {comment.soapCategory ? (
+                      <span>{CATEGORY_LABELS[comment.soapCategory]}</span>
+                    ) : null}
+                    <span>{comment.authorName}</span>
+                  </div>
+                  <p className="text-std-16N-170">{comment.body}</p>
+                </li>
+              ))}
+            </ul>
+          </div>
 
           {canPost ? (
-            <div className="knowledge-review-comment-form">
-              <h4>コメントを投稿</h4>
-              <label>
-                種別
-                <select
-                  value={newCommentType}
-                  onChange={(event) =>
-                    setNewCommentType(event.target.value as CommentType)
-                  }
-                >
-                  {COMMENT_TYPES.map((type) => (
-                    <option key={type} value={type}>
-                      {commentTypeLabel(type)}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <textarea
-                placeholder="思考経路を含めて自由に記述してください"
-                value={newCommentBody}
-                onChange={(event) => setNewCommentBody(event.target.value)}
-              />
-              <button
-                type="button"
-                disabled={!newCommentBody.trim()}
-                onClick={() => void handlePostComment()}
-              >
-                投稿
-              </button>
-
-              {generateStatus === "loading" ? (
-                <p className="workbench-main-description">
-                  投稿したコメントから教材候補を生成しています…
-                </p>
-              ) : null}
-              {generateStatus === "error" ? (
-                <p className="soap-draft-error">
-                  教材候補の生成に失敗しました: {generateError}
-                </p>
-              ) : null}
-
-              <div className="soap-draft-candidate-actions">
-                <button
-                  type="button"
-                  className="secondary-button"
-                  disabled={selectedCommentIds.length === 0}
-                  onClick={() => setShowCreateForm((prev) => !prev)}
-                >
-                  選択したコメントから教材候補を作成（
-                  {selectedCommentIds.length}件選択中）
-                </button>
-              </div>
-
-              {createNotice ? (
-                <p className="workbench-main-description">{createNotice}</p>
-              ) : null}
-
-              {showCreateForm ? (
-                <div className="knowledge-review-create-form">
-                  <h5>教材候補の作成</h5>
-                  {generatedDraft ? (
-                    <p className="workbench-main-description">
-                      AIがコメントから title / learning_objective /
-                      teaching_points
-                      を生成しました。内容を確認・編集してから保存してください。
-                    </p>
-                  ) : null}
-                  <input
-                    placeholder="タイトル"
-                    value={createTitle}
-                    onChange={(event) => setCreateTitle(event.target.value)}
+            <Card size="sm">
+              <CardHeader>
+                <CardTitle>コメントを投稿</CardTitle>
+              </CardHeader>
+              <CardContent className="flex flex-col gap-3">
+                <Field>
+                  <FieldLabel htmlFor="kr-comment-type">種別</FieldLabel>
+                  <OptionSelect
+                    id="kr-comment-type"
+                    options={COMMENT_TYPES.map((type) => ({
+                      label: commentTypeLabel(type),
+                      value: type,
+                    }))}
+                    value={newCommentType}
+                    onValueChange={(value) =>
+                      setNewCommentType(value as CommentType)
+                    }
                   />
-                  <textarea
-                    placeholder="要約"
-                    value={createSummary}
-                    onChange={(event) => setCreateSummary(event.target.value)}
-                  />
-                  <label>
-                    学習目標（learning_objective）
-                    <textarea
-                      placeholder="この教材候補で新人が身につけるべき学習目標"
-                      value={createLearningObjective}
-                      onChange={(event) =>
-                        setCreateLearningObjective(event.target.value)
-                      }
-                    />
-                  </label>
-                  <label>
-                    指導のポイント（teaching_points、1行1項目）
-                    <textarea
-                      placeholder={
-                        "単回の測定値だけで結論を出さない\n不足情報を明確にする"
-                      }
-                      value={createTeachingPointsText}
-                      onChange={(event) =>
-                        setCreateTeachingPointsText(event.target.value)
-                      }
-                    />
-                  </label>
-                  <label>
-                    分野
-                    <select
-                      value={createSpecialtyId}
-                      onChange={(event) =>
-                        setCreateSpecialtyId(event.target.value)
-                      }
-                    >
-                      {masters.specialties.map((option) => (
-                        <option key={option.id} value={option.id}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label>
-                    学習テーマ
-                    <select
-                      value={createLearningThemeId}
-                      onChange={(event) =>
-                        setCreateLearningThemeId(event.target.value)
-                      }
-                    >
-                      {masters.learningThemes.map((option) => (
-                        <option key={option.id} value={option.id}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label>
-                    難易度
-                    <select
-                      value={createDifficultyId}
-                      onChange={(event) =>
-                        setCreateDifficultyId(event.target.value)
-                      }
-                    >
-                      {masters.difficultyLevels.map((option) => (
-                        <option key={option.id} value={option.id}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <button
+                </Field>
+                <Textarea
+                  aria-label="コメント本文"
+                  placeholder="思考経路を含めて自由に記述してください"
+                  value={newCommentBody}
+                  onChange={(event) => setNewCommentBody(event.target.value)}
+                />
+                <div className="flex flex-wrap gap-2">
+                  <Button
                     type="button"
-                    disabled={!createTitle.trim() || !createSummary.trim()}
-                    onClick={() => void handleCreateCandidate()}
+                    size="sm"
+                    disabled={!newCommentBody.trim()}
+                    onClick={() => void handlePostComment()}
                   >
-                    作成
-                  </button>
+                    投稿
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    disabled={selectedCommentIds.length === 0}
+                    onClick={() => setShowCreateForm((prev) => !prev)}
+                  >
+                    選択したコメントから教材候補を作成（
+                    {selectedCommentIds.length}件選択中）
+                  </Button>
                 </div>
-              ) : null}
-            </div>
+
+                {generateStatus === "loading" ? (
+                  <p className="flex items-center gap-2 text-muted-foreground text-std-16N-170">
+                    <Spinner />
+                    投稿したコメントから教材候補を生成しています…
+                  </p>
+                ) : null}
+                {generateStatus === "error" ? (
+                  <Alert variant="destructive">
+                    <AlertDescription>
+                      教材候補の生成に失敗しました: {generateError}
+                    </AlertDescription>
+                  </Alert>
+                ) : null}
+
+                {createNotice ? (
+                  <Alert role="status">
+                    <AlertDescription>{createNotice}</AlertDescription>
+                  </Alert>
+                ) : null}
+
+                {showCreateForm ? (
+                  <div className="flex flex-col gap-3 border-t border-border pt-3">
+                    <h5 className="text-std-16B-170">教材候補の作成</h5>
+                    {generatedDraft ? (
+                      <p className="text-muted-foreground text-std-16N-170">
+                        AIがコメントから title / learning_objective /
+                        teaching_points
+                        を生成しました。内容を確認・編集してから保存してください。
+                      </p>
+                    ) : null}
+                    <Field>
+                      <FieldLabel htmlFor="kr-create-title">
+                        タイトル
+                      </FieldLabel>
+                      <Input
+                        id="kr-create-title"
+                        placeholder="タイトル"
+                        value={createTitle}
+                        onChange={(event) => setCreateTitle(event.target.value)}
+                      />
+                    </Field>
+                    <Field>
+                      <FieldLabel htmlFor="kr-create-summary">要約</FieldLabel>
+                      <Textarea
+                        id="kr-create-summary"
+                        placeholder="要約"
+                        value={createSummary}
+                        onChange={(event) =>
+                          setCreateSummary(event.target.value)
+                        }
+                      />
+                    </Field>
+                    <Field>
+                      <FieldLabel htmlFor="kr-create-objective">
+                        学習目標（learning_objective）
+                      </FieldLabel>
+                      <Textarea
+                        id="kr-create-objective"
+                        placeholder="この教材候補で新人が身につけるべき学習目標"
+                        value={createLearningObjective}
+                        onChange={(event) =>
+                          setCreateLearningObjective(event.target.value)
+                        }
+                      />
+                    </Field>
+                    <Field>
+                      <FieldLabel htmlFor="kr-create-points">
+                        指導のポイント（teaching_points、1行1項目）
+                      </FieldLabel>
+                      <Textarea
+                        id="kr-create-points"
+                        placeholder={
+                          "単回の測定値だけで結論を出さない\n不足情報を明確にする"
+                        }
+                        value={createTeachingPointsText}
+                        onChange={(event) =>
+                          setCreateTeachingPointsText(event.target.value)
+                        }
+                      />
+                    </Field>
+                    <div className="grid grid-cols-1 gap-3 md:grid-cols-3 md:gap-8">
+                      <Field>
+                        <FieldLabel htmlFor="kr-create-specialty">
+                          分野
+                        </FieldLabel>
+                        <OptionSelect
+                          id="kr-create-specialty"
+                          options={toOptions(masters.specialties)}
+                          value={createSpecialtyId}
+                          onValueChange={setCreateSpecialtyId}
+                        />
+                      </Field>
+                      <Field>
+                        <FieldLabel htmlFor="kr-create-theme">
+                          学習テーマ
+                        </FieldLabel>
+                        <OptionSelect
+                          id="kr-create-theme"
+                          options={toOptions(masters.learningThemes)}
+                          value={createLearningThemeId}
+                          onValueChange={setCreateLearningThemeId}
+                        />
+                      </Field>
+                      <Field>
+                        <FieldLabel htmlFor="kr-create-difficulty">
+                          難易度
+                        </FieldLabel>
+                        <OptionSelect
+                          id="kr-create-difficulty"
+                          options={toOptions(masters.difficultyLevels)}
+                          value={createDifficultyId}
+                          onValueChange={setCreateDifficultyId}
+                        />
+                      </Field>
+                    </div>
+                    <div>
+                      <Button
+                        type="button"
+                        size="sm"
+                        disabled={!createTitle.trim() || !createSummary.trim()}
+                        onClick={() => void handleCreateCandidate()}
+                      >
+                        作成
+                      </Button>
+                    </div>
+                  </div>
+                ) : null}
+              </CardContent>
+            </Card>
           ) : (
-            <p className="workbench-main-description">
+            <p className="text-muted-foreground text-std-16N-170">
               コメントの投稿にはこの画面を利用できるロールが必要です。
             </p>
           )}

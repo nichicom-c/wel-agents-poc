@@ -1,4 +1,37 @@
+import { SendIcon, SkipForwardIcon } from "lucide-react";
 import { useEffect, useState } from "react";
+
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyTitle,
+} from "@/components/ui/empty";
+import {
+  Field,
+  FieldLabel,
+  FieldLegend,
+  FieldSet,
+} from "@/components/ui/field";
+import {
+  Message,
+  MessageContent,
+  MessageGroup,
+  MessageHeader,
+} from "@/components/ui/message";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Spinner } from "@/components/ui/spinner";
+import { Textarea } from "@/components/ui/textarea";
 import {
   listMaterials,
   type Material,
@@ -28,35 +61,44 @@ export function TrainingView() {
   const canView = canViewTraining(role);
 
   return (
-    <>
-      <h2>Training</h2>
-      <p className="workbench-main-description">
-        公開済み教材についての教材チャット
-      </p>
+    <div className="flex flex-col gap-6">
+      <div className="flex flex-col gap-2">
+        <h2 className="text-std-24B-150">Training</h2>
+        <p className="text-muted-foreground text-std-16N-170">
+          公開済み教材についての教材チャット
+        </p>
+      </div>
 
-      <fieldset className="knowledge-review-role-select">
-        <legend>ロール（デモ用の切り替え。実際の認可は未実装）</legend>
-        {TRAINING_DEMO_ROLES.map((option) => (
-          <label key={option} className="knowledge-review-role-option">
-            <input
-              type="radio"
-              name="training-role"
-              checked={role === option}
-              onChange={() => setRole(option)}
-            />
-            {trainingDemoRoleLabel(option)}
-          </label>
-        ))}
-      </fieldset>
+      <FieldSet>
+        <FieldLegend variant="label">
+          ロール（デモ用の切り替え。実際の認可は未実装）
+        </FieldLegend>
+        <RadioGroup
+          className="flex flex-wrap gap-x-6 gap-y-2"
+          value={role}
+          onValueChange={(value) => setRole(value as TrainingDemoRole)}
+        >
+          {TRAINING_DEMO_ROLES.map((option) => (
+            <Field key={option} orientation="horizontal">
+              <RadioGroupItem id={`training-role-${option}`} value={option} />
+              <FieldLabel htmlFor={`training-role-${option}`}>
+                {trainingDemoRoleLabel(option)}
+              </FieldLabel>
+            </Field>
+          ))}
+        </RadioGroup>
+      </FieldSet>
 
       {canView ? (
         <MaterialChatPanel />
       ) : (
-        <p className="knowledge-review-forbidden" role="alert">
-          この画面を利用する権限がありません。ロールを「新人保健師」「指導者」「管理者」に切り替えてください。
-        </p>
+        <Alert variant="destructive" role="alert">
+          <AlertDescription>
+            この画面を利用する権限がありません。ロールを「新人保健師」「指導者」「管理者」に切り替えてください。
+          </AlertDescription>
+        </Alert>
       )}
-    </>
+    </div>
   );
 }
 
@@ -235,144 +277,188 @@ function MaterialChatPanel() {
   }
 
   return (
-    <section aria-label="教材チャット">
+    <section aria-label="教材チャット" className="flex flex-col gap-4">
       {status === "error" ? (
-        <p className="soap-draft-error">
-          公開教材の取得に失敗しました: {error}
-        </p>
+        <Alert variant="destructive">
+          <AlertDescription>
+            公開教材の取得に失敗しました: {error}
+          </AlertDescription>
+        </Alert>
       ) : null}
       {status === "idle" && (materials ?? []).length === 0 ? (
-        <p className="workbench-main-description">
-          公開済みの教材はまだありません。Admin 画面の「教材」タブで公開状態を
-          「公開済み」に変更すると、ここに表示されます。
-        </p>
+        <Empty>
+          <EmptyHeader>
+            <EmptyTitle>公開済みの教材はまだありません</EmptyTitle>
+            <EmptyDescription>
+              Admin
+              画面の「教材」タブで公開状態を「公開済み」に変更すると、ここに表示されます。
+            </EmptyDescription>
+          </EmptyHeader>
+        </Empty>
       ) : null}
 
-      <ul className="knowledge-review-candidate-list">
+      <ul className="flex flex-col gap-3">
         {(materials ?? []).map((material) => (
-          <li key={material.id} className="knowledge-review-candidate">
-            <div className="knowledge-review-candidate-header">
-              <h4>{material.title}</h4>
-            </div>
-            {material.learningObjective ? (
-              <p className="soap-draft-text">{material.learningObjective}</p>
-            ) : null}
-            <div className="knowledge-review-tag-row">
-              <span>{materialTypeLabel(material.materialType)}</span>
-              <span>
-                {material.specialtyId
-                  ? tagLabel(masters.specialties, material.specialtyId)
-                  : "未設定"}
-              </span>
-              <span>
-                {material.difficultyId
-                  ? tagLabel(masters.difficultyLevels, material.difficultyId)
-                  : "未設定"}
-              </span>
-              <span>
-                {material.learningThemeId
-                  ? tagLabel(masters.learningThemes, material.learningThemeId)
-                  : "未設定"}
-              </span>
-            </div>
-            <div className="soap-draft-candidate-actions">
-              <button
-                type="button"
-                onClick={() => void handleSelectMaterial(material)}
-              >
-                {selectedMaterial?.id === material.id
-                  ? "選択中"
-                  : "この教材についてチャットする"}
-              </button>
-            </div>
+          <li key={material.id}>
+            <Card size="sm">
+              <CardHeader>
+                <CardTitle>{material.title}</CardTitle>
+              </CardHeader>
+              <CardContent className="flex flex-col gap-3">
+                {material.learningObjective ? (
+                  <p className="text-std-16N-170">
+                    {material.learningObjective}
+                  </p>
+                ) : null}
+                <div className="flex flex-wrap gap-2">
+                  <Badge variant="secondary">
+                    {materialTypeLabel(material.materialType)}
+                  </Badge>
+                  <Badge variant="secondary">
+                    {material.specialtyId
+                      ? tagLabel(masters.specialties, material.specialtyId)
+                      : "未設定"}
+                  </Badge>
+                  <Badge variant="secondary">
+                    {material.difficultyId
+                      ? tagLabel(
+                          masters.difficultyLevels,
+                          material.difficultyId,
+                        )
+                      : "未設定"}
+                  </Badge>
+                  <Badge variant="secondary">
+                    {material.learningThemeId
+                      ? tagLabel(
+                          masters.learningThemes,
+                          material.learningThemeId,
+                        )
+                      : "未設定"}
+                  </Badge>
+                </div>
+              </CardContent>
+              <CardFooter>
+                <Button
+                  type="button"
+                  variant={
+                    selectedMaterial?.id === material.id
+                      ? "secondary"
+                      : "default"
+                  }
+                  onClick={() => void handleSelectMaterial(material)}
+                >
+                  {selectedMaterial?.id === material.id
+                    ? "選択中"
+                    : "この教材についてチャットする"}
+                </Button>
+              </CardFooter>
+            </Card>
           </li>
         ))}
       </ul>
 
       {selectedMaterial ? (
-        <div className="knowledge-review-record-version">
-          <h4>{selectedMaterial.title} についてのチャット</h4>
+        <Card>
+          <CardHeader>
+            <CardTitle>{selectedMaterial.title} についてのチャット</CardTitle>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-4">
+            <MessageGroup className="gap-4">
+              {messages.map((message) => (
+                <Message
+                  key={message.id}
+                  align={message.role === "user" ? "end" : "start"}
+                >
+                  <MessageContent>
+                    <MessageHeader>
+                      {message.role === "user" ? "あなた" : "アシスタント"}
+                    </MessageHeader>
+                    <div className="rounded-lg bg-muted px-3 py-2">
+                      {message.role === "assistant" ? (
+                        <MessageMarkdown text={message.text} />
+                      ) : (
+                        <p className="text-std-16N-170">{message.text}</p>
+                      )}
+                    </div>
+                  </MessageContent>
+                </Message>
+              ))}
+            </MessageGroup>
 
-          <ul className="knowledge-review-comment-list">
-            {messages.map((message) => (
-              <li key={message.id} className="knowledge-review-comment">
-                <div className="knowledge-review-comment-header">
-                  <span>
-                    {message.role === "user" ? "あなた" : "アシスタント"}
-                  </span>
-                </div>
-                {message.role === "assistant" ? (
-                  <MessageMarkdown text={message.text} />
-                ) : (
-                  <p className="soap-draft-text">{message.text}</p>
-                )}
-              </li>
-            ))}
-          </ul>
+            {chatStatus === "loading" ? (
+              <p className="flex items-center gap-2 text-muted-foreground text-std-16N-170">
+                <Spinner />
+                応答を生成しています…
+              </p>
+            ) : null}
+            {chatStatus === "error" ? (
+              <Alert variant="destructive">
+                <AlertDescription>
+                  チャットに失敗しました: {chatError}
+                </AlertDescription>
+              </Alert>
+            ) : null}
 
-          {chatStatus === "loading" ? (
-            <p className="workbench-main-description">応答を生成しています…</p>
-          ) : null}
-          {chatStatus === "error" ? (
-            <p className="soap-draft-error">
-              チャットに失敗しました: {chatError}
-            </p>
-          ) : null}
-
-          {chatStatus !== "loading" ? (
-            <>
-              {latestAssistantSuggestions(messages).length > 0 ? (
-                <div className="soap-gaps-chat-suggestions">
-                  {latestAssistantSuggestions(messages).map((suggestion) => (
-                    <button
-                      type="button"
-                      key={suggestion}
-                      className="soap-gaps-chat-suggestion-chip"
-                      onClick={() => handleSuggestionClick(suggestion)}
-                    >
-                      {suggestion}
-                    </button>
-                  ))}
-                </div>
-              ) : null}
-
-              <div className="knowledge-review-comment-form">
-                {activePointIndex >= 0 ? (
-                  <p className="workbench-main-description">
-                    今回の指導のポイント: {teachingPoints[activePointIndex]}
-                  </p>
+            {chatStatus !== "loading" ? (
+              <>
+                {latestAssistantSuggestions(messages).length > 0 ? (
+                  <div className="flex flex-wrap gap-2">
+                    {latestAssistantSuggestions(messages).map((suggestion) => (
+                      <Button
+                        type="button"
+                        key={suggestion}
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleSuggestionClick(suggestion)}
+                      >
+                        {suggestion}
+                      </Button>
+                    ))}
+                  </div>
                 ) : null}
-                <textarea
-                  placeholder={
-                    activePointIndex >= 0
-                      ? "回答や考えを入力してください"
-                      : "質問や相談を入力してください"
-                  }
-                  value={inputText}
-                  onChange={(event) => setInputText(event.target.value)}
-                />
-                <div className="soap-draft-candidate-actions">
-                  <button
+
+                <Field>
+                  {activePointIndex >= 0 ? (
+                    <FieldLabel htmlFor="material-chat-input">
+                      今回の指導のポイント: {teachingPoints[activePointIndex]}
+                    </FieldLabel>
+                  ) : null}
+                  <Textarea
+                    id="material-chat-input"
+                    aria-label="教材チャットの入力"
+                    placeholder={
+                      activePointIndex >= 0
+                        ? "回答や考えを入力してください"
+                        : "質問や相談を入力してください"
+                    }
+                    value={inputText}
+                    onChange={(event) => setInputText(event.target.value)}
+                  />
+                </Field>
+                <div className="flex flex-wrap gap-3">
+                  <Button
                     type="button"
                     disabled={!inputText.trim()}
                     onClick={handleSendMessage}
                   >
+                    <SendIcon data-icon="inline-start" />
                     送信
-                  </button>
+                  </Button>
                   {activePointIndex >= 0 ? (
-                    <button
+                    <Button
                       type="button"
-                      className="secondary-button"
+                      variant="outline"
                       onClick={handleSkipCurrentPoint}
                     >
+                      <SkipForwardIcon data-icon="inline-start" />
                       スキップ
-                    </button>
+                    </Button>
                   ) : null}
                 </div>
-              </div>
-            </>
-          ) : null}
-        </div>
+              </>
+            ) : null}
+          </CardContent>
+        </Card>
       ) : null}
     </section>
   );

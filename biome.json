@@ -1,7 +1,17 @@
 {
   "$schema": "https://biomejs.dev/schemas/2.5.0/schema.json",
   "files": {
-    "includes": ["**", "!dist", "!tmp", "!.git-worktrees", "!**/*.workflow.mjs"]
+    "includes": [
+      "**",
+      "!dist",
+      "!packages/workbench/src/components/ui",
+      "!tmp",
+      "!.git-worktrees",
+      "!**/*.workflow.mjs"
+    ]
+  },
+  "css": {
+    "parser": { "tailwindDirectives": true }
   },
   "formatter": {
     "enabled": true,

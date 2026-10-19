@@ -35,14 +35,14 @@ describe("SoapStudioView", () => {
   test("候補が無い初期状態では不足確認セクションを描画しない", () => {
     const html = renderToStaticMarkup(<SoapStudioView />);
 
-    expect(html).not.toContain("soap-gaps-section");
+    expect(html).not.toContain('aria-label="不足確認"');
     expect(html).not.toContain("不足をチャットで確認");
   });
 
   test("候補が無い初期状態では正式記録として保存セクションを描画しない", () => {
     const html = renderToStaticMarkup(<SoapStudioView />);
 
-    expect(html).not.toContain("soap-save-record-section");
+    expect(html).not.toContain('aria-label="正式記録として保存"');
     expect(html).not.toContain("正式記録として保存");
   });
 });
