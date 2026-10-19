@@ -29,7 +29,7 @@ Tailwind CSS v4 の既定ブレークポイントは `sm:640px` / `md:768px` / `
 
 ### コンテナ + 12カラムグリッド(ユーティリティクラスとして定義)
 
-`@utility` は Tailwind の標準バリアント(`hover:` `md:` など)を外側から付けて使うことを前提にした仕組みなので、モバイル・タブレット向けの既定値だけを `@utility` に持たせ、デスクトップ側の上書きは呼び出し側で `md:` プレフィックス付きの通常クラスを重ねる。`src/index.css` に追加する例:
+`@utility` は Tailwind の標準バリアント(`hover:` `md:` など)を外側から付けて使うことを前提にした仕組みなので、モバイル・タブレット向けの既定値だけを `@utility` に持たせ、デスクトップ側の上書きは呼び出し側で `md:` プレフィックス付きの通常クラスを重ねる。`packages/workbench/src/app/styles.css` に追加する例(**Workbench では現時点でこのユーティリティは定義していない**。下の「素の Tailwind ユーティリティだけで済ませる場合」を採っている):
 
 ```css
 @utility dads-container {
@@ -75,6 +75,19 @@ Tailwind CSS v4 の既定ブレークポイントは `sm:640px` / `md:768px` / `
 ### 1カラムレイアウトへのフォールバック
 
 コンテンツ幅が確保できない、あるいはシンプルな縦積みで十分なページでは `grid-cols-1`(= 1カラム代替案)のまま `md:` 切り替えを省略してよい。無理に 12カラムへ展開しない。
+
+## Workbench の実装
+
+`packages/workbench/src/app/App.tsx` のシェルが基準。外枠は `max-w-[1720px]` のコンテナで、ガターは `gap-4`(1rem)→ `md:gap-8`(2rem)と本スキルの原則どおりに切り替える。
+
+```tsx
+<div className="mx-auto flex min-h-screen w-full max-w-[1720px] flex-col gap-4 px-4 py-4 md:px-6">
+  <div className="grid flex-1 grid-cols-1 gap-4 min-[1180px]:grid-cols-[280px_minmax(0,1fr)_320px] md:gap-8">
+```
+
+**`min-[1180px]` は DADS のブレークポイントではない。** ナビ(280px)+ メイン + Context Inspector(320px)の3カラムが成立する実測値で、Workbench 固有の判断。DADS の唯一のブレークポイント `md:`(768px)はガターの切り替えに使い、3カラム化はそれとは別軸で扱っている。新しい画面で同じ3カラムを組むとき以外は `min-[1180px]` を持ち出さない。
+
+各ビューの中身は 12カラムグリッドではなく `flex flex-col gap-*` の縦積みが基本で、フォームの複数項目だけ `grid-cols-1 md:grid-cols-3` のように段組みする。
 
 ## チェックリスト
 

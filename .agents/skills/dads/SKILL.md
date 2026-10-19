@@ -1,11 +1,11 @@
 ---
 name: dads
-description: デジタル庁デザインシステム(DADS, https://design.digital.go.jp/dads/)のデザイントークン・グリッドシステムを、このプロジェクトの Tailwind CSS v4 + shadcn 構成に統合するためのガイド。DADS 準拠のレイアウト(12カラムグリッド、768px ブレークポイント、文字サイズ基準のガター/マージン)を実装する、または `@digital-go-jp/design-tokens` / `@digital-go-jp/tailwind-theme-plugin` を導入する際に使う。個別 UI コンポーネントの仕様(Figma デザインデータ由来のもの)は対象外 — それは shadcn / frontend-design skill の領域。Trigger: "DADS", "デジタル庁 デザインシステム", "政府 デザインシステム", "行政 デザインシステム", "グリッドシステム", "12カラム", "design.digital.go.jp".
+description: デジタル庁デザインシステム(DADS, https://design.digital.go.jp/dads/)のデザイントークンとグリッドシステムを `packages/workbench/` で使うためのガイド。Workbench は Tailwind CSS v4 + shadcn + DADS 全面適用済みなので、配色をどのトークンで指定するか、文字スタイルにどのユーティリティ名が実在するか、DADS 準拠のレイアウト(12カラムグリッド、768px ブレークポイント、文字サイズ基準のガター/マージン)をどう組むかを調べる際に使う。個別 UI コンポーネントの仕様(Figma デザインデータ由来のもの)は対象外 — それは shadcn skill の領域。Trigger: "DADS", "デジタル庁 デザインシステム", "政府 デザインシステム", "行政 デザインシステム", "グリッドシステム", "12カラム", "design.digital.go.jp".
 ---
 
 # デジタル庁デザインシステム(DADS)統合
 
-[デジタル庁デザインシステムβ版(DADS)](https://design.digital.go.jp/dads/) は、行政サービスの UI 実装を統一するために公開されているデザインシステム。本スキルは DADS のうち **デザイントークン** と **グリッドシステム(レイアウト)** をこのプロジェクトに統合する方法を扱う。
+[デジタル庁デザインシステムβ版(DADS)](https://design.digital.go.jp/dads/) は、行政サービスの UI 実装を統一するために公開されているデザインシステム。本スキルは DADS のうち **デザイントークン** と **グリッドシステム(レイアウト)** を `packages/workbench/` でどう使うかを扱う。
 
 ## DADS の全体構成と本スキルの範囲
 
@@ -16,19 +16,21 @@ DADS は次の4要素で構成される。
 3. コードスニペット(デザイントークン・サンプルコード、GitHub 公開)
 4. グラフィック素材(イラスト・アイコン)
 
-**本スキルが扱うのは 1(レイアウト原則)と 3(デザイントークンの npm パッケージ)のみ。** 2 の Figma デザインデータ、および個別コンポーネント(ボタン・フォーム・モーダル等)の仕様には踏み込まない。このプロジェクトの UI コンポーネント実装は既存の `shadcn` skill(`.claude/skills/shadcn/`)と `frontend-design` skill に委ねる方針(`.claude/rules/ui-components.md`)を維持し、DADS はその配色・タイポグラフィ・グリッドという「基盤」レイヤーにのみ関与する。
+**本スキルが扱うのは 1(レイアウト原則)と 3(デザイントークンの npm パッケージ)のみ。** 2 の Figma デザインデータ、および個別コンポーネント(ボタン・フォーム・モーダル等)の仕様には踏み込まない。UI コンポーネントの実装は `shadcn` skill(`.agents/skills/shadcn/`)に委ね、DADS はその配色・タイポグラフィ・グリッドという「基盤」レイヤーにのみ関与する。
 
 ## 参照先
 
-- [rules/tokens.md](./rules/tokens.md) — デザイントークン(`@digital-go-jp/tailwind-theme-plugin`)の導入方法と、既存の shadcn テーマ(`src/index.css`)との共存・衝突ポイント。
+- [rules/tokens.md](./rules/tokens.md) — デザイントークン(`@digital-go-jp/tailwind-theme-plugin`)と、shadcn のセマンティックトークンとの対応づけ。
 - [rules/grid.md](./rules/grid.md) — グリッドシステム(12カラム、768px ブレークポイント、文字サイズ基準のガター)の原則と Tailwind CSS v4 実装パターン。
 
-## このプロジェクトへの適用方針
+## このリポジトリでの適用状況
 
-本プロジェクト(`base-ui-react-sample`)は shadcn CLI(`base-nova` プリセット、`base: "base"` = Base UI プリミティブ)を使ったサンプルであり、`src/index.css` は shadcn がニュートラルカラーの CSS 変数(oklch)を管理している。DADS を全面的に適用する(配色を DADS の青基調パレットに置き換える)か、グリッド原則だけを部分採用するかはプロジェクトの目的次第。判断に迷う場合は次を基準にする。
+対象は `packages/workbench/` のみ(`packages/chat-ui/` は手書き CSS のままで、DADS も shadcn も入っていない)。Workbench は shadcn CLI(`base-nova` プリセット、`base: "base"` = Base UI プリミティブ)を使い、**DADS を全面適用済み**。つまり新規に導入する作業はなく、本スキルは「既に入っているものをどう使うか」の参照として読む。
 
-- **行政サービス・DADS 準拠が必須の画面を作る** → [tokens.md](./rules/tokens.md) の手順で `@digital-go-jp/tailwind-theme-plugin` を導入し、配色・タイポグラフィごと DADS に揃える。
-- **既存の shadcn テーマは維持しつつ、レイアウトの考え方だけ DADS に寄せたい**(今回の主目的)→ トークンの導入は不要。[grid.md](./rules/grid.md) のグリッド実装パターンだけを適用すれば足りる。Tailwind CSS v4 の既定ブレークポイント `md:`(768px)が DADS の唯一のブレークポイントと一致するため、追加設定なしで原則に沿ったレイアウトが組める。
+- トークンは `packages/workbench/src/app/styles.css` で読み込み済み。同ファイルの `:root` が shadcn のセマンティックトークン(`--primary` など)を DADS のパレット(`--color-key-*` / `--color-solid-gray-*` / `--color-error-*` / `--color-focus-yellow`)へ割り当てている。
+- **DADS にダークテーマは無いので Workbench は light 固定。** `prefers-color-scheme` による分岐や `dark:` バリアントを新規に足さない。
+- 配色は `bg-primary` / `text-muted-foreground` のような **shadcn のセマンティックトークン経由で指定する**。`bg-key-600` のような DADS 生トークンを直接使うのは、セマンティックトークンに対応が無い場合(SOAP 区分の色分けなど)に限る。その例が `packages/workbench/src/features/soap-draft/ui/category-accents.ts`。
+- 文字スタイルは DADS のタイポグラフィユーティリティ(`text-std-16N-170` など)を使う。[tokens.md](./rules/tokens.md) に実在するユーティリティ名の一覧がある(`text-std-14N-170` のような存在しない組み合わせを書かないこと)。
 
 ## 重要な事実確認(調査結果)
 
