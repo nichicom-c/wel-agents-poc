@@ -23,6 +23,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 
+import { MessageMarkdown } from "../../features/chat/index.ts";
 import {
   addManualCandidate,
   buildReflectionSelections,
@@ -706,9 +707,13 @@ export function SoapStudioView({
                         align={message.role === "user" ? "end" : "start"}
                       >
                         <MessageContent>
-                          <p className="rounded-lg bg-muted px-3 py-2 text-std-16N-170">
-                            {message.text}
-                          </p>
+                          <div className="rounded-lg bg-muted px-3 py-2">
+                            {message.role === "assistant" ? (
+                              <MessageMarkdown text={message.text} />
+                            ) : (
+                              <p className="text-std-16N-170">{message.text}</p>
+                            )}
+                          </div>
                         </MessageContent>
                       </Message>
                     ))}
