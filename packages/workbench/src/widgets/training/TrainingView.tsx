@@ -424,6 +424,7 @@ function MaterialChatPanel() {
                     </FieldLabel>
                   ) : null}
                   <Textarea
+                    className="min-h-24"
                     id="material-chat-input"
                     aria-label="教材チャットの入力"
                     placeholder={

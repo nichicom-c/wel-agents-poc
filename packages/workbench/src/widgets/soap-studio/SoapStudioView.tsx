@@ -745,6 +745,7 @@ export function SoapStudioView({
                           {CATEGORY_LABELS[activeGap.soapCategory]}
                         </FieldLabel>
                         <Textarea
+                          className="min-h-24"
                           id="soap-gaps-chat-input"
                           aria-label="チャットへの返信"
                           placeholder="回答を入力してください"

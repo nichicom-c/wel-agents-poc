@@ -961,6 +961,7 @@ function RecordTab({ authorName, canPost }: RecordTabProps) {
                   />
                 </Field>
                 <Textarea
+                  className="min-h-32"
                   aria-label="コメント本文"
                   placeholder="思考経路を含めて自由に記述してください"
                   value={newCommentBody}
@@ -1031,6 +1032,7 @@ function RecordTab({ authorName, canPost }: RecordTabProps) {
                     <Field>
                       <FieldLabel htmlFor="kr-create-summary">要約</FieldLabel>
                       <Textarea
+                        className="min-h-24"
                         id="kr-create-summary"
                         placeholder="要約"
                         value={createSummary}
@@ -1044,6 +1046,7 @@ function RecordTab({ authorName, canPost }: RecordTabProps) {
                         学習目標（learning_objective）
                       </FieldLabel>
                       <Textarea
+                        className="min-h-24"
                         id="kr-create-objective"
                         placeholder="この教材候補で新人が身につけるべき学習目標"
                         value={createLearningObjective}
@@ -1057,6 +1060,7 @@ function RecordTab({ authorName, canPost }: RecordTabProps) {
                         指導のポイント（teaching_points、1行1項目）
                       </FieldLabel>
                       <Textarea
+                        className="min-h-24"
                         id="kr-create-points"
                         placeholder={
                           "単回の測定値だけで結論を出さない\n不足情報を明確にする"

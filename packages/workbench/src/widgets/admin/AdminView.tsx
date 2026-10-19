@@ -593,6 +593,7 @@ function MaterialsTab() {
               画面の教材チャットが会話の文脈として使う）
             </FieldLabel>
             <Textarea
+              className="min-h-32"
               id="admin-new-objective"
               placeholder="この教材で新人が身につけるべき学習目標"
               value={newLearningObjective}
@@ -604,6 +605,7 @@ function MaterialsTab() {
               指導のポイント（任意。1行1項目）
             </FieldLabel>
             <Textarea
+              className="min-h-32"
               id="admin-new-points"
               placeholder={
                 "単回の測定値だけで結論を出さない\n不足情報を明確にする"
@@ -1135,6 +1137,7 @@ function KnowledgeBaseTab() {
               <Field>
                 <FieldLabel htmlFor="admin-item-content">本文</FieldLabel>
                 <Textarea
+                  className="min-h-32"
                   id="admin-item-content"
                   placeholder="本文（Prompt投入可能な内容）"
                   value={newItemContent}
@@ -1290,6 +1293,7 @@ function PromptTemplatesTab() {
               System Prompt
             </FieldLabel>
             <Textarea
+              className="min-h-32"
               id="admin-template-system"
               placeholder="System Prompt"
               value={newSystemPrompt}
@@ -1301,6 +1305,7 @@ function PromptTemplatesTab() {
               User Prompt Template
             </FieldLabel>
             <Textarea
+              className="min-h-32"
               id="admin-template-user"
               placeholder="User Prompt Template"
               value={newUserPromptTemplate}
