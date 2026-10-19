@@ -8,6 +8,19 @@ function renderMarkdown(text: string): string {
 }
 
 describe("MessageMarkdown", () => {
+  // CommonMark は閉じ側の `**` が「約物の直後かつ文字の直前」だと強調を閉じない。
+  // 日本語の LLM 出力はこの形になりやすく、実際に不足確認チャットで `**` が
+  // そのまま表示された。`remark-cjk-friendly` が入っていないとこのテストが落ちる。
+  test.each([
+    ["ただ、**A（アセスメント）**がまだない状態です。", "A（アセスメント）"],
+    ["**S（主観的情報）**は書けています", "S（主観的情報）"],
+    ["これは**強調**です", "強調"],
+  ])("日本語の約物をまたぐ強調を閉じる: %s", (input, expected) => {
+    const html = renderMarkdown(input);
+    expect(html).toContain(`<strong>${expected}</strong>`);
+    expect(html).not.toContain("**");
+  });
+
   test("基本 Markdown を semantic elements として描画する", () => {
     const html = renderMarkdown(`# 見出し
 
