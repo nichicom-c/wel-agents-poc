@@ -9,7 +9,9 @@ allowed-tools: Bash(npx shadcn@latest *), Bash(pnpm dlx shadcn@latest *), Bash(b
 
 A framework for building ui, components and design systems. Components are added as source code to the user's project via the CLI.
 
-> **IMPORTANT:** Run all CLI commands using the project's package runner: `npx shadcn@latest`, `pnpm dlx shadcn@latest`, or `bunx --bun shadcn@latest` — based on the project's `packageManager`. Examples below use `npx shadcn@latest` but substitute the correct runner for the project.
+> **READ [rules/this-repo.md](./rules/this-repo.md) FIRST.** Every other file here is the upstream shadcn skill, kept verbatim so upstream updates still apply; `this-repo.md` is the only `wel-agents-poc` specific file and wins wherever they disagree. It replaces the injected project context below (which needs a client that runs the embedded command), names the package runner, and lists what must be fixed by hand after every `add`.
+
+> **IMPORTANT:** Run all CLI commands using the project's package runner: `npx shadcn@latest`, `pnpm dlx shadcn@latest`, or `bunx --bun shadcn@latest` — based on the project's `packageManager`. Examples below use `npx shadcn@latest` but substitute the correct runner for the project. **In this repo that is `bunx --bun shadcn@latest`, run from `packages/workbench/`.**
 
 ## Current Project Context
 
