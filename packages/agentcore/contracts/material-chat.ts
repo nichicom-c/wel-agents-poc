@@ -35,7 +35,8 @@ export const materialChatOutputSchema = z.object({
     .array(z.string().min(1))
     .max(3)
     .describe(
-      "断定しないブレインストーミング的な回答例・視点（0〜3件）。resolvedがtrueなら空配列でよい。",
+      "答えを明かさずに考える切り口を示すヒント（0〜3件）。利用者はクリックせず読むだけなので、" +
+        "そのまま返信文として成立する必要はない。resolvedがtrueなら空配列でよい。",
     ),
   resolved: z
     .boolean()

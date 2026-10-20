@@ -1,4 +1,4 @@
-import { SendIcon, SkipForwardIcon } from "lucide-react";
+import { LightbulbIcon, SendIcon, SkipForwardIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { DemoRoleSwitcher } from "@/components/demo-role-switcher";
@@ -255,10 +255,6 @@ function MaterialChatPanel() {
     );
   }
 
-  function handleSuggestionClick(suggestion: string) {
-    setInputText(suggestion);
-  }
-
   return (
     <section aria-label="教材チャット" className="flex flex-col gap-4">
       {status === "error" ? (
@@ -385,19 +381,24 @@ function MaterialChatPanel() {
             {chatStatus !== "loading" ? (
               <>
                 {latestAssistantSuggestions(messages).length > 0 ? (
-                  <div className="flex flex-wrap gap-2">
-                    {latestAssistantSuggestions(messages).map((suggestion) => (
-                      <Button
-                        type="button"
-                        key={suggestion}
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleSuggestionClick(suggestion)}
-                      >
-                        {suggestion}
-                      </Button>
-                    ))}
-                  </div>
+                  <section
+                    aria-label="考えるヒント"
+                    className="flex flex-col gap-2 rounded-lg border border-border px-3 py-2"
+                  >
+                    <h3 className="flex items-center gap-2 text-std-16B-170">
+                      <LightbulbIcon aria-hidden="true" className="size-4" />
+                      考えるヒント
+                    </h3>
+                    <ul className="flex list-disc flex-col gap-1 pl-5">
+                      {latestAssistantSuggestions(messages).map(
+                        (suggestion) => (
+                          <li className="text-std-16N-170" key={suggestion}>
+                            {suggestion}
+                          </li>
+                        ),
+                      )}
+                    </ul>
+                  </section>
                 ) : null}
 
                 <Field>
