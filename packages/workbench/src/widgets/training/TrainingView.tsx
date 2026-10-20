@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/message";
 import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
+import { cn } from "@/lib/utils";
 import {
   listMaterials,
   type Material,
@@ -352,7 +353,15 @@ function MaterialChatPanel() {
                     <MessageHeader>
                       {message.role === "user" ? "あなた" : "アシスタント"}
                     </MessageHeader>
-                    <div className="rounded-lg bg-muted px-3 py-2">
+                    <div
+                      data-slot="message-bubble"
+                      className={cn(
+                        "max-w-[85%] rounded-lg px-3 py-2",
+                        message.role === "user"
+                          ? "border border-primary/40 bg-accent text-accent-foreground"
+                          : "bg-muted",
+                      )}
+                    >
                       {message.role === "assistant" ? (
                         <MessageMarkdown text={message.text} />
                       ) : (

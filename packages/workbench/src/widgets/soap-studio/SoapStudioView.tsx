@@ -18,7 +18,12 @@ import {
   FieldLegend,
   FieldSet,
 } from "@/components/ui/field";
-import { Message, MessageContent, MessageGroup } from "@/components/ui/message";
+import {
+  Message,
+  MessageContent,
+  MessageGroup,
+  MessageHeader,
+} from "@/components/ui/message";
 import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
@@ -707,7 +712,20 @@ export function SoapStudioView({
                         align={message.role === "user" ? "end" : "start"}
                       >
                         <MessageContent>
-                          <div className="rounded-lg bg-muted px-3 py-2">
+                          <MessageHeader>
+                            {message.role === "user"
+                              ? "あなた"
+                              : "アシスタント"}
+                          </MessageHeader>
+                          <div
+                            data-slot="message-bubble"
+                            className={cn(
+                              "max-w-[85%] rounded-lg px-3 py-2",
+                              message.role === "user"
+                                ? "border border-primary/40 bg-accent text-accent-foreground"
+                                : "bg-muted",
+                            )}
+                          >
                             {message.role === "assistant" ? (
                               <MessageMarkdown text={message.text} />
                             ) : (
