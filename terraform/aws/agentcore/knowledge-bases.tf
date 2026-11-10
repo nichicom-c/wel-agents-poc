@@ -96,4 +96,11 @@ resource "aws_bedrockagent_data_source" "this" {
   # ingestion 起動時に prefix が空にならないよう、サンプル文書の upload 完了を data source 作成より
   # 先行させる。
   depends_on = [aws_s3_object.data]
+
+  # provider は knowledge_base_id を ForceNew 扱いしないため、KB が置き換わっても data source は
+  # in-place update と判断され、消えた data source に対する UpdateDataSource が 404 で失敗する
+  # （data source は KB と一緒に削除されるため）。KB の置き換えに合わせて data source も作り直す。
+  lifecycle {
+    replace_triggered_by = [aws_bedrockagent_knowledge_base.this[each.key]]
+  }
 }

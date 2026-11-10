@@ -236,4 +236,9 @@ resource "aws_bedrockagent_data_source" "law_hierarchical" {
   }
 
   depends_on = [aws_s3_object.data]
+
+  # knowledge-bases.tf の data source と同じ理由で、KB の置き換えに合わせて作り直す。
+  lifecycle {
+    replace_triggered_by = [aws_bedrockagent_knowledge_base.law_hierarchical[0]]
+  }
 }
