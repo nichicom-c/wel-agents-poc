@@ -149,12 +149,33 @@ describe("renderMetadata", () => {
     });
   });
 
-  test("番号を持たない区分は unit / unit_title を空文字にする", () => {
+  test("番号を持たない区分は unit / unit_title の key ごと落とす", () => {
     const metadata = JSON.parse(
       renderMetadata(9, unitFor(9), "section_divider", GENERATED_AT),
     );
-    expect(metadata.metadataAttributes.unit).toBe("");
-    expect(metadata.metadataAttributes.unit_title).toBe("");
+    expect(Object.keys(metadata.metadataAttributes)).not.toContain("unit");
+    expect(Object.keys(metadata.metadataAttributes)).not.toContain(
+      "unit_title",
+    );
+  });
+
+  test("番号は無いが単元名を持つ区分は unit_title だけ残す", () => {
+    const metadata = JSON.parse(
+      renderMetadata(5, unitFor(5), "toc", GENERATED_AT),
+    );
+    expect(Object.keys(metadata.metadataAttributes)).not.toContain("unit");
+    expect(metadata.metadataAttributes.unit_title).toBe("目次");
+  });
+
+  test("空文字の値を持つ属性を 1 つも含まない", () => {
+    for (let page = 1; page <= TOTAL_PAGES; page++) {
+      const metadata = JSON.parse(
+        renderMetadata(page, unitFor(page), "body", GENERATED_AT),
+      );
+      for (const [key, value] of Object.entries(metadata.metadataAttributes)) {
+        expect(`${key}=${value}`).not.toBe(`${key}=`);
+      }
+    }
   });
 });
 

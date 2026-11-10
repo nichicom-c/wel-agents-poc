@@ -305,6 +305,36 @@ describe("buildPageMetadata / metadataByteSize", () => {
   test("Bedrock の byte 上限を下回る", () => {
     expect(metadataByteSize(metadata)).toBeLessThan(MAX_METADATA_BYTES);
   });
+
+  test("章番号を持たないページは chapter の key ごと落とす", () => {
+    // fixture の先頭ページは front_matter（chapter 無し）。
+    const frontMatter = buildPageMetadata({
+      plan: fixturePlanAt(0),
+      ocrEngine: "tesseract",
+      ocrLang: "jpn+eng",
+      generatedAt: "2026-06-16T00:00:00.000Z",
+    });
+    expect(frontMatter.metadataAttributes.section).toBe("front_matter");
+    expect(Object.keys(frontMatter.metadataAttributes)).not.toContain(
+      "chapter",
+    );
+  });
+
+  test("全ページが空文字の属性値を持たない", () => {
+    for (const plan of planPages(
+      parseChapterManifest(MANIFEST_FIXTURE).entries,
+    )) {
+      const attributes = buildPageMetadata({
+        plan,
+        ocrEngine: "tesseract",
+        ocrLang: "jpn+eng",
+        generatedAt: "2026-06-16T00:00:00.000Z",
+      }).metadataAttributes;
+      for (const [key, value] of Object.entries(attributes)) {
+        expect(`${key}=${value}`).not.toBe(`${key}=`);
+      }
+    }
+  });
 });
 
 describe("renderPageMarkdown", () => {

@@ -359,6 +359,10 @@ export type PageMetadata = {
 /**
  * Bedrock S3 metadata sidecar の `metadataAttributes` を、citation / filter に必要な最小 key で組む。
  * 詳細な出典・加工情報は ingestion 対象外の manifest と Markdown 末尾の出典ブロックに逃がす。
+ *
+ * 値が空の属性は key ごと落とす。空文字を入れたまま置くと Bedrock の ingestion がそのファイルを
+ * "Ignored N files due to invalid metadata attributes" として丸ごと捨てるため、章番号を持たない
+ * front_matter / reference / colophon ページが KB に入らなくなる（`chapter` がこれに当たる）。
  */
 export function buildPageMetadata(input: {
   plan: PagePlan;
@@ -372,7 +376,7 @@ export function buildPageMetadata(input: {
       corpus_id: CORPUS_ID,
       source_title: SOURCE_TITLE,
       section: plan.section,
-      chapter: plan.chapter,
+      ...(plan.chapter === "" ? {} : { chapter: plan.chapter }),
       chapter_title: plan.chapterTitle,
       source_file: plan.sourceFile,
       source_page: String(plan.sourcePage),

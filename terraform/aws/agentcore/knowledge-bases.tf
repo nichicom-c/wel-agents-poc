@@ -20,6 +20,20 @@ resource "aws_s3vectors_index" "this" {
   dimension       = var.embedding_dimensions
   distance_metric = "cosine"
 
+  # Bedrock Knowledge Base は chunk 本文を AMAZON_BEDROCK_TEXT、source 情報を
+  # AMAZON_BEDROCK_METADATA として metadata に書き込む。S3 Vectors の filterable metadata は
+  # 1 vector あたり 2KB までなので、この 2 つを non-filterable にしないと日本語 chunk
+  # （1 文字 3 byte）が 650 文字あたりで上限を超え、ingestion が
+  # "Filterable metadata must have at most 2048 bytes" で失敗する。non-filterable に回せば
+  # 合計 40KB 枠を使うため本文はそのまま保持され、絞り込みに使う自前の metadata 属性だけが
+  # filterable に残る。
+  metadata_configuration {
+    non_filterable_metadata_keys = [
+      "AMAZON_BEDROCK_METADATA",
+      "AMAZON_BEDROCK_TEXT",
+    ]
+  }
+
   tags = var.tags
 }
 

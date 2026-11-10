@@ -324,30 +324,34 @@ export function renderPage(
   return `${heading}\n\n${body}\n\n---\n\n${footer}\n`;
 }
 
-/** 1 ページ分の metadataAttributes を組み立てる。 */
+/**
+ * 1 ページ分の metadataAttributes を組み立てる。
+ *
+ * 値が空の属性は key ごと落とす。空文字を入れたまま置くと Bedrock の ingestion が
+ * そのファイルを "Ignored N files due to invalid metadata attributes" として丸ごと捨てるため、
+ * 番号を持たない扉・前付・索引ページが KB に入らなくなる。
+ */
 export function renderMetadata(
   page: number,
   unit: Unit,
   contentType: string,
   generatedAt: string,
 ): string {
-  const metadata = {
-    metadataAttributes: {
-      corpus_id: CORPUS_ID,
-      source_title: SOURCE_TITLE,
-      section: unit.section.slug,
-      section_title: unit.section.title,
-      unit: unit.number === null ? "" : String(unit.number),
-      unit_title: unit.title ?? "",
-      source_file: SOURCE_FILE,
-      source_page: String(page),
-      output_page: String(page),
-      conversion: CONVERSION,
-      generated_at: generatedAt,
-      content_type: contentType,
-    },
+  const metadataAttributes: Record<string, string> = {
+    corpus_id: CORPUS_ID,
+    source_title: SOURCE_TITLE,
+    section: unit.section.slug,
+    section_title: unit.section.title,
+    ...(unit.number === null ? {} : { unit: String(unit.number) }),
+    ...(unit.title === null ? {} : { unit_title: unit.title }),
+    source_file: SOURCE_FILE,
+    source_page: String(page),
+    output_page: String(page),
+    conversion: CONVERSION,
+    generated_at: generatedAt,
+    content_type: contentType,
   };
-  return `${JSON.stringify(metadata, null, 2)}\n`;
+  return `${JSON.stringify({ metadataAttributes }, null, 2)}\n`;
 }
 
 /** 結合 Markdown をページ番号 -> 本文の Map に分解する。 */
