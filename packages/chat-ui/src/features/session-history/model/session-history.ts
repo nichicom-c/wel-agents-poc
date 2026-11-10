@@ -31,12 +31,29 @@ const REMOTE_SESSION_PREVIEW = "AWS Memory に保存済み";
 const TITLE_MAX_LENGTH = 42;
 const PREVIEW_MAX_LENGTH = 88;
 
+/**
+ * AgentCore Runtime session ID の制約。BFF 側の `isRuntimeSessionId` と同じ規則で、
+ * 規則に合わない conversationId は送信時に BFF が 400 で弾く。UI も同じ規則を持っておかないと、
+ * localStorage に残った旧形式の ID や会話ID入力欄の手入力がそのまま送られ、送信のたびに
+ * エラーになる（UI からは直す手段がない）。
+ */
+const RUNTIME_SESSION_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_-]{32,255}$/;
+
+export function isRuntimeSessionId(value: string): boolean {
+  return RUNTIME_SESSION_ID_PATTERN.test(value);
+}
+
 export function createConversationId(randomId = randomUUID()): string {
   return `chat-${randomId}`;
 }
 
+/**
+ * 規則に合う conversationId だけ通し、合わなければ新しい ID を発行する。空文字と
+ * 旧形式・手入力ミスの両方がここで吸収される。
+ */
 export function normalizeConversationId(value: string): string {
-  return value.trim() || createConversationId();
+  const trimmed = value.trim();
+  return isRuntimeSessionId(trimmed) ? trimmed : createConversationId();
 }
 
 export function loadSessionHistory(
@@ -181,7 +198,9 @@ function createSessionRecord(
 function normalizeSessionRecord(value: unknown): ChatSessionRecord | undefined {
   const record = asRecord(value);
   const conversationId = text(record.conversationId);
-  if (!conversationId) {
+  // 規則に合わない conversationId は BFF に送れないので、session rail に並べても選んだ瞬間に
+  // 詰む。読み込み時に落として履歴ごと掃除する。
+  if (!isRuntimeSessionId(conversationId)) {
     return undefined;
   }
 
@@ -248,7 +267,12 @@ function validIsoDate(value: string): string | undefined {
 }
 
 export function randomUUID(): string {
-  return globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`;
+  // crypto.randomUUID が無い環境向けの fallback。`Math.random()` をそのまま埋めると `.` が
+  // 入り conversationId の charset（A-Za-z0-9_-）に違反するため、base36 の小数部だけを使う。
+  return (
+    globalThis.crypto?.randomUUID?.() ??
+    `${Date.now().toString(36)}-${Math.random().toString(36).slice(2).padEnd(16, "0")}-${Math.random().toString(36).slice(2).padEnd(16, "0")}`
+  );
 }
 
 function asRecord(value: unknown): Record<string, unknown> {

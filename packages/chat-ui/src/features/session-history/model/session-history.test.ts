@@ -2,10 +2,13 @@ import { describe, expect, test } from "bun:test";
 
 import {
   type ChatSessionRecord,
+  createConversationId,
   ensureSession,
+  isRuntimeSessionId,
   loadSessionHistory,
   mergeRemoteSessions,
   messagesForSession,
+  normalizeConversationId,
   SESSION_HISTORY_STORAGE_NAME,
   saveSessionHistory,
   updateSessionMessages,
@@ -22,7 +25,7 @@ class MemoryStorage implements Pick<Storage, "getItem" | "setItem"> {
 }
 
 const SESSION_A: ChatSessionRecord = {
-  conversationId: "chat-a",
+  conversationId: "chat-00000000-0000-4000-8000-00000000000a",
   createdAt: "2026-06-17T00:00:00.000Z",
   messageCount: 0,
   messages: [],
@@ -33,10 +36,68 @@ const SESSION_A: ChatSessionRecord = {
 
 const SESSION_B: ChatSessionRecord = {
   ...SESSION_A,
-  conversationId: "chat-b",
+  conversationId: "chat-00000000-0000-4000-8000-00000000000b",
   createdAt: "2026-06-17T01:00:00.000Z",
   updatedAt: "2026-06-17T01:00:00.000Z",
 };
+
+describe("conversationId の規則", () => {
+  // BFF (`packages/bff/domain/chat-session.ts`) と同じ規則。ここが緩むと、送信のたびに
+  // "conversationId must be 33-256 chars ..." で 400 になる状態から UI だけでは復帰できない。
+  test("33 文字未満 / 英数字以外で始まる / 使えない文字を含む ID を弾く", () => {
+    expect(isRuntimeSessionId("chat-a")).toBe(false);
+    expect(isRuntimeSessionId("-00000000-0000-4000-8000-000000000000")).toBe(
+      false,
+    );
+    expect(isRuntimeSessionId("chat-1794285157123-0.4815162342")).toBe(false);
+    expect(isRuntimeSessionId("a".repeat(33))).toBe(true);
+    expect(isRuntimeSessionId("a".repeat(32))).toBe(false);
+    expect(isRuntimeSessionId("a".repeat(256))).toBe(true);
+    expect(isRuntimeSessionId("a".repeat(257))).toBe(false);
+  });
+
+  test("createConversationId は常に規則を満たす", () => {
+    expect(isRuntimeSessionId(createConversationId())).toBe(true);
+    // crypto.randomUUID が無い環境の fallback も含めて検証する。
+    const originalCrypto = globalThis.crypto;
+    Object.defineProperty(globalThis, "crypto", {
+      configurable: true,
+      value: { ...originalCrypto, randomUUID: undefined },
+    });
+    try {
+      expect(isRuntimeSessionId(createConversationId())).toBe(true);
+    } finally {
+      Object.defineProperty(globalThis, "crypto", {
+        configurable: true,
+        value: originalCrypto,
+      });
+    }
+  });
+
+  test("normalizeConversationId は規則外の入力を新しい ID に置き換える", () => {
+    expect(normalizeConversationId(` ${SESSION_A.conversationId} `)).toBe(
+      SESSION_A.conversationId,
+    );
+
+    for (const invalid of ["", "   ", "chat-a", "my session"]) {
+      const normalized = normalizeConversationId(invalid);
+      expect(normalized).not.toBe(invalid.trim());
+      expect(isRuntimeSessionId(normalized)).toBe(true);
+    }
+  });
+
+  test("規則外の conversationId を持つ履歴は読み込み時に捨てる", () => {
+    const storage = new MemoryStorage();
+    storage.setItem(
+      SESSION_HISTORY_STORAGE_NAME,
+      JSON.stringify([{ ...SESSION_A, conversationId: "chat-a" }, SESSION_B]),
+    );
+
+    expect(
+      loadSessionHistory(storage).map((item) => item.conversationId),
+    ).toEqual([SESSION_B.conversationId]);
+  });
+});
 
 describe("session history persistence", () => {
   test("保存済み session を createdAt 降順で読み込む", () => {
@@ -52,7 +113,10 @@ describe("session history persistence", () => {
 
     expect(
       loadSessionHistory(storage).map((item) => item.conversationId),
-    ).toEqual(["chat-b", "chat-a"]);
+    ).toEqual([
+      "chat-00000000-0000-4000-8000-00000000000b",
+      "chat-00000000-0000-4000-8000-00000000000a",
+    ]);
   });
 
   test("壊れた localStorage 値は空配列として扱う", () => {
@@ -96,7 +160,7 @@ describe("session list updates", () => {
   test("messages からタイトル、preview、件数を更新する", () => {
     const sessions = updateSessionMessages(
       [SESSION_A],
-      "chat-a",
+      "chat-00000000-0000-4000-8000-00000000000a",
       [
         {
           id: "m1",
@@ -113,7 +177,7 @@ describe("session list updates", () => {
     );
 
     expect(sessions[0]).toMatchObject({
-      conversationId: "chat-a",
+      conversationId: "chat-00000000-0000-4000-8000-00000000000a",
       messageCount: 2,
       preview: "通告義務は第6条に定められています。",
       title: "児童虐待防止法の通告義務を教えて",
@@ -123,7 +187,9 @@ describe("session list updates", () => {
     if (!updated) {
       throw new Error("updated session was not created");
     }
-    expect(messagesForSession(sessions, "chat-a")).toEqual(updated.messages);
+    expect(
+      messagesForSession(sessions, "chat-00000000-0000-4000-8000-00000000000a"),
+    ).toEqual(updated.messages);
   });
 
   test("AWS session を既存 local 履歴へ追加する", () => {
@@ -135,7 +201,7 @@ describe("session list updates", () => {
           createdAt: "2026-06-17T04:00:00.000Z",
         },
         {
-          conversationId: "chat-a",
+          conversationId: "chat-00000000-0000-4000-8000-00000000000a",
           createdAt: "2026-06-17T05:00:00.000Z",
         },
       ],
@@ -157,20 +223,27 @@ describe("session list updates", () => {
 
   test("既存 session を選択しても createdAt 順を維持する", () => {
     expect(
-      ensureSession([SESSION_A, SESSION_B], "chat-a").map(
-        (session) => session.conversationId,
-      ),
-    ).toEqual(["chat-b", "chat-a"]);
+      ensureSession(
+        [SESSION_A, SESSION_B],
+        "chat-00000000-0000-4000-8000-00000000000a",
+      ).map((session) => session.conversationId),
+    ).toEqual([
+      "chat-00000000-0000-4000-8000-00000000000b",
+      "chat-00000000-0000-4000-8000-00000000000a",
+    ]);
   });
 
   test("古い session の messages を更新しても createdAt 順を維持する", () => {
     expect(
       updateSessionMessages(
         [SESSION_A, SESSION_B],
-        "chat-a",
+        "chat-00000000-0000-4000-8000-00000000000a",
         [{ id: "m1", role: "user", text: "older session update" }],
         new Date("2026-06-17T03:00:00.000Z"),
       ).map((session) => session.conversationId),
-    ).toEqual(["chat-b", "chat-a"]);
+    ).toEqual([
+      "chat-00000000-0000-4000-8000-00000000000b",
+      "chat-00000000-0000-4000-8000-00000000000a",
+    ]);
   });
 });

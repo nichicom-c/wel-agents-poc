@@ -16,6 +16,7 @@ export type {
 export {
   createConversationId,
   ensureSession,
+  isRuntimeSessionId,
   loadSessionHistory,
   MAX_SESSION_HISTORY_ITEMS,
   mergeRemoteSessions,

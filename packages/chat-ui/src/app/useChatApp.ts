@@ -29,6 +29,7 @@ import {
   createConversationId,
   ensureSession,
   isAgentCoreMemoryNotConfiguredError,
+  isRuntimeSessionId,
   loadSessionHistory,
   mergeRemoteSessions,
   messagesForSession,
@@ -68,12 +69,14 @@ type InitialChatState = {
 
 function getInitialChatState(): InitialChatState {
   const storedSessions = loadSessionHistory();
+  // localStorage / session history には旧形式の conversationId が残りうる。BFF は規則に合わない
+  // ID を 400 で弾くので、復元した候補も規則で絞らないと送信のたびにエラーになる。
   const storedConversationId =
     localStorage.getItem(CONVERSATION_STORAGE_NAME)?.trim() || "";
   const conversationId =
-    storedConversationId ||
-    storedSessions[0]?.conversationId ||
-    createConversationId();
+    [storedConversationId, storedSessions[0]?.conversationId ?? ""].find(
+      isRuntimeSessionId,
+    ) || createConversationId();
   const sessions = ensureSession(storedSessions, conversationId);
   return {
     conversationId,
