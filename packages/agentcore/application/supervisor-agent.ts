@@ -58,6 +58,10 @@ export type { AgentDeps } from "./agent-deps.ts";
  * support_activity_rag_agent は自治体の支援活動の行データと集計を扱い、database_rag_agent は
  * 顧客 / 注文 / 商品 を扱う。日本の法律に関する質問では、該当する専門 agent に委譲し、出典の根拠なしに
  * 自分の知識から回答しないこと。専門 agent に問い合わせることなく、自分の事前知識から回答してはならない。
+ * 専門 agent が返した出典 (書名・章/編・単元・ページ・条文・URL) は、統合の過程で落とさずそのまま保持する
+ * こと。回答の末尾に「出典」セクションを置き、実際に参照した箇所 (書名 / 章・編・単元 / ページまたは条文)
+ * を列挙する。専門 agent が示さなかった出典を自分で補ってはならない。出典が得られなかった記述は、出典が
+ * 無いことを明示する。複数の専門 agent を呼んだ場合は、どの記述がどの出典由来かが分かるようにまとめる。
  */
 export const SUPERVISOR_SYSTEM_PROMPT =
   "You are a supervisor that routes a user's question to the most appropriate specialist " +
@@ -83,7 +87,13 @@ export const SUPERVISOR_SYSTEM_PROMPT =
   "guidebook on record-writing practice rather than on 制度. Keep structured data distinct: support_activity_rag_agent " +
   "is for municipal support activity rows and aggregates, while database_rag_agent is for customers/orders/products. For Japanese-law questions, delegate to the " +
   "matching specialist and do not answer from your own knowledge without a source basis. Never " +
-  "answer from your own prior knowledge without consulting a specialist.";
+  "answer from your own prior knowledge without consulting a specialist.\n" +
+  "Preserve every citation a specialist returns (書名, 章/編, 単元, ページ, 条文, URL) — do not drop " +
+  "them while integrating. End your answer with a 出典 section listing the passages that were " +
+  "actually consulted (書名 / 章・編・単元 / ページ or 条文). Never invent a citation a specialist did " +
+  "not give you; if a specialist returned no source for a point, say so rather than supplying one. " +
+  "When you call more than one specialist, group the 出典 so the reader can tell which claim came " +
+  "from which source.";
 
 /** 複数の専門 agent を supervisor 用 tool に変換して返す。 */
 export function buildSpecialistTools(deps: AgentDeps): Tool[] {

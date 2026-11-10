@@ -7,7 +7,10 @@ import type {
 import type { Config } from "../infra/config.ts";
 import type { RetrieveClient } from "../infra/knowledge-base.ts";
 import type { AgentDeps } from "./agent-deps.ts";
-import { buildSupervisor } from "./supervisor-agent.ts";
+import {
+  buildSupervisor,
+  SUPERVISOR_SYSTEM_PROMPT,
+} from "./supervisor-agent.ts";
 
 function makeConfig(): Config {
   return {
@@ -56,5 +59,12 @@ describe("buildSupervisor", () => {
       "medical_care_law_rag_agent",
       "support_activity_rag_agent",
     ]);
+  });
+
+  // 専門 agent は出典を返すが、supervisor が統合時にそれを落とすとユーザーには参照先が見えない。
+  test("出典を保持し、末尾に出典セクションを出すよう指示する", () => {
+    expect(SUPERVISOR_SYSTEM_PROMPT).toContain("Preserve every citation");
+    expect(SUPERVISOR_SYSTEM_PROMPT).toContain("出典 section");
+    expect(SUPERVISOR_SYSTEM_PROMPT).toContain("Never invent a citation");
   });
 });

@@ -27,10 +27,53 @@ export const NO_INFORMATION_MESSAGE =
   "No relevant information was found in this knowledge base.";
 
 /**
- * Retrieve レスポンスから本文チャンクを連結する。
+ * Bedrock が自分で付ける内部 metadata key の prefix。chunk ID や data source ID は出典として
+ * 意味を持たないので、LLM に渡す source block からは落とす。
+ */
+const INTERNAL_METADATA_PREFIX = "x-amz-bedrock-kb-";
+
+/**
+ * 1 chunk 分の出典ヘッダを組み立てる。
  *
- * Retrieve は `retrievalResults[].content.text` に本文を返す。スコア順に並んだ上位チャンクを
- * そのまま連結して LLM へ渡す。空・型不一致の項目は読み飛ばし、結果が無ければ定型文を返す。
+ * corpus ごとに metadata の key は違う（保健師記録は section_title / unit_title / output_page、
+ * 医療法令は chapter_title / output_page、法令は article / source_url、document / database は
+ * 実質なし）ので、key を決め打ちせず corpus 側が付けた属性をそのまま並べる。key 順は安定させる。
+ */
+export function formatSourceHeader(
+  index: number,
+  item: NonNullable<RetrieveCommandOutput["retrievalResults"]>[number],
+): string {
+  const parts = [`[source ${index}]`];
+
+  const uri = item.location?.s3Location?.uri?.trim();
+  if (uri) {
+    parts.push(uri);
+  }
+
+  if (typeof item.score === "number" && Number.isFinite(item.score)) {
+    parts.push(`(score ${item.score.toFixed(3)})`);
+  }
+
+  const attributes = Object.entries(item.metadata ?? {})
+    .filter(([key]) => !key.startsWith(INTERNAL_METADATA_PREFIX))
+    .map(([key, value]) => [key, String(value).trim()] as const)
+    .filter(([, value]) => value !== "")
+    .sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0))
+    .map(([key, value]) => `${key}=${value}`);
+
+  const header = parts.join(" ");
+  return attributes.length > 0
+    ? `${header}\nmetadata: ${attributes.join("; ")}`
+    : header;
+}
+
+/**
+ * Retrieve レスポンスを、出典つきの chunk 列に整形する。
+ *
+ * Retrieve は本文を `retrievalResults[].content.text`、出典を `.location` / `.metadata` / `.score`
+ * に分けて返す。本文だけを渡すと、専門 agent の system prompt が「retrieved chunk の metadata から
+ * ページを引用せよ」と指示していても引用元の情報が手元に無く、ページを示せない（本文に出典 footer を
+ * 埋め込んだ corpus でだけ偶然うまくいく）。chunk ごとに出典ヘッダを付けて渡す。
  */
 export function formatRetrievalResults(
   response: RetrieveCommandOutput,
@@ -39,7 +82,7 @@ export function formatRetrievalResults(
   for (const item of response.retrievalResults ?? []) {
     const text = item.content?.text?.trim();
     if (text) {
-      chunks.push(text);
+      chunks.push(`${formatSourceHeader(chunks.length + 1, item)}\n${text}`);
     }
   }
   return chunks.length > 0 ? chunks.join("\n\n") : NO_INFORMATION_MESSAGE;
