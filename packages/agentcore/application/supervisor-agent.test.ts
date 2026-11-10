@@ -18,6 +18,7 @@ function makeConfig(): Config {
       document: "kb-doc",
       law: "kb-law",
       medical_care_law: "kb-medical-care-law",
+      hokenshi_kiroku: "kb-hokenshi-kiroku",
     },
     memoryId: undefined,
     numberOfResults: 5,
@@ -50,6 +51,7 @@ describe("buildSupervisor", () => {
     expect(supervisor.tools.map((t) => t.name).sort()).toEqual([
       "database_rag_agent",
       "document_rag_agent",
+      "hokenshi_kiroku_rag_agent",
       "law_rag_agent",
       "medical_care_law_rag_agent",
       "support_activity_rag_agent",

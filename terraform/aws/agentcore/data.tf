@@ -35,8 +35,9 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "data" {
 }
 
 # data/ 配下をすべて upload する。key は data/ からの相対 path となる。law-manifests/ ·
-# medical-care-law-manifests/ は ingestion 対象 prefix の外側に置かれる review manifest。structured-data/ は
-# SQL Knowledge Base / Redshift Spectrum 向けの synthetic CSV / Parquet。
+# medical-care-law-manifests/ · hokenshi-kiroku-manifests/ は ingestion 対象 prefix の外側に置かれる
+# review manifest。structured-data/ は SQL Knowledge Base / Redshift Spectrum 向けの synthetic CSV /
+# Parquet。原本（スキャン PDF・切り出し画像）はここには置かない（gitignore 済みの tmp/ に残す）。
 resource "aws_s3_object" "data" {
   for_each = fileset("${path.module}/data", "**/*")
 

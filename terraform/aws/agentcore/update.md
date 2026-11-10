@@ -91,14 +91,17 @@ curl -fsS localhost:8080/ping
 
 ## (B) vector ナレッジ文書（`data/`）を更新
 
-Vector KB の文書は `data/<domain>/` 配下（`database/` · `document/` · `law/` · `medical-care-law/`）。
-`aws_s3_object.data` が `etag = filemd5(...)` で差分管理する（`data.tf`）。`law/` · `medical-care-law/` の
-corpus は手編集せず generator で再生成する：`law/` の児童虐待防止法 corpus は
-`bun run law:generate:child-abuse-prevention`（`tools/law-rag/`、e-Gov 法令 API v2）、`medical-care-law/` の
-保険診療基本法令テキストブック OCR corpus は `bun run medical-care-law:generate:textbook`
-（`tools/medical-care-law-rag/`、要 tesseract jpn language data）で生成する。`data/law-manifests/` ·
-`data/medical-care-law-manifests/` は監査・OCR review 用 manifest で、各ドメイン prefix 外のため
-ingestion されない（bucket には upload される）。
+Vector KB の文書は `data/<domain>/` 配下（`database/` · `document/` · `law/` · `medical-care-law/` ·
+`hokenshi-kiroku/`）。`aws_s3_object.data` が `etag = filemd5(...)` で差分管理する（`data.tf`）。`law/` ·
+`medical-care-law/` · `hokenshi-kiroku/` の corpus は手編集せず generator で再生成する：`law/` の
+児童虐待防止法 corpus は `bun run law:generate:child-abuse-prevention`（`tools/law-rag/`、e-Gov 法令 API v2）、
+`medical-care-law/` の保険診療基本法令テキストブック OCR corpus は
+`bun run medical-care-law:generate:textbook`（`tools/medical-care-law-rag/`、要 tesseract jpn language data）、
+`hokenshi-kiroku/` の『こう書けばわかる！保健師記録』corpus は `bun run hokenshi-kiroku:assemble:corpus`
+（`tools/hokenshi-kiroku-rag/`、入力は gitignore 済みの `tmp/hokenshi-kiroku/`）で生成する。
+`data/law-manifests/` · `data/medical-care-law-manifests/` · `data/hokenshi-kiroku-manifests/` は
+監査・review 用 manifest で、各ドメイン prefix 外のため ingestion されない（bucket には upload される）。
+原本（スキャン PDF・切り出し画像）は `data/` に置かず `tmp/` に残す。
 
 ```bash
 # 1) data/<domain>/ 配下のファイルを編集・追加・削除

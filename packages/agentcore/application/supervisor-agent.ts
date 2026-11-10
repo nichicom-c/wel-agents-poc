@@ -16,6 +16,10 @@ import {
   buildDocumentTool,
   DOCUMENT_TOOL_NAME,
 } from "./specialists/document-agent.ts";
+import {
+  buildHokenshiKirokuTool,
+  HOKENSHI_KIROKU_TOOL_NAME,
+} from "./specialists/hokenshi-kiroku-agent.ts";
 import { buildLawTool, LAW_TOOL_NAME } from "./specialists/law-agent.ts";
 import {
   buildMedicalCareLawTool,
@@ -40,12 +44,17 @@ export type { AgentDeps } from "./agent-deps.ts";
  * - medical_care_law_rag_agent: 保険診療 基本法令テキストブックに基づく、日本の保険診療
  *   (健康保険による医療) に関する質問 — 医療保険制度・公費負担医療制度・保険医療機関と保険医・
  *   療養担当規則・診療報酬請求と審査制度・医療関係法規・介護保険制度。
+ * - hokenshi_kiroku_rag_agent: 書籍『こう書けばわかる！保健師記録』に基づく、保健師記録の書き方に
+ *   関する質問 — 記録のガイドライン・Plan/Do/See・SOAP ノート・精神障害者のインテーク面接記録・
+ *   虐待を疑う母子の訪問記録・会議録とサマリー・グループ支援記録・記録の管理・記録様式のフォーマット例。
  * - support_activity_rag_agent: 合成された自治体の支援活動の構造化データに関する質問
  *   — 住民台帳・世帯・支援ケース・活動ログ・件数・対応期限ケース・訪問・電話・窓口対応など。
  * 質問に対して最適な専門 agent を1つ選び、その tool を呼び出すこと。質問が明確に複数のドメインに
  * またがる場合は、複数の専門 agent を呼び出してそれらの回答を統合してよい。法律ドメインは区別すること:
  * law_rag_agent は日本の一次法令 (児童虐待防止法 の一次法令) を扱い、medical_care_law_rag_agent は
- * 保険診療 基本法令テキストブックという保険診療の学習教材を扱う。構造化データも区別すること:
+ * 保険診療 基本法令テキストブックという保険診療の学習教材を扱う。medical_care_law_rag_agent は保険診療の
+ * 制度を扱い、hokenshi_kiroku_rag_agent は保健師が記録をどう書くかという実務を扱う点で区別すること。
+ * 構造化データも区別すること:
  * support_activity_rag_agent は自治体の支援活動の行データと集計を扱い、database_rag_agent は
  * 顧客 / 注文 / 商品 を扱う。日本の法律に関する質問では、該当する専門 agent に委譲し、出典の根拠なしに
  * 自分の知識から回答しないこと。専門 agent に問い合わせることなく、自分の事前知識から回答してはならない。
@@ -60,13 +69,18 @@ export const SUPERVISOR_SYSTEM_PROMPT =
   `- ${MEDICAL_CARE_LAW_TOOL_NAME}: questions about Japanese health-insurance medical care ` +
   "(保険診療) grounded in the 保険診療 基本法令テキストブック — 医療保険制度, 公費負担医療制度, " +
   "保険医療機関と保険医, 療養担当規則, 診療報酬請求と審査制度, 医療関係法規, 介護保険制度.\n" +
+  `- ${HOKENSHI_KIROKU_TOOL_NAME}: questions about how 保健師 should write their records (保健師記録), ` +
+  "grounded in the guidebook こう書けばわかる！保健師記録 — 保健師記録のガイドライン, Plan/Do/See で書く記録, " +
+  "SOAP ノート, 精神障害者のインテーク面接記録, 虐待を疑う母子の訪問記録, 会議録とサマリー, グループ支援記録, " +
+  "記録の管理, 記録様式のフォーマット例.\n" +
   `- ${SUPPORT_ACTIVITY_TOOL_NAME}: questions about the synthetic municipal support activity ` +
   "structured data — resident ledger, households, support cases, activity logs, counts, due cases, visits, phone, and counter activities.\n" +
   "Choose the single best specialist for the question and call its tool. If a question " +
   "clearly spans more than one domain, you may call multiple specialists and combine their " +
   "answers. Keep the law domains distinct: law_rag_agent is for primary Japanese statutes " +
   "(児童虐待防止法 の一次法令), while medical_care_law_rag_agent is for the 保険診療 基本法令テキストブック " +
-  "study material on health-insurance medical care. Keep structured data distinct: support_activity_rag_agent " +
+  "study material on health-insurance medical care, and hokenshi_kiroku_rag_agent is for the 保健師記録 " +
+  "guidebook on record-writing practice rather than on 制度. Keep structured data distinct: support_activity_rag_agent " +
   "is for municipal support activity rows and aggregates, while database_rag_agent is for customers/orders/products. For Japanese-law questions, delegate to the " +
   "matching specialist and do not answer from your own knowledge without a source basis. Never " +
   "answer from your own prior knowledge without consulting a specialist.";
@@ -78,6 +92,7 @@ export function buildSpecialistTools(deps: AgentDeps): Tool[] {
     buildDocumentTool(deps),
     buildLawTool(deps),
     buildMedicalCareLawTool(deps),
+    buildHokenshiKirokuTool(deps),
     buildSupportActivityTool(deps),
   ];
 }

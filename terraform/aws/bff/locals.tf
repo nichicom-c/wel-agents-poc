@@ -15,12 +15,14 @@ locals {
   dev_info_document_kb_id         = trimspace(var.dev_info_document_kb_id)
   dev_info_law_kb_id              = trimspace(var.dev_info_law_kb_id)
   dev_info_medical_care_law_kb_id = trimspace(var.dev_info_medical_care_law_kb_id)
+  dev_info_hokenshi_kiroku_kb_id  = trimspace(var.dev_info_hokenshi_kiroku_kb_id)
   dev_info_support_activity_kb_id = trimspace(var.dev_info_support_activity_kb_id)
   knowledge_base_ids = distinct(compact([
     local.dev_info_database_kb_id,
     local.dev_info_document_kb_id,
     local.dev_info_law_kb_id,
     local.dev_info_medical_care_law_kb_id,
+    local.dev_info_hokenshi_kiroku_kb_id,
     local.dev_info_support_activity_kb_id,
   ]))
   knowledge_base_arns = [

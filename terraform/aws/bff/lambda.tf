@@ -37,6 +37,7 @@ resource "aws_lambda_function" "this" {
         DEV_INFO_DOCUMENT_KB_ID           = local.dev_info_document_kb_id
         DEV_INFO_LAW_KB_ID                = local.dev_info_law_kb_id
         DEV_INFO_MEDICAL_CARE_LAW_KB_ID   = local.dev_info_medical_care_law_kb_id
+        DEV_INFO_HOKENSHI_KIROKU_KB_ID    = local.dev_info_hokenshi_kiroku_kb_id
         DEV_INFO_SUPPORT_ACTIVITY_KB_ID   = local.dev_info_support_activity_kb_id
         DEV_INFO_JWT_ISSUER               = var.jwt_issuer
         DEV_INFO_LAMBDA_LOG_GROUP_NAME    = aws_cloudwatch_log_group.lambda.name

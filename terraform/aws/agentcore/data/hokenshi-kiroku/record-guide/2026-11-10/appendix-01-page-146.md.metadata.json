@@ -1,0 +1,16 @@
+{
+  "metadataAttributes": {
+    "corpus_id": "hokenshi-kiroku-record-guide",
+    "source_title": "こう書けばわかる！保健師記録",
+    "section": "appendix",
+    "section_title": "付録",
+    "unit": "1",
+    "unit_title": "保健師記録を現場で共有しよう",
+    "source_file": "こう書けばわかる保健師記録.pdf",
+    "source_page": "146",
+    "output_page": "146",
+    "conversion": "pdf-markdown",
+    "generated_at": "2026-11-10T00:00:00.000Z",
+    "content_type": "body"
+  }
+}

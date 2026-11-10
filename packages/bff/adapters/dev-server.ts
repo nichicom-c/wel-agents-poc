@@ -244,6 +244,7 @@ export async function handleBffDevRequest(
               documentKbId: config.knowledgeBaseIds.document,
               lawKbId: config.knowledgeBaseIds.law,
               localRuntimeUrl: config.agentCoreRuntimeUrl,
+              hokenshiKirokuKbId: config.knowledgeBaseIds.hokenshi_kiroku,
               medicalCareLawKbId: config.knowledgeBaseIds.medical_care_law,
               memoryId: config.agentCoreMemoryId,
               region: config.region,
@@ -907,6 +908,9 @@ function knowledgeBaseIdsFromEnv(env: NodeJS.ProcessEnv): KnowledgeBaseIds {
     medical_care_law:
       clean(env.DEV_INFO_MEDICAL_CARE_LAW_KB_ID) ||
       clean(env.MEDICAL_CARE_LAW_KB_ID),
+    hokenshi_kiroku:
+      clean(env.DEV_INFO_HOKENSHI_KIROKU_KB_ID) ||
+      clean(env.HOKENSHI_KIROKU_KB_ID),
     support_activity:
       clean(env.DEV_INFO_SUPPORT_ACTIVITY_KB_ID) ||
       clean(env.SUPPORT_ACTIVITY_KB_ID),

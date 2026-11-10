@@ -12,7 +12,13 @@ function makeConfig(memoryId?: string): Config {
   return {
     modelId: "test-model",
     region: "ap-northeast-1",
-    kbIds: { database: "", document: "", law: "", medical_care_law: "" },
+    kbIds: {
+      database: "",
+      hokenshi_kiroku: "",
+      document: "",
+      law: "",
+      medical_care_law: "",
+    },
     memoryId,
     numberOfResults: 5,
     supportActivity: { kbId: "", kbArn: "", includeGeneratedSql: false },

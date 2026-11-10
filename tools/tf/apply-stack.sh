@@ -139,12 +139,13 @@ apply_bff() {
   # present; still inject each only when non-empty so a partial agentcore state
   # degrades to "not_configured" rather than clobbering it, and a manual
   # terraform.tfvars override survives when the upstream output is absent.
-  local kb_json kb_database kb_document kb_law kb_medical_care_law kb_support_activity memory_id
+  local kb_json kb_database kb_document kb_law kb_medical_care_law kb_hokenshi_kiroku kb_support_activity memory_id
   kb_json="$(tf_out_json agentcore knowledge_base_ids 2>/dev/null || echo '{}')"
   kb_database="$(printf '%s' "${kb_json}" | mise exec -- jq -r '.database // ""')"
   kb_document="$(printf '%s' "${kb_json}" | mise exec -- jq -r '.document // ""')"
   kb_law="$(printf '%s' "${kb_json}" | mise exec -- jq -r '.law // ""')"
   kb_medical_care_law="$(printf '%s' "${kb_json}" | mise exec -- jq -r '.medical_care_law // ""')"
+  kb_hokenshi_kiroku="$(printf '%s' "${kb_json}" | mise exec -- jq -r '.hokenshi_kiroku // ""')"
   kb_support_activity="$(printf '%s' "${kb_json}" | mise exec -- jq -r '.support_activity // ""')"
   memory_id="$(tf_out_raw agentcore memory_id 2>/dev/null || echo "")"
 
@@ -155,9 +156,10 @@ apply_bff() {
   if [ -n "${kb_document}" ]; then dev_info_vars+=(-var "dev_info_document_kb_id=${kb_document}"); fi
   if [ -n "${kb_law}" ]; then dev_info_vars+=(-var "dev_info_law_kb_id=${kb_law}"); fi
   if [ -n "${kb_medical_care_law}" ]; then dev_info_vars+=(-var "dev_info_medical_care_law_kb_id=${kb_medical_care_law}"); fi
+  if [ -n "${kb_hokenshi_kiroku}" ]; then dev_info_vars+=(-var "dev_info_hokenshi_kiroku_kb_id=${kb_hokenshi_kiroku}"); fi
   if [ -n "${kb_support_activity}" ]; then dev_info_vars+=(-var "dev_info_support_activity_kb_id=${kb_support_activity}"); fi
   if [ -n "${memory_id}" ]; then dev_info_vars+=(-var "dev_info_agentcore_memory_id=${memory_id}"); fi
-  echo "[INFO] bff: dev-info IDs — database=${kb_database:-none} document=${kb_document:-none} law=${kb_law:-none} medical_care_law=${kb_medical_care_law:-none} support_activity=${kb_support_activity:-none} memory=${memory_id:-none}"
+  echo "[INFO] bff: dev-info IDs — database=${kb_database:-none} document=${kb_document:-none} law=${kb_law:-none} medical_care_law=${kb_medical_care_law:-none} hokenshi_kiroku=${kb_hokenshi_kiroku:-none} support_activity=${kb_support_activity:-none} memory=${memory_id:-none}"
 
   echo "[INFO] bff: build Lambda bundle"
   mise exec -- bun run --cwd "${REPO_ROOT}" build:bff

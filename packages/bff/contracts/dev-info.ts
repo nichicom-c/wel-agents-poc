@@ -25,6 +25,7 @@ export type DevInfoResponse = {
     document: string;
     law: string;
     medical_care_law: string;
+    hokenshi_kiroku: string;
     support_activity: string;
   };
   memory: {

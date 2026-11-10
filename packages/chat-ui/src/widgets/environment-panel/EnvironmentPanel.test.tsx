@@ -30,6 +30,7 @@ const DEV_INFO: DevInfo = {
     document: "not_configured",
     law: "KBLAW0001",
     medical_care_law: "KBMED00001",
+    hokenshi_kiroku: "KBHOK00001",
     support_activity: "KBSUP00001",
   },
   memory: { id: "memory-1" },

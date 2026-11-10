@@ -12,6 +12,7 @@ const CONFIG: Config = {
     document: "c",
     law: "d",
     medical_care_law: "e",
+    hokenshi_kiroku: "e-hokenshi",
   },
   memoryId: undefined,
   numberOfResults: 5,

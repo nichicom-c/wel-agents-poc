@@ -23,6 +23,7 @@ function makeConfig(): Config {
       document: "kb-doc",
       law: "kb-law",
       medical_care_law: "kb-medical-care-law",
+      hokenshi_kiroku: "kb-hokenshi-kiroku",
     },
     memoryId: undefined,
     numberOfResults: 5,

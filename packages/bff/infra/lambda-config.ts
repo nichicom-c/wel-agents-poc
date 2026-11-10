@@ -76,6 +76,7 @@ export function configFromEnv(env: EnvSource = process.env): LambdaConfig {
       documentKbId: cleanOptional(env.DEV_INFO_DOCUMENT_KB_ID),
       lawKbId: cleanOptional(env.DEV_INFO_LAW_KB_ID),
       medicalCareLawKbId: cleanOptional(env.DEV_INFO_MEDICAL_CARE_LAW_KB_ID),
+      hokenshiKirokuKbId: cleanOptional(env.DEV_INFO_HOKENSHI_KIROKU_KB_ID),
       supportActivityKbId: cleanOptional(env.DEV_INFO_SUPPORT_ACTIVITY_KB_ID),
       jwtIssuer: cleanOptional(env.DEV_INFO_JWT_ISSUER),
       lambdaFunctionName: cleanOptional(env.AWS_LAMBDA_FUNCTION_NAME),

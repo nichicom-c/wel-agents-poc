@@ -13,6 +13,7 @@ function makeConfig(memoryId?: string): Config {
       document: "kb3",
       law: "kb4",
       medical_care_law: "kb5",
+      hokenshi_kiroku: "kb6",
     },
     memoryId,
     numberOfResults: 5,
@@ -33,6 +34,7 @@ const EMPTY_CONFIG: Config = {
     document: "",
     law: "",
     medical_care_law: "",
+    hokenshi_kiroku: "",
   },
   memoryId: undefined,
   numberOfResults: 5,
@@ -83,7 +85,7 @@ describe("streamResponse", () => {
       {
         type: "error",
         message:
-          "Missing required configuration: BEDROCK_MODEL_ID, DATABASE_KB_ID, DOCUMENT_KB_ID, LAW_KB_ID, MEDICAL_CARE_LAW_KB_ID, SUPPORT_ACTIVITY_KB_ID",
+          "Missing required configuration: BEDROCK_MODEL_ID, DATABASE_KB_ID, DOCUMENT_KB_ID, LAW_KB_ID, MEDICAL_CARE_LAW_KB_ID, HOKENSHI_KIROKU_KB_ID, SUPPORT_ACTIVITY_KB_ID",
       },
     ]);
   });

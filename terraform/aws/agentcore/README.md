@@ -1,6 +1,6 @@
 # agentcore
 
-Amazon Bedrock AgentCore Runtime 上に、**supervisor + 複数の専門 RAG agent** の TypeScript runtime を構築する Terraform module。4つの既存専門 agent はそれぞれ独立した Bedrock vector Knowledge Base（vector store は **S3 Vectors**）を検索し、追加の `support_activity` agent は Bedrock **SQL Knowledge Base** から Redshift Spectrum / Glue Data Catalog backed by S3 Parquet を検索する。比較用に、同じ `law/` corpus を OpenSearch Serverless + `HIERARCHICAL` chunking へ取り込む `law_hierarchical` Knowledge Base も作成できるが（`enable_law_hierarchical_comparison = true` の場合のみ、既定は false）、通常の `law_rag_agent` は引き続き S3 Vectors 版の `LAW_KB_ID` を使う。supervisor が質問を分類・委譲・統合し、会話履歴は **AgentCore Memory**（short-term）で session / actor 単位に保持する。
+Amazon Bedrock AgentCore Runtime 上に、**supervisor + 複数の専門 RAG agent** の TypeScript runtime を構築する Terraform module。5つの既存専門 agent はそれぞれ独立した Bedrock vector Knowledge Base（vector store は **S3 Vectors**）を検索し、追加の `support_activity` agent は Bedrock **SQL Knowledge Base** から Redshift Spectrum / Glue Data Catalog backed by S3 Parquet を検索する。比較用に、同じ `law/` corpus を OpenSearch Serverless + `HIERARCHICAL` chunking へ取り込む `law_hierarchical` Knowledge Base も作成できるが（`enable_law_hierarchical_comparison = true` の場合のみ、既定は false）、通常の `law_rag_agent` は引き続き S3 Vectors 版の `LAW_KB_ID` を使う。supervisor が質問を分類・委譲・統合し、会話履歴は **AgentCore Memory**（short-term）で session / actor 単位に保持する。
 
 アプリ本体はこのリポジトリの [`packages/`](../../../packages)（Bun + TypeScript + Strands Agents）で、[`Dockerfile.agentcore`](../../../Dockerfile.agentcore) の builder stage が `packages/agentcore/index.ts` を `dist/agentcore/agentcore.mjs` に bundle し、runtime image には build 済み artifact だけをコピーする。そのイメージを **ECR** へ push し、AgentCore Runtime が container artifact として起動する（Python の direct code ZIP は使わない）。BFF が発行する AgentCore WebSocket URL には BFF-derived user / actor context を含めるため、この module は `X-Amzn-Bedrock-AgentCore-Runtime-Custom-ActorId` と `X-Amzn-Bedrock-AgentCore-Runtime-Custom-UserId` を Runtime の request header allowlist に登録する。通常の Chat UI は BFF の `POST /api/ws-url` で短命 presigned WebSocket URL を取得し、その URL で AgentCore Runtime `/ws` へ接続する。`POST /invocations` は non-streaming smoke / fallback path として残す。
 
@@ -25,6 +25,7 @@ flowchart LR
         docAgent["document_rag_agent"]
         lawAgent["law_rag_agent"]
         medAgent["medical_care_law_rag_agent"]
+        hokAgent["hokenshi_kiroku_rag_agent"]
         supportAgent["support_activity_rag_agent"]
     end
 
@@ -40,6 +41,7 @@ flowchart LR
     supervisor --> docAgent
     supervisor --> lawAgent
     supervisor --> medAgent
+    supervisor --> hokAgent
     supervisor --> supportAgent
 
     dbAgent --> dbRetrieve["Retrieve"]
@@ -61,6 +63,10 @@ flowchart LR
     medAgent --> medRetrieve["Retrieve"]
     medRetrieve --> medKb["KB(medical-care-law)"]
     medKb --> medVectors["S3 Vectors index"]
+
+    hokAgent --> hokRetrieve["Retrieve"]
+    hokRetrieve --> hokKb["KB(hokenshi-kiroku)"]
+    hokKb --> hokVectors["S3 Vectors index"]
 
     supportAgent --> supportRetrieve["Retrieve<br/>(SQL KB)"]
     supportRetrieve --> supportKb["KB(support_activity)<br/>SQL"]

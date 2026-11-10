@@ -1,0 +1,16 @@
+{
+  "metadataAttributes": {
+    "corpus_id": "hokenshi-kiroku-record-guide",
+    "source_title": "こう書けばわかる！保健師記録",
+    "section": "jissen",
+    "section_title": "実践編",
+    "unit": "1",
+    "unit_title": "保健師の思考過程を Plan/Do/See で書く",
+    "source_file": "こう書けばわかる保健師記録.pdf",
+    "source_page": "38",
+    "output_page": "38",
+    "conversion": "pdf-markdown",
+    "generated_at": "2026-11-10T00:00:00.000Z",
+    "content_type": "body"
+  }
+}

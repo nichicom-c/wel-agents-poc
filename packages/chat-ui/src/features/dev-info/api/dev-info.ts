@@ -36,6 +36,7 @@ export type DevInfo = {
     document: string;
     law: string;
     medical_care_law: string;
+    hokenshi_kiroku: string;
     support_activity: string;
   };
   memory: {
@@ -122,6 +123,7 @@ function normalizeDevInfo(
       law: text(knowledgeBases.law) || "not_configured",
       medical_care_law:
         text(knowledgeBases.medical_care_law) || "not_configured",
+      hokenshi_kiroku: text(knowledgeBases.hokenshi_kiroku) || "not_configured",
       support_activity:
         text(knowledgeBases.support_activity) || "not_configured",
     },

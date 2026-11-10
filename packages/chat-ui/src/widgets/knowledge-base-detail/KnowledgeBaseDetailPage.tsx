@@ -43,6 +43,7 @@ const DOMAIN_LABELS: Record<KnowledgeBaseDomain, string> = {
   document: "KB document",
   law: "KB law",
   medical_care_law: "KB medical",
+  hokenshi_kiroku: "KB hokenshi",
   support_activity: "KB support",
 };
 

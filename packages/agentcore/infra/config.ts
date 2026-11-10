@@ -13,6 +13,7 @@ export const DOMAIN_KEYS = [
   "document",
   "law",
   "medical_care_law",
+  "hokenshi_kiroku",
 ] as const;
 
 export type DomainKey = (typeof DOMAIN_KEYS)[number];
@@ -26,6 +27,7 @@ export const KB_ENV_VARS: Record<DomainKey, string> = {
   document: "DOCUMENT_KB_ID",
   law: "LAW_KB_ID",
   medical_care_law: "MEDICAL_CARE_LAW_KB_ID",
+  hokenshi_kiroku: "HOKENSHI_KIROKU_KB_ID",
 };
 
 /** Knowledge Base retrieval で取得するチャンク数の既定値。 */

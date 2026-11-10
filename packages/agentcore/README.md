@@ -118,6 +118,7 @@ flowchart LR
 | `application/specialists/document-agent.ts` | document 専門 RAG agent と supervisor 用 tool 変換を定義します。 |
 | `application/specialists/law-agent.ts` | law（児童虐待防止法）専門 RAG agent と supervisor 用 tool 変換を定義します。 |
 | `application/specialists/medical-care-law-agent.ts` | medical_care_law（保険診療基本法令テキストブック）専門 RAG agent と supervisor 用 tool 変換を定義します。 |
+| `application/specialists/hokenshi-kiroku-agent.ts` | hokenshi_kiroku（こう書けばわかる！保健師記録）専門 RAG agent と supervisor 用 tool 変換を定義します。 |
 | `application/specialists/support-activity-agent.ts` | support_activity（住民台帳・世帯・支援ケース・活動ログの synthetic structured data）専門 agent と supervisor 用 tool 変換を定義します。 |
 | `application/supervisor-agent.ts` | 専門 tool を束ねた supervisor agent を組み立てます。 |
 | `application/message-text.ts` | Strands `Message` から user-facing な `textBlock` だけを連結して取り出します。 |

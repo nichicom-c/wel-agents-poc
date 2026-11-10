@@ -28,6 +28,7 @@ const TOOL_PROGRESS_LABELS: Record<string, string> = {
   document_rag_agent: "文書確認",
   law_rag_agent: "法令確認",
   medical_care_law_rag_agent: "医療関連法令確認",
+  hokenshi_kiroku_rag_agent: "保健師記録の書き方確認",
   support_activity_rag_agent: "支援活動データ確認",
 };
 

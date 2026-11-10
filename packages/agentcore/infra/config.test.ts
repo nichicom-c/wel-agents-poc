@@ -15,6 +15,7 @@ const FULL_ENV = {
   LAW_KB_ID: "kb-law",
   LAW_HIERARCHICAL_KB_ID: "kb-law-hierarchical",
   MEDICAL_CARE_LAW_KB_ID: "kb-medical-care-law",
+  HOKENSHI_KIROKU_KB_ID: "kb-hokenshi-kiroku",
   SUPPORT_ACTIVITY_KB_ID: "kb-support-activity",
   SUPPORT_ACTIVITY_KB_ARN:
     "arn:aws:bedrock:ap-northeast-1:123456789012:knowledge-base/KB12345678",
@@ -34,6 +35,7 @@ describe("configFromEnv", () => {
       document: "kb-doc",
       law: "kb-law",
       medical_care_law: "kb-medical-care-law",
+      hokenshi_kiroku: "kb-hokenshi-kiroku",
     });
     expect(config.lawHierarchicalKbId).toBe("kb-law-hierarchical");
     expect(config.supportActivity).toEqual({
@@ -166,6 +168,7 @@ describe("missingConfig", () => {
         document: "d",
         law: "l",
         medical_care_law: "m",
+        hokenshi_kiroku: "m-hokenshi",
       } as Record<DomainKey, string>,
       memoryId: undefined,
       numberOfResults: DEFAULT_NUMBER_OF_RESULTS,

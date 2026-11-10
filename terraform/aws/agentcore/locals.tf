@@ -8,6 +8,7 @@ locals {
     document         = { prefix = "document", description = "Internal documents, policies, and FAQs" }
     law              = { prefix = "law", description = "Japanese law corpus (児童虐待防止法 PoC)" }
     medical_care_law = { prefix = "medical-care-law", description = "Medical care insurance law textbook corpus" }
+    hokenshi_kiroku  = { prefix = "hokenshi-kiroku", description = "Public health nurse record-writing guidebook corpus (こう書けばわかる！保健師記録)" }
   }
 
   # bucket 名は account / region を含めて衝突を避ける（name_prefix を長くすると 63 文字上限に近づく）。
@@ -155,6 +156,7 @@ locals {
       DOCUMENT_KB_ID                         = aws_bedrockagent_knowledge_base.this["document"].id
       LAW_KB_ID                              = aws_bedrockagent_knowledge_base.this["law"].id
       MEDICAL_CARE_LAW_KB_ID                 = aws_bedrockagent_knowledge_base.this["medical_care_law"].id
+      HOKENSHI_KIROKU_KB_ID                  = aws_bedrockagent_knowledge_base.this["hokenshi_kiroku"].id
       SUPPORT_ACTIVITY_KB_ID                 = aws_bedrockagent_knowledge_base.support_activity.id
       SUPPORT_ACTIVITY_KB_ARN                = aws_bedrockagent_knowledge_base.support_activity.arn
       SUPPORT_ACTIVITY_INCLUDE_GENERATED_SQL = tostring(local.support_activity.include_generated_sql)

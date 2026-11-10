@@ -26,6 +26,7 @@ jwt_audience = ["replace-with-cognito-app-client-id"]
 # dev_info_document_kb_id         = "YYYYYYYYYY"
 # dev_info_law_kb_id              = "ZZZZZZZZZZ"
 # dev_info_medical_care_law_kb_id = "WWWWWWWWWW"
+# dev_info_hokenshi_kiroku_kb_id  = "UUUUUUUUUU"
 # dev_info_support_activity_kb_id = "VVVVVVVVVV"
 # dev_info_agentcore_memory_id    = "memory-id"
 #

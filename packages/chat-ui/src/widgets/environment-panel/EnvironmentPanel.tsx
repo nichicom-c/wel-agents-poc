@@ -301,6 +301,17 @@ export function EnvironmentPanel({
               />
               <EnvironmentRow
                 isCode
+                label="KB hokenshi"
+                value={knowledgeBaseValue(devInfo, "hokenshi_kiroku")}
+                onClick={knowledgeBaseClickHandler(
+                  devInfo,
+                  "hokenshi_kiroku",
+                  onOpenKnowledgeBase,
+                )}
+                actionLabel="KB hokenshi を開く"
+              />
+              <EnvironmentRow
+                isCode
                 label="KB support"
                 value={knowledgeBaseValue(devInfo, "support_activity")}
                 onClick={knowledgeBaseClickHandler(

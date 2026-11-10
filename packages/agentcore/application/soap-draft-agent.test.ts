@@ -19,6 +19,7 @@ function makeConfig(): Config {
       document: "",
       law: "",
       medical_care_law: "",
+      hokenshi_kiroku: "",
     },
     memoryId: undefined,
     numberOfResults: 5,

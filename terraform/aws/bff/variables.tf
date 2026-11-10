@@ -107,6 +107,17 @@ variable "dev_info_medical_care_law_kb_id" {
   }
 }
 
+variable "dev_info_hokenshi_kiroku_kb_id" {
+  description = "Optional public health nurse record guidebook Knowledge Base ID displayed by GET /api/dev-info."
+  type        = string
+  default     = ""
+
+  validation {
+    condition     = var.dev_info_hokenshi_kiroku_kb_id == "" || length(trimspace(var.dev_info_hokenshi_kiroku_kb_id)) > 0
+    error_message = "dev_info_hokenshi_kiroku_kb_id must be empty or non-empty after trimming."
+  }
+}
+
 variable "dev_info_support_activity_kb_id" {
   description = "Optional support activity SQL Knowledge Base ID displayed by GET /api/dev-info."
   type        = string

@@ -867,6 +867,7 @@ function knowledgeBaseIdsFromDevInfo(config: DevInfoConfig): KnowledgeBaseIds {
     document: config.documentKbId,
     law: config.lawKbId,
     medical_care_law: config.medicalCareLawKbId,
+    hokenshi_kiroku: config.hokenshiKirokuKbId,
     support_activity: config.supportActivityKbId,
   };
 }

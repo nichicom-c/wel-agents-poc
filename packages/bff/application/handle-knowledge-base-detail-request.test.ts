@@ -11,6 +11,7 @@ const KNOWLEDGE_BASE_IDS = {
   document: "KBDOC00001",
   law: "KBLAW0001",
   medical_care_law: "KBMED00001",
+  hokenshi_kiroku: "KBHOK00001",
   support_activity: "KBSUP00001",
 };
 

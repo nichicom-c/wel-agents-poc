@@ -18,7 +18,8 @@ const DEV_INFO = {
     document: "KB003",
     law: "KB004",
     medical_care_law: "KB005",
-    support_activity: "KB006",
+    hokenshi_kiroku: "KB006",
+    support_activity: "KB007",
   },
   memory: { id: "memory-1" },
   runtime: {

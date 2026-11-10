@@ -18,6 +18,7 @@ const CONFIG: BffDevConfig = {
     document: undefined,
     law: undefined,
     medical_care_law: undefined,
+    hokenshi_kiroku: undefined,
     support_activity: undefined,
   },
   port: 4174,
@@ -32,6 +33,7 @@ const CONFIG_WITH_KB_IDS: BffDevConfig = {
     document: "KBDOC00001",
     law: "KBLAW0001",
     medical_care_law: "KBMED00001",
+    hokenshi_kiroku: "KBHOK00001",
     support_activity: "KBSUP00001",
   },
 };
@@ -49,6 +51,7 @@ const CONFIG_WITHOUT_DEV_USER: BffDevConfig = {
     document: undefined,
     law: undefined,
     medical_care_law: undefined,
+    hokenshi_kiroku: undefined,
     support_activity: undefined,
   },
 };
@@ -73,6 +76,7 @@ describe("resolveBffDevConfig", () => {
         DEV_INFO_DOCUMENT_KB_ID: " KBDOC00001 ",
         DEV_INFO_LAW_KB_ID: " KBLAW0001 ",
         DEV_INFO_MEDICAL_CARE_LAW_KB_ID: " KBMED00001 ",
+        DEV_INFO_HOKENSHI_KIROKU_KB_ID: " KBHOK00001 ",
         DEV_INFO_SUPPORT_ACTIVITY_KB_ID: " KBSUP00001 ",
       }),
     ).toEqual({
@@ -89,6 +93,7 @@ describe("resolveBffDevConfig", () => {
         document: "KBDOC00001",
         law: "KBLAW0001",
         medical_care_law: "KBMED00001",
+        hokenshi_kiroku: "KBHOK00001",
         support_activity: "KBSUP00001",
       },
       voiceCaptureLanguageCode: "ja-JP",

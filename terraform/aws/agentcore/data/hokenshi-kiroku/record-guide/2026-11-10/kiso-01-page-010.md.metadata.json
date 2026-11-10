@@ -1,0 +1,16 @@
+{
+  "metadataAttributes": {
+    "corpus_id": "hokenshi-kiroku-record-guide",
+    "source_title": "こう書けばわかる！保健師記録",
+    "section": "kiso",
+    "section_title": "基礎編",
+    "unit": "1",
+    "unit_title": "記録の開示経緯と基本的な考え方",
+    "source_file": "こう書けばわかる保健師記録.pdf",
+    "source_page": "10",
+    "output_page": "10",
+    "conversion": "pdf-markdown",
+    "generated_at": "2026-11-10T00:00:00.000Z",
+    "content_type": "body"
+  }
+}

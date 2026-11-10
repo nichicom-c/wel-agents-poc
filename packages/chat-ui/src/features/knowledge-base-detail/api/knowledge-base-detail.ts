@@ -11,6 +11,7 @@ export const KNOWLEDGE_BASE_DOMAINS = [
   "document",
   "law",
   "medical_care_law",
+  "hokenshi_kiroku",
   "support_activity",
 ] as const;
 

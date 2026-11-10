@@ -16,6 +16,7 @@ export type DevInfoConfig = {
   documentKbId?: string;
   lawKbId?: string;
   medicalCareLawKbId?: string;
+  hokenshiKirokuKbId?: string;
   supportActivityKbId?: string;
   jwtIssuer?: string;
   lambdaFunctionName?: string;
@@ -71,6 +72,7 @@ export async function buildDevInfo(
       document: clean(config.documentKbId) ?? "not_configured",
       law: clean(config.lawKbId) ?? "not_configured",
       medical_care_law: clean(config.medicalCareLawKbId) ?? "not_configured",
+      hokenshi_kiroku: clean(config.hokenshiKirokuKbId) ?? "not_configured",
       support_activity: clean(config.supportActivityKbId) ?? "not_configured",
     },
     memory: {
